@@ -1,4 +1,4 @@
-package com.ph48845.datn_qlnh_rmis;
+package com.ph48845.datn_qlnh_rmis.ui;
 
 import android.os.Bundle;
 
@@ -7,6 +7,8 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
+
+import com.ph48845.datn_qlnh_rmis.R;
 
 public class MainActivity extends AppCompatActivity {
 
