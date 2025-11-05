@@ -1,16 +1,14 @@
 package com.ph48845.datn_qlnh_rmis.core.utils;
 
-/**
- * App-wide constants.
- */
-public final class Constants {
-    private Constants() {}
+public class Constants {
+    public static final String DB_IP = "192.168.1.103";
+    public static final String DB_PORT = "1433";
+    public static final String DB_NAME = "QuanLyNhaHang";
+    public static final String DB_USER = "sa";
+    public static final String DB_PASS = "123456";
 
-    public static final String ROLE_PHUCVU = "PHUCVU";
-    public static final String ROLE_BEP = "BEP";
-    public static final String ROLE_THUNGAN = "THUNGAN";
     public static final String ROLE_ADMIN = "ADMIN";
-
-    // DB / Network defaults (if any)
-    public static final String DEFAULT_DATE_FORMAT = "yyyy-MM-dd HH:mm:ss";
+    public static final String ROLE_BEP = "BEP";
+    public static final String ROLE_PHUCVU = "PHUCVU";
+    public static final String ROLE_THUNGAN = "THUNGAN";
 }
