@@ -50,4 +50,33 @@ public class SessionManager {
     public void logout() {
         editor.clear().apply();
     }
+
+    /**
+     * Kiểm tra xem user đã đăng nhập chưa
+     */
+    public boolean isLoggedIn() {
+        return getUser() != null && getRole() != null;
+    }
+
+    /**
+     * Kiểm tra xem user có phải là role cụ thể không
+     */
+    public boolean hasRole(String role) {
+        String currentRole = getRole();
+        return currentRole != null && currentRole.equals(role);
+    }
+
+    /**
+     * Lấy user ID (nếu có trong session)
+     */
+    public String getUserId() {
+        return prefs.getString("user_id", null);
+    }
+
+    /**
+     * Lưu user ID vào session
+     */
+    public void saveUserId(String userId) {
+        editor.putString("user_id", userId).apply();
+    }
 }
