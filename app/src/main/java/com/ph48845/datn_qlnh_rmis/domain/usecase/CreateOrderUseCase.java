@@ -131,12 +131,12 @@ public class CreateOrderUseCase {
         // Khi Order model được implement, sẽ map OrderItem sang Order.OrderItem
         Order order = new Order();
         // TODO: Khi Order model được implement, uncomment các dòng sau:
-        // order.setOrderId(orderId);
-        // order.setTableId(tableId);
-        // order.setWaiterId(waiterId);
-        // order.setItems(convertToOrderItems(items));
-        // order.setCreatedAt(DateUtils.getCurrentTimestamp());
-        // order.setPaid(false);
+         order.setOrderId(orderId);
+         order.setTableId(tableId);
+         order.setWaiterId(waiterId);
+         //order.setItems(convertToOrderItems(items));
+         order.setCreatedAt(DateUtils.getCurrentTimestamp());
+         order.setPaid(false);
 
         return order;
     }
