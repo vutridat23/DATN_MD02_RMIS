@@ -36,7 +36,7 @@ public class NetworkUtils {
             );
         } else {
             NetworkInfo activeNetwork = connectivityManager.getActiveNetworkInfo();
-            return activeNetwork != null && activeNetwork.isConnected();
+            return activeNetwork != null && activeNetwork.isAvailable();
         }
     }
 
