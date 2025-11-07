@@ -1,3 +1,8 @@
 <resources>
     <string name="app_name">DATN_QLNH_RMIS</string>
+
+    <string name="btnDanNhan">Đã nhận</string>
+    <string name="btnDangLam">Đang làm</string>
+    <string name="btnXongMon">Xong món</string>
+    <string name="btnHetMon">Hết món</string>
 </resources>

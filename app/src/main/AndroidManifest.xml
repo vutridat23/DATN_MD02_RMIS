@@ -14,7 +14,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.DATN_QLNH_RMIS">
         <activity
-            android:name=".ui.MainActivity"
+            android:name=".ui.bep.BepActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
