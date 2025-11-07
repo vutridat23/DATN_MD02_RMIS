@@ -45,6 +45,8 @@ dependencies {
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)
+    implementation("com.google.firebase:firebase-database:20.3.0")
+    implementation("com.google.firebase:firebase-auth:22.3.0")
 
     // ✅ ViewModel + LiveData (MVVM)
     implementation("androidx.lifecycle:lifecycle-viewmodel:2.8.7")
