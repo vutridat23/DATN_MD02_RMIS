@@ -21,6 +21,8 @@ public abstract class BaseActivity<T extends ViewBinding> extends AppCompatActiv
      */
     protected abstract T initBinding(LayoutInflater inflater);
 
+    //test git
+
     /**
      * Called after binding is set. Override to init views.
      */
