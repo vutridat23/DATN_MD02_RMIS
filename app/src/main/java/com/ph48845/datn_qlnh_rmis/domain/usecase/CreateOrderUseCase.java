@@ -4,9 +4,12 @@ import android.util.Log;
 
 import com.ph48845.datn_qlnh_rmis.core.utils.DateUtils;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
-import com.ph48845.datn_qlnh_rmis.data.respository.OrderRepository;
+import com.ph48845.datn_qlnh_rmis.data.repository.OrderRepository;
 
 import java.util.List;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -38,9 +41,9 @@ public class CreateOrderUseCase {
     public interface OrderItem {
         String getMenuItemId();
         String getMenuItemName();
-        double getPrice();
+        double getPrice(); // sẽ convert sang minor units
         int getQuantity();
-        String getStatus();
+        String getStatus(); // map sang enum
     }
 
     /**
@@ -68,9 +71,9 @@ public class CreateOrderUseCase {
                 // 2. Tạo Order object với business logic
                 Order order = createOrderObject(tableId, waiterId, items);
 
-                // 3. Tính toán tổng tiền
-                double totalAmount = calculateTotalAmount(items);
-                order.setTotalAmount(totalAmount);
+                // 3. Tính toán tổng tiền (minor units)
+                long totalAmountMinor = calculateTotalAmountMinor(items);
+                order.setTotalAmountMinor(totalAmountMinor);
 
                 // 4. Lưu vào Repository (Repository sẽ handle Room + API sync)
                 // Giả định OrderRepository có method createOrder(Order, Callback)
@@ -103,15 +106,29 @@ public class CreateOrderUseCase {
         }
 
         // Validate từng item
+        Set<String> seenIds = new HashSet<>();
         for (OrderItem item : items) {
             if (item.getMenuItemId() == null || item.getMenuItemId().trim().isEmpty()) {
                 return new ValidationResult(false, "Mã món ăn không hợp lệ");
             }
+            if (!seenIds.add(item.getMenuItemId())) {
+                return new ValidationResult(false, "Trùng món trong đơn hàng");
+            }
             if (item.getQuantity() <= 0) {
                 return new ValidationResult(false, "Số lượng món phải lớn hơn 0");
             }
+            if (item.getQuantity() > 999) {
+                return new ValidationResult(false, "Số lượng món vượt giới hạn");
+            }
             if (item.getPrice() < 0) {
                 return new ValidationResult(false, "Giá món không hợp lệ");
+            }
+            if (item.getStatus() != null && !item.getStatus().trim().isEmpty()) {
+                try {
+                    Order.OrderItem.OrderItemStatus.valueOf(item.getStatus().trim().toUpperCase());
+                } catch (IllegalArgumentException ex) {
+                    return new ValidationResult(false, "Trạng thái món không hợp lệ");
+                }
             }
         }
 
@@ -123,46 +140,51 @@ public class CreateOrderUseCase {
      */
     private Order createOrderObject(String tableId, String waiterId, 
                                     List<OrderItem> items) {
-        // Generate unique order ID
-        String orderId = generateOrderId();
+        // Generate client order ID (không phải _id Mongo)
+        String clientOrderId = generateClientOrderId();
         
         // Tạo Order object
         // Note: Order model sẽ được implement sau, tạm thời tạo object rỗng
         // Khi Order model được implement, sẽ map OrderItem sang Order.OrderItem
         Order order = new Order();
         // TODO: Khi Order model được implement, uncomment các dòng sau:
-         order.setOrderId(orderId);
          order.setTableId(tableId);
          order.setWaiterId(waiterId);
-         //order.setItems(convertToOrderItems(items));
          order.setCreatedAt(DateUtils.getCurrentTimestamp());
          order.setPaid(false);
+         order.setClientOrderId(clientOrderId);
+         order.setItems(convertToOrderItems(items));
 
         return order;
     }
 
     /**
-     * Generate unique order ID
-     * Format: ORDER_YYYYMMDD_HHMMSS_UUID
+     * Generate unique client order ID
+     * Format: CORDER_YYYYMMDD_HHMMSS_UUID
      */
-    private String generateOrderId() {
+    private String generateClientOrderId() {
         String timestamp = DateUtils.formatCustom(
             DateUtils.getCurrentTimestamp(), 
             "yyyyMMdd_HHmmss"
         );
         String uuid = UUID.randomUUID().toString().substring(0, 8).toUpperCase();
-        return "ORDER_" + timestamp + "_" + uuid;
+        return "CORDER_" + timestamp + "_" + uuid;
     }
 
     /**
-     * Tính tổng tiền của đơn hàng
+     * Tính tổng tiền theo minor units
      */
-    private double calculateTotalAmount(List<OrderItem> items) {
-        double total = 0;
+    private long calculateTotalAmountMinor(List<OrderItem> items) {
+        long total = 0;
         for (OrderItem item : items) {
-            total += item.getPrice() * item.getQuantity();
+            long priceMinor = toMinorUnits(item.getPrice());
+            total += priceMinor * item.getQuantity();
         }
         return total;
+    }
+
+    private long toMinorUnits(double price) {
+        return Math.round(price * 100.0d);
     }
 
     /**
@@ -172,6 +194,29 @@ public class CreateOrderUseCase {
     //     // TODO: Implement khi Order model được hoàn thiện
     //     return null;
     // }
+    private List<Order.OrderItem> convertToOrderItems(List<OrderItem> items) {
+        List<Order.OrderItem> result = new ArrayList<>();
+        if (items == null) return result;
+        for (OrderItem item : items) {
+            Order.OrderItem.OrderItemStatus status = Order.OrderItem.OrderItemStatus.PENDING;
+            if (item.getStatus() != null && !item.getStatus().trim().isEmpty()) {
+                try {
+                    status = Order.OrderItem.OrderItemStatus.valueOf(item.getStatus().trim().toUpperCase());
+                } catch (IllegalArgumentException ignored) {
+                    status = Order.OrderItem.OrderItemStatus.PENDING;
+                }
+            }
+            Order.OrderItem mapped = new Order.OrderItem(
+                item.getMenuItemId(),
+                item.getMenuItemName(),
+                toMinorUnits(item.getPrice()),
+                item.getQuantity(),
+                status
+            );
+            result.add(mapped);
+        }
+        return result;
+    }
 
     /**
      * Lưu đơn hàng thông qua Repository
@@ -191,7 +236,8 @@ public class CreateOrderUseCase {
         // });
         
         // Tạm thời: giả định thành công
-        Log.d("CreateOrderUseCase", "✅ Đã tạo đơn hàng: " + order.getOrderId());
+        String idLog = order.getOrderId() != null ? order.getOrderId() : order.getClientOrderId();
+        Log.d("CreateOrderUseCase", "✅ Đã tạo đơn hàng (local): " + idLog + " | table=" + order.getTableId());
         if (callback != null) {
             callback.onSuccess(order);
         }

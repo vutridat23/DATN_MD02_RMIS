@@ -3,7 +3,7 @@ package com.ph48845.datn_qlnh_rmis.domain.usecase;
 import android.util.Log;
 
 import com.ph48845.datn_qlnh_rmis.data.model.MenuItem;
-import com.ph48845.datn_qlnh_rmis.data.respository.MenuRepository;
+import com.ph48845.datn_qlnh_rmis.data.repository.MenuRepository;
 
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -106,7 +106,7 @@ public class GetMenuUseCase {
             // Kiểm tra các trường bắt buộc
             if (item != null && 
                 item.getName() != null && !item.getName().trim().isEmpty() &&
-                item.getPrice() >= 0) {
+                item.getPriceMinor() >= 0) {
                 validated.add(item);
             } else {
                 Log.w("GetMenuUseCase", "⚠️ Bỏ qua menu item không hợp lệ: " + item);

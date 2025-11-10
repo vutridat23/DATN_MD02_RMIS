@@ -1,30 +1,26 @@
 package com.ph48845.datn_qlnh_rmis.data.model;
 
-import androidx.room.Entity;
-import androidx.room.PrimaryKey;
-
-@Entity(tableName = "menu")
 public class MenuItem {
-    @PrimaryKey(autoGenerate = true)
-    private int id;
+	private String id;
     private String name;
-    private double price;
+	// price theo minor units
+	private long priceMinor;
     private String category;
 
     // Constructors
-    public MenuItem(String name, double price, String category) {
+	public MenuItem(String name, long priceMinor, String category) {
         this.name = name;
-        this.price = price;
+		this.priceMinor = priceMinor;
         this.category = category;
     }
 
     // Getters & Setters
-    public int getId() { return id; }
-    public void setId(int id) { this.id = id; }
+	public String getId() { return id; }
+	public void setId(String id) { this.id = id; }
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
-    public double getPrice() { return price; }
-    public void setPrice(double price) { this.price = price; }
+	public long getPriceMinor() { return priceMinor; }
+	public void setPriceMinor(long priceMinor) { this.priceMinor = priceMinor; }
     public String getCategory() { return category; }
     public void setCategory(String category) { this.category = category; }
 }

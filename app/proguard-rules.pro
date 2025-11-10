@@ -5,6 +5,12 @@
 # For more details, see
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
+# Keep model classes for JSON (Gson/Moshi) to avoid obfuscation issues
+-keepclassmembers class com.ph48845.datn_qlnh_rmis.data.model.** {
+    <fields>;
+    <methods>;
+}
+
 # If your project uses WebView with JS, uncomment the following
 # and specify the fully qualified class name to the JavaScript interface
 # class:

@@ -1,10 +1,8 @@
 package com.ph48845.datn_qlnh_rmis.data.remote;
 
-import com.ph48845.datn_qlnh_rmis.data.respository.MenuRepository;
+import com.ph48845.datn_qlnh_rmis.data.repository.MenuRepository;
 import com.ph48845.datn_qlnh_rmis.data.model.MenuItem;
 import com.ph48845.datn_qlnh_rmis.data.model.User;
-
-import java.util.List;
 
 import retrofit2.Call;
 import retrofit2.http.Body;
