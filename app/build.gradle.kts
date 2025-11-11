@@ -46,12 +46,6 @@ dependencies {
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)
 
-    // ✅ ViewModel + LiveData (MVVM)
-    implementation("androidx.lifecycle:lifecycle-viewmodel:2.8.7")
-    implementation("androidx.lifecycle:lifecycle-livedata:2.8.7")
-    implementation("androidx.lifecycle:lifecycle-runtime:2.8.7")
-    implementation("androidx.lifecycle:lifecycle-extensions:2.8.7")
-
     // ✅ Retrofit + Gson (nếu sau này gọi API)
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
     implementation("com.squareup.retrofit2:converter-gson:2.11.0")
