@@ -1,0 +1,70 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="12dp"
+    android:background="@android:color/white">
+
+    <TextView
+        android:text="HÓA ĐƠN THANH TOÁN"
+        android:textStyle="bold"
+        android:textSize="18sp"
+        android:gravity="center"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recyclerViewMonAn"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:paddingTop="8dp" />
+
+    <TextView
+        android:text="Tổng cộng:"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/txtTongCong"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="0đ" />
+
+    <TextView
+        android:text="Giảm giá:"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/txtGiamGia"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="0đ" />
+
+    <TextView
+        android:text="Thành tiền:"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/txtThanhTien"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="0đ"
+        android:textSize="18sp"
+        android:textStyle="bold" />
+
+    <Button
+        android:id="@+id/btnThanhToan"
+        android:text="Thanh Toán"
+        android:backgroundTint="#32B768"
+        android:textColor="@android:color/white"
+        android:layout_marginTop="12dp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
+</LinearLayout>

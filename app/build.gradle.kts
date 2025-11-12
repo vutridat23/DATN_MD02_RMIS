@@ -45,6 +45,8 @@ dependencies {
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)
+    implementation("com.google.firebase:firebase-database:20.3.0")
+    implementation("com.google.firebase:firebase-auth:22.3.0")
 
     // ✅ Retrofit + Gson (nếu sau này gọi API)
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
