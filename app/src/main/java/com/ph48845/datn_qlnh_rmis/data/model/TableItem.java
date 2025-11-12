@@ -1,7 +1,5 @@
 package com.ph48845.datn_qlnh_rmis.data.model;
 
-
-
 import com.google.gson.annotations.SerializedName;
 
 import java.io.Serializable;
@@ -12,6 +10,9 @@ import java.io.Serializable;
  * - status: enum dùng cho UI (EMPTY / OCCUPIED / RESERVED / PENDING_PAYMENT / FINISH_SERVE)
  *
  * Sau khi Gson deserialize, gọi normalize() để đảm bảo enum được set đúng từ statusRaw.
+ *
+ * Mở rộng: thêm các trường reservationName/reservationPhone/reservationAt để client có thể lưu
+ * thông tin đặt trước (nếu backend chấp nhận các trường này khi gọi PUT /tables/{id}).
  */
 public class TableItem implements Serializable {
 
@@ -42,6 +43,16 @@ public class TableItem implements Serializable {
 
     @SerializedName("updatedAt")
     private String updatedAt;
+
+    // NEW: reservation info nếu backend hỗ trợ (client sẽ gửi các field này khi đặt trước)
+    @SerializedName("reservationName")
+    private String reservationName;
+
+    @SerializedName("reservationPhone")
+    private String reservationPhone;
+
+    @SerializedName("reservationAt")
+    private String reservationAt; // ISO datetime or "yyyy-MM-dd HH:mm"
 
     public enum Status {
         EMPTY,
@@ -133,6 +144,16 @@ public class TableItem implements Serializable {
     public String getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(String updatedAt) { this.updatedAt = updatedAt; }
 
+    // NEW: reservation getters/setters
+    public String getReservationName() { return reservationName == null ? "" : reservationName; }
+    public void setReservationName(String reservationName) { this.reservationName = reservationName; }
+
+    public String getReservationPhone() { return reservationPhone == null ? "" : reservationPhone; }
+    public void setReservationPhone(String reservationPhone) { this.reservationPhone = reservationPhone; }
+
+    public String getReservationAt() { return reservationAt == null ? "" : reservationAt; }
+    public void setReservationAt(String reservationAt) { this.reservationAt = reservationAt; }
+
     // UI display helper
     public String getStatusDisplay() {
         switch (getStatus()) {
@@ -154,6 +175,9 @@ public class TableItem implements Serializable {
                 ", status=" + (status != null ? status.name() : "null") +
                 ", currentOrder='" + currentOrder + '\'' +
                 ", location='" + location + '\'' +
+                ", reservationName='" + reservationName + '\'' +
+                ", reservationPhone='" + reservationPhone + '\'' +
+                ", reservationAt='" + reservationAt + '\'' +
                 ", createdAt='" + createdAt + '\'' +
                 ", updatedAt='" + updatedAt + '\'' +
                 '}';

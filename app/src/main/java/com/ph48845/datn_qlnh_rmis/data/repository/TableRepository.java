@@ -1,6 +1,5 @@
 package com.ph48845.datn_qlnh_rmis.data.repository;
 
-
 import android.util.Log;
 
 import com.google.gson.Gson;
@@ -78,23 +77,55 @@ public class TableRepository {
     }
 
     /**
-     * Cập nhật một hoặc nhiều field của table (partial update) như status.
-     * newStatus: ví dụ "occupied", "reserved", "available", ...
-     *
-     * NOTE: Một số backend trả trực tiếp TableItem, nhưng có server khác trả wrapper ApiResponse<TableItem>.
-     * Method này cố gắng xử lý cả hai dạng (best-effort) mà không gây lỗi generic.
+     * Helper: get a single TableItem by id by fetching all and filtering.
+     * (Backend doesn't provide GET /tables/{id} in current ApiService so we reuse getAllTables)
      */
-    public void updateTableStatus(String tableId, String newStatus, RepositoryCallback<TableItem> callback) {
+    public void getTableById(final String tableId, final RepositoryCallback<TableItem> callback) {
         if (tableId == null || tableId.trim().isEmpty()) {
             callback.onError("Invalid table id");
             return;
         }
+        getAllTables(new RepositoryCallback<List<TableItem>>() {
+            @Override
+            public void onSuccess(List<TableItem> result) {
+                if (result == null || result.isEmpty()) {
+                    callback.onError("No tables returned from server");
+                    return;
+                }
+                for (TableItem t : result) {
+                    if (t != null && tableId.equals(t.getId())) {
+                        callback.onSuccess(t);
+                        return;
+                    }
+                }
+                callback.onError("Table not found: " + tableId);
+            }
 
+            @Override
+            public void onError(String message) {
+                callback.onError(message);
+            }
+        });
+    }
+
+    /**
+     * KEEP: updateTableStatus for backward compatibility (sends only status)
+     */
+    public void updateTableStatus(String tableId, String newStatus, RepositoryCallback<TableItem> callback) {
         Map<String, Object> body = Collections.singletonMap("status", newStatus);
+        updateTable(tableId, body, callback);
+    }
 
-        // Use same generic type as ApiService.updateTable signature (TableItem)
+    /**
+     * NEW: generalized updateTable which accepts a Map body so client can send reservation fields
+     * e.g., { "status":"reserved", "reservationName":"..", "reservationPhone":"..", "reservationAt":"..." }
+     */
+    public void updateTable(String tableId, Map<String, Object> body, RepositoryCallback<TableItem> callback) {
+        if (tableId == null || tableId.trim().isEmpty()) {
+            callback.onError("Invalid table id");
+            return;
+        }
         Call<TableItem> call = RetrofitClient.getInstance().getApiService().updateTable(tableId, body);
-
         call.enqueue(new Callback<TableItem>() {
             @Override
             public void onResponse(Call<TableItem> call, Response<TableItem> response) {
@@ -110,7 +141,6 @@ public class TableRepository {
                         // Success but body == null: try to read raw response body as string and parse
                         String raw = null;
                         try {
-                            // Use fully-qualified okhttp3.Response to avoid import conflict with retrofit2.Response
                             okhttp3.Response rawResp = response.raw();
                             if (rawResp != null && rawResp.body() != null) {
                                 raw = rawResp.body().string();
@@ -121,7 +151,7 @@ public class TableRepository {
 
                         if (raw == null || raw.isEmpty()) {
                             String msg = "Empty body on success (HTTP " + response.code() + ")";
-                            Log.w(TAG, "updateTableStatus empty body: " + msg);
+                            Log.w(TAG, "updateTable empty body: " + msg);
                             callback.onError(msg);
                             return;
                         }
@@ -179,18 +209,18 @@ public class TableRepository {
                             } catch (Exception ignored) {}
                         }
 
-                        Log.e(TAG, "updateTableStatus error: " + err);
+                        Log.e(TAG, "updateTable error: " + err);
                         callback.onError(err);
                     }
                 } catch (Exception e) {
-                    Log.e(TAG, "Exception handling updateTableStatus response", e);
+                    Log.e(TAG, "Exception handling updateTable response", e);
                     callback.onError("Response handling error: " + e.getMessage());
                 }
             }
 
             @Override
             public void onFailure(Call<TableItem> call, Throwable t) {
-                Log.e(TAG, "updateTableStatus onFailure", t);
+                Log.e(TAG, "updateTable onFailure", t);
                 callback.onError(t.getMessage() != null ? t.getMessage() : "Network error");
             }
         });

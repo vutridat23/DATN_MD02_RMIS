@@ -1,8 +1,5 @@
 package com.ph48845.datn_qlnh_rmis.ui;
 
-
-
-
 import android.app.AlertDialog;
 import android.app.DatePickerDialog;
 import android.app.TimePickerDialog;
@@ -26,7 +23,6 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-
 import com.ph48845.datn_qlnh_rmis.R;
 import com.ph48845.datn_qlnh_rmis.adapter.TableAdapter;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
@@ -35,6 +31,7 @@ import com.ph48845.datn_qlnh_rmis.data.repository.OrderRepository;
 import com.ph48845.datn_qlnh_rmis.data.repository.TableRepository;
 import com.ph48845.datn_qlnh_rmis.ui.phucvu.OrderActivity;
 
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -42,15 +39,21 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Date;
 
 /**
  * MainActivity: hiển thị danh sách bàn và đồng bộ trạng thái bàn với orders trên API.
  *
- * Sửa:
- * - Lấy tất cả orders 1 lần và build set tableNumbers có orders
- * - Duyệt bàn, cập nhật chỉ những bàn cần đổi trạng thái
- * - Giữ trạng thái RESERVED nếu backend đã đặt trước
- * - Chỉ gọi fetchTablesFromServer một lần sau khi tất cả updates hoàn tất
+ * Tính năng chính:
+ * - Đồng bộ trạng thái bàn dựa trên orders
+ * - Đặt trước (có lưu reservationName/reservationPhone/reservationAt nếu backend hỗ trợ)
+ * - Chuyển bàn với quy tắc:
+ *     * Nếu nguồn là RESERVED => chỉ được chuyển sang AVAILABLE/EMPTY
+ *     * Nếu nguồn là OCCUPIED => không được chuyển vào RESERVED
+ *   Khi server không lưu reservation metadata, app sẽ hiện dialog để nhân viên nhập lại ngày/giờ/tên/phone.
+ * - Gộp bàn (merge) với fallback nếu server không hỗ trợ endpoint merge
  */
 public class MainActivity extends AppCompatActivity {
 
@@ -178,7 +181,7 @@ public class MainActivity extends AppCompatActivity {
      *  - build set numbers của bàn có orders
      *  - duyệt tất cả table: nếu tableNumber in set => desired = occupied
      *      else desired = available (trừ khi table đang RESERVED thì giữ nguyên)
-     *  - chỉ update những table có desired khác current
+     *  - chỉ update những bàn có desired khác current
      *  - gọi fetchTablesFromServer() 1 lần sau khi tất cả update hoàn tất
      */
     private void syncTableStatusesWithOrders(List<TableItem> tables) {
@@ -323,7 +326,11 @@ public class MainActivity extends AppCompatActivity {
         popup.show();
     }
 
-    // ---------- Phần còn lại (transfer/merge/reservation) giữ nguyên như trước ----------
+    /**
+     * showTransferDialog - lọc ứng viên theo luật:
+     * - Nếu source RESERVED => chỉ chọn bàn AVAILABLE/EMPTY
+     * - Nếu source OCCUPIED => không chọn bàn RESERVED
+     */
     private void showTransferDialog(TableItem fromTable) {
         tableRepository.getAllTables(new TableRepository.RepositoryCallback<List<TableItem>>() {
             @Override
@@ -331,16 +338,48 @@ public class MainActivity extends AppCompatActivity {
                 runOnUiThread(() -> {
                     List<String> labels = new ArrayList<>();
                     List<TableItem> candidates = new ArrayList<>();
+                    // Determine allowed target statuses depending on fromTable status
+                    TableItem.Status fromStatus = TableItem.Status.EMPTY;
+                    try { fromStatus = fromTable.getStatus(); } catch (Exception ignored) {}
+
                     for (TableItem t : result) {
                         if (t == null) continue;
                         if (fromTable.getId() != null && fromTable.getId().equals(t.getId())) continue;
+
+                        // Filter logic:
+                        // - If source is RESERVED => only targets that are AVAILABLE or EMPTY allowed
+                        // - If source is OCCUPIED => disallow targets that are RESERVED (allow AVAILABLE/EMPTY)
+                        // - Otherwise allow any target
+                        TableItem.Status targetStatus = t.getStatus();
+                        boolean allowed = true;
+                        if (fromStatus == TableItem.Status.RESERVED) {
+                            if (!(targetStatus == TableItem.Status.AVAILABLE || targetStatus == TableItem.Status.EMPTY)) {
+                                allowed = false;
+                            }
+                        } else if (fromStatus == TableItem.Status.OCCUPIED) {
+                            if (targetStatus == TableItem.Status.RESERVED) {
+                                allowed = false;
+                            }
+                        }
+
+                        if (!allowed) continue;
+
                         labels.add("Bàn " + t.getTableNumber() + " - " + t.getStatusDisplay());
                         candidates.add(t);
                     }
+
                     if (labels.isEmpty()) {
-                        Toast.makeText(MainActivity.this, "Không có bàn để chuyển.", Toast.LENGTH_SHORT).show();
+                        // Provide a clearer message depending on source status
+                        if (fromTable.getStatus() == TableItem.Status.RESERVED) {
+                            Toast.makeText(MainActivity.this, "Không có bàn trống để chuyển đặt trước.", Toast.LENGTH_SHORT).show();
+                        } else if (fromTable.getStatus() == TableItem.Status.OCCUPIED) {
+                            Toast.makeText(MainActivity.this, "Không có bàn phù hợp để chuyển (không thể chuyển vào bàn đã đặt trước).", Toast.LENGTH_SHORT).show();
+                        } else {
+                            Toast.makeText(MainActivity.this, "Không có bàn để chuyển.", Toast.LENGTH_SHORT).show();
+                        }
                         return;
                     }
+
                     ArrayAdapter<String> adapter = new ArrayAdapter<>(MainActivity.this, android.R.layout.simple_list_item_1, labels);
                     new AlertDialog.Builder(MainActivity.this)
                             .setTitle("Chọn bàn để chuyển khách từ Bàn " + fromTable.getTableNumber())
@@ -367,73 +406,364 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * Updated performTransfer:
-     * - First try to move orders from source tableNumber -> target tableNumber (orderRepository.moveOrdersForTable)
-     * - Then update table statuses (target -> occupied, source -> available)
-     * - Show appropriate toasts and refresh table list once done
+     * performTransfer: refetch fromTable from server first to obtain latest reservation data (if any),
+     * validate rules and then perform transfer.
      */
-    private void performTransfer(TableItem fromTable, TableItem targetTable) {
-        if (fromTable == null || targetTable == null) return;
+    private void performTransfer(final TableItem originalFromTable, final TableItem targetTable) {
+        if (originalFromTable == null || targetTable == null) return;
         progressBar.setVisibility(View.VISIBLE);
 
-        final int fromNumber = fromTable.getTableNumber();
-        final int toNumber = targetTable.getTableNumber();
-
-        // 1) Attempt to move orders first
-        orderRepository.moveOrdersForTable(fromNumber, toNumber, new OrderRepository.RepositoryCallback<Void>() {
+        // Refresh the fromTable from server to ensure we have latest status/reservation metadata
+        tableRepository.getTableById(originalFromTable.getId(), new TableRepository.RepositoryCallback<TableItem>() {
             @Override
-            public void onSuccess(Void result) {
-                Log.d(TAG, "Orders moved from " + fromNumber + " to " + toNumber + " successfully.");
-                // 2) Now update table statuses
-                updateTablesAfterMove(true);
+            public void onSuccess(TableItem fromTable) {
+                runOnUiThread(() -> {
+                    // Final validation rules before performing transfer:
+                    TableItem.Status fromStatus = fromTable.getStatus();
+                    TableItem.Status toStatus = targetTable.getStatus();
+
+                    // Rule A: reserved -> can only go to available/empty
+                    if (fromStatus == TableItem.Status.RESERVED) {
+                        if (!(toStatus == TableItem.Status.AVAILABLE || toStatus == TableItem.Status.EMPTY)) {
+                            progressBar.setVisibility(View.GONE);
+                            Toast.makeText(MainActivity.this, "Không thể chuyển: bàn đặt trước chỉ được chuyển sang bàn trống/available.", Toast.LENGTH_LONG).show();
+                            fetchTablesFromServer(); // refresh UI
+                            return;
+                        }
+                    }
+
+                    // Rule B: occupied -> cannot move into reserved
+                    if (fromStatus == TableItem.Status.OCCUPIED) {
+                        if (toStatus == TableItem.Status.RESERVED) {
+                            progressBar.setVisibility(View.GONE);
+                            Toast.makeText(MainActivity.this, "Không thể chuyển: bàn đang có khách không được chuyển vào bàn đã đặt trước.", Toast.LENGTH_LONG).show();
+                            fetchTablesFromServer();
+                            return;
+                        }
+                    }
+
+                    // If source is RESERVED we do reservation-transfer behavior (preserve reservation on target)
+                    if (fromStatus == TableItem.Status.RESERVED) {
+                        // If server has reservation metadata, handle transfer; otherwise fallback to prompt dialog (existing logic)
+                        String rName = fromTable.getReservationName();
+                        String rPhone = fromTable.getReservationPhone();
+                        String rAt = fromTable.getReservationAt();
+
+                        if ((rName == null || rName.trim().isEmpty()) &&
+                                (rPhone == null || rPhone.trim().isEmpty()) &&
+                                (rAt == null || rAt.trim().isEmpty())) {
+                            // Ask staff to enter reservation details (fallback)
+                            progressBar.setVisibility(View.GONE);
+                            showTransferReservationDialog(fromTable, targetTable);
+                            return;
+                        }
+
+                        // perform reservation transfer: set target -> reserved with metadata, clear source
+                        Map<String, Object> targetBody = new HashMap<>();
+                        targetBody.put("status", "reserved");
+                        targetBody.put("reservationName", rName);
+                        targetBody.put("reservationPhone", rPhone);
+                        targetBody.put("reservationAt", rAt);
+
+                        tableRepository.updateTable(targetTable.getId(), targetBody, new TableRepository.RepositoryCallback<TableItem>() {
+                            @Override
+                            public void onSuccess(TableItem updatedTarget) {
+                                // clear source
+                                Map<String, Object> clearSource = new HashMap<>();
+                                clearSource.put("status", "available");
+                                clearSource.put("reservationName", "");
+                                clearSource.put("reservationPhone", "");
+                                clearSource.put("reservationAt", "");
+                                tableRepository.updateTable(fromTable.getId(), clearSource, new TableRepository.RepositoryCallback<TableItem>() {
+                                    @Override
+                                    public void onSuccess(TableItem updatedSource) {
+                                        runOnUiThread(() -> {
+                                            progressBar.setVisibility(View.GONE);
+                                            Toast.makeText(MainActivity.this, "Chuyển đặt trước thành công", Toast.LENGTH_SHORT).show();
+                                            fetchTablesFromServer();
+                                        });
+                                    }
+                                    @Override
+                                    public void onError(String message) {
+                                        // rollback target -> available
+                                        Map<String, Object> rollback = new HashMap<>();
+                                        rollback.put("status", "available");
+                                        tableRepository.updateTable(targetTable.getId(), rollback, new TableRepository.RepositoryCallback<TableItem>() {
+                                            @Override
+                                            public void onSuccess(TableItem rollbackTable) {
+                                                runOnUiThread(() -> {
+                                                    progressBar.setVisibility(View.GONE);
+                                                    Toast.makeText(MainActivity.this, "Không thể chuyển đặt trước: " + message + " (đã rollback)", Toast.LENGTH_LONG).show();
+                                                    fetchTablesFromServer();
+                                                });
+                                            }
+                                            @Override
+                                            public void onError(String rbMsg) {
+                                                runOnUiThread(() -> {
+                                                    progressBar.setVisibility(View.GONE);
+                                                    Toast.makeText(MainActivity.this, "Không thể chuyển đặt trước: " + message + " ; rollback thất bại: " + rbMsg, Toast.LENGTH_LONG).show();
+                                                    fetchTablesFromServer();
+                                                });
+                                            }
+                                        });
+                                    }
+                                });
+                            }
+
+                            @Override
+                            public void onError(String message) {
+                                runOnUiThread(() -> {
+                                    progressBar.setVisibility(View.GONE);
+                                    Toast.makeText(MainActivity.this, "Không thể đặt bàn đích là reserved: " + message, Toast.LENGTH_LONG).show();
+                                    fetchTablesFromServer();
+                                });
+                            }
+                        });
+
+                        return;
+                    }
+
+                    // Otherwise (not reserved) - regular move orders then update statuses
+                    final int fromNumber = fromTable.getTableNumber();
+                    final int toNumber = targetTable.getTableNumber();
+
+                    orderRepository.moveOrdersForTable(fromNumber, toNumber, new OrderRepository.RepositoryCallback<Void>() {
+                        @Override
+                        public void onSuccess(Void result) {
+                            // update statuses: target -> occupied, source -> available
+                            updateTablesAfterMove(originalFromTable, targetTable, true);
+                        }
+
+                        @Override
+                        public void onError(String message) {
+                            runOnUiThread(() -> Toast.makeText(MainActivity.this, "Không thể chuyển order: " + message + " — sẽ vẫn cập nhật trạng thái bàn", Toast.LENGTH_LONG).show());
+                            updateTablesAfterMove(originalFromTable, targetTable, false);
+                        }
+                    });
+                });
             }
 
             @Override
             public void onError(String message) {
-                Log.w(TAG, "Failed to move orders: " + message);
-                // Still attempt to update table statuses (so seating changes), but inform user orders were not moved
-                runOnUiThread(() -> Toast.makeText(MainActivity.this, "Không thể chuyển order: " + message + " — sẽ vẫn cập nhật trạng thái bàn", Toast.LENGTH_LONG).show());
-                updateTablesAfterMove(false);
+                runOnUiThread(() -> {
+                    progressBar.setVisibility(View.GONE);
+                    Toast.makeText(MainActivity.this, "Không thể lấy thông tin bàn nguồn: " + message, Toast.LENGTH_LONG).show();
+                });
+            }
+        });
+    }
+
+    /**
+     * Helper to update target/source statuses after moving orders.
+     */
+    private void updateTablesAfterMove(final TableItem fromTable, final TableItem targetTable, final boolean ordersMoved) {
+        // set target -> occupied
+        tableRepository.updateTableStatus(targetTable.getId(), "occupied", new TableRepository.RepositoryCallback<TableItem>() {
+            @Override
+            public void onSuccess(TableItem updatedTarget) {
+                // set source -> available
+                tableRepository.updateTableStatus(fromTable.getId(), "available", new TableRepository.RepositoryCallback<TableItem>() {
+                    @Override
+                    public void onSuccess(TableItem updatedSource) {
+                        runOnUiThread(() -> {
+                            progressBar.setVisibility(View.GONE);
+                            if (ordersMoved) {
+                                Toast.makeText(MainActivity.this, "Chuyển bàn và đơn hàng thành công", Toast.LENGTH_SHORT).show();
+                            } else {
+                                Toast.makeText(MainActivity.this, "Chuyển bàn thành công (đơn hàng chưa chuyển)", Toast.LENGTH_LONG).show();
+                            }
+                            fetchTablesFromServer();
+                        });
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        // rollback target -> available
+                        tableRepository.updateTableStatus(targetTable.getId(), "available", new TableRepository.RepositoryCallback<TableItem>() {
+                            @Override
+                            public void onSuccess(TableItem rollbackTable) {
+                                runOnUiThread(() -> {
+                                    progressBar.setVisibility(View.GONE);
+                                    Toast.makeText(MainActivity.this, "Không thể chuyển: " + message + " (đã rollback)", Toast.LENGTH_LONG).show();
+                                    fetchTablesFromServer();
+                                });
+                            }
+                            @Override
+                            public void onError(String rbMsg) {
+                                runOnUiThread(() -> {
+                                    progressBar.setVisibility(View.GONE);
+                                    Toast.makeText(MainActivity.this, "Không thể chuyển: " + message + " ; rollback thất bại: " + rbMsg, Toast.LENGTH_LONG).show();
+                                    fetchTablesFromServer();
+                                });
+                            }
+                        });
+                    }
+                });
             }
 
-            // helper to update table statuses (performed after attempting moveOrders)
-            private void updateTablesAfterMove(final boolean ordersMoved) {
-                // set target -> occupied
-                tableRepository.updateTableStatus(targetTable.getId(), "occupied", new TableRepository.RepositoryCallback<TableItem>() {
+            @Override
+            public void onError(String message) {
+                runOnUiThread(() -> {
+                    progressBar.setVisibility(View.GONE);
+                    Toast.makeText(MainActivity.this, "Không thể đặt bàn đích là occupied: " + message, Toast.LENGTH_LONG).show();
+                    fetchTablesFromServer();
+                });
+            }
+        });
+    }
+
+    /**
+     * If reservation metadata missing on server, ask staff to enter date/time/name/phone then transfer.
+     */
+    private void showTransferReservationDialog(final TableItem fromTable, final TableItem targetTable) {
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        int pad = (int)(16 * getResources().getDisplayMetrics().density);
+        layout.setPadding(pad, pad, pad, pad);
+
+        final EditText etName = new EditText(this);
+        etName.setHint("Tên khách");
+        layout.addView(etName, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        final EditText etPhone = new EditText(this);
+        etPhone.setHint("Số điện thoại");
+        etPhone.setInputType(android.text.InputType.TYPE_CLASS_PHONE);
+        layout.addView(etPhone, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        final EditText etDate = new EditText(this);
+        etDate.setHint("Chọn ngày (yyyy-MM-dd)");
+        etDate.setFocusable(false);
+        etDate.setClickable(true);
+        layout.addView(etDate, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        final EditText etTime = new EditText(this);
+        etTime.setHint("Chọn giờ (HH:mm)");
+        etTime.setFocusable(false);
+        etTime.setClickable(true);
+        layout.addView(etTime, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        // Prefill pickers with now or fromTable.reservationAt if present
+        final Calendar selectedCal = Calendar.getInstance();
+        SimpleDateFormat isoParser = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault());
+        String existingAt = fromTable != null ? fromTable.getReservationAt() : null;
+        if (existingAt != null && !existingAt.trim().isEmpty()) {
+            try {
+                Date d = isoParser.parse(existingAt);
+                if (d != null) selectedCal.setTime(d);
+            } catch (ParseException ignored) {}
+        }
+
+        final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
+        final SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm", Locale.getDefault());
+
+        etDate.setText(dateFormat.format(selectedCal.getTime()));
+        etTime.setText(timeFormat.format(selectedCal.getTime()));
+        if (fromTable != null) {
+            String rn = fromTable.getReservationName();
+            String rp = fromTable.getReservationPhone();
+            if (rn != null && !rn.trim().isEmpty()) etName.setText(rn);
+            if (rp != null && !rp.trim().isEmpty()) etPhone.setText(rp);
+        }
+
+        etDate.setOnClickListener(v -> {
+            InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+            if (imm != null) imm.hideSoftInputFromWindow(v.getWindowToken(), 0);
+            int year = selectedCal.get(Calendar.YEAR);
+            int month = selectedCal.get(Calendar.MONTH);
+            int day = selectedCal.get(Calendar.DAY_OF_MONTH);
+            DatePickerDialog dpd = new DatePickerDialog(MainActivity.this, (view, y, m, d) -> {
+                selectedCal.set(Calendar.YEAR, y);
+                selectedCal.set(Calendar.MONTH, m);
+                selectedCal.set(Calendar.DAY_OF_MONTH, d);
+                etDate.setText(dateFormat.format(selectedCal.getTime()));
+            }, year, month, day);
+            dpd.show();
+        });
+
+        etTime.setOnClickListener(v -> {
+            InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+            if (imm != null) imm.hideSoftInputFromWindow(v.getWindowToken(), 0);
+            int hour = selectedCal.get(Calendar.HOUR_OF_DAY);
+            int minute = selectedCal.get(Calendar.MINUTE);
+            TimePickerDialog tpd = new TimePickerDialog(MainActivity.this, (view, h, m) -> {
+                selectedCal.set(Calendar.HOUR_OF_DAY, h);
+                selectedCal.set(Calendar.MINUTE, m);
+                selectedCal.set(Calendar.SECOND, 0);
+                etTime.setText(timeFormat.format(selectedCal.getTime()));
+            }, hour, minute, true);
+            tpd.show();
+        });
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("Nhập thông tin đặt trước để chuyển")
+                .setView(layout)
+                .setPositiveButton("Chuyển", null)
+                .setNegativeButton("Hủy", (d, w) -> d.dismiss())
+                .create();
+
+        dialog.setOnShowListener(dlg -> {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+                String name = etName.getText().toString().trim();
+                String phone = etPhone.getText().toString().trim();
+                String date = etDate.getText().toString().trim();
+                String time = etTime.getText().toString().trim();
+                if (name.isEmpty() || phone.isEmpty() || date.isEmpty() || time.isEmpty()) {
+                    Toast.makeText(MainActivity.this, "Vui lòng nhập đầy đủ: tên, điện thoại, ngày và giờ", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(false);
+                progressBar.setVisibility(View.VISIBLE);
+
+                String reservationAt = date + " " + time; // yyyy-MM-dd HH:mm
+                Map<String,Object> targetBody = new HashMap<>();
+                targetBody.put("status", "reserved");
+                targetBody.put("reservationName", name);
+                targetBody.put("reservationPhone", phone);
+                targetBody.put("reservationAt", reservationAt);
+
+                // set target -> reserved + metadata
+                tableRepository.updateTable(targetTable.getId(), targetBody, new TableRepository.RepositoryCallback<TableItem>() {
                     @Override
                     public void onSuccess(TableItem updatedTarget) {
-                        // set source -> available
-                        tableRepository.updateTableStatus(fromTable.getId(), "available", new TableRepository.RepositoryCallback<TableItem>() {
+                        // clear source
+                        Map<String,Object> clearSource = new HashMap<>();
+                        clearSource.put("status", "available");
+                        clearSource.put("reservationName", "");
+                        clearSource.put("reservationPhone", "");
+                        clearSource.put("reservationAt", "");
+                        tableRepository.updateTable(fromTable.getId(), clearSource, new TableRepository.RepositoryCallback<TableItem>() {
                             @Override
                             public void onSuccess(TableItem updatedSource) {
                                 runOnUiThread(() -> {
                                     progressBar.setVisibility(View.GONE);
-                                    if (ordersMoved) {
-                                        Toast.makeText(MainActivity.this, "Chuyển bàn và đơn hàng thành công", Toast.LENGTH_SHORT).show();
-                                    } else {
-                                        Toast.makeText(MainActivity.this, "Chuyển bàn thành công (đơn hàng chưa chuyển)", Toast.LENGTH_LONG).show();
-                                    }
+                                    Toast.makeText(MainActivity.this, "Chuyển đặt trước thành công", Toast.LENGTH_SHORT).show();
+                                    dialog.dismiss();
                                     fetchTablesFromServer();
                                 });
                             }
 
                             @Override
                             public void onError(String message) {
-                                // Attempt rollback: try to set target back to available
-                                tableRepository.updateTableStatus(targetTable.getId(), "available", new TableRepository.RepositoryCallback<TableItem>() {
+                                // rollback: unset reservation on target
+                                Map<String,Object> rollback = new HashMap<>();
+                                rollback.put("status", "available");
+                                tableRepository.updateTable(targetTable.getId(), rollback, new TableRepository.RepositoryCallback<TableItem>() {
                                     @Override
                                     public void onSuccess(TableItem rollbackTable) {
                                         runOnUiThread(() -> {
                                             progressBar.setVisibility(View.GONE);
-                                            Toast.makeText(MainActivity.this, "Không thể chuyển: " + message + " (đã rollback)", Toast.LENGTH_LONG).show();
+                                            Toast.makeText(MainActivity.this, "Không thể chuyển đặt trước: " + message + " (đã rollback)", Toast.LENGTH_LONG).show();
+                                            dialog.dismiss();
                                             fetchTablesFromServer();
                                         });
                                     }
+
                                     @Override
                                     public void onError(String rbMsg) {
                                         runOnUiThread(() -> {
                                             progressBar.setVisibility(View.GONE);
-                                            Toast.makeText(MainActivity.this, "Không thể chuyển: " + message + " ; rollback thất bại: " + rbMsg, Toast.LENGTH_LONG).show();
+                                            Toast.makeText(MainActivity.this, "Không thể chuyển đặt trước: " + message + " ; rollback thất bại: " + rbMsg, Toast.LENGTH_LONG).show();
+                                            dialog.dismiss();
                                             fetchTablesFromServer();
                                         });
                                     }
@@ -446,15 +776,18 @@ public class MainActivity extends AppCompatActivity {
                     public void onError(String message) {
                         runOnUiThread(() -> {
                             progressBar.setVisibility(View.GONE);
-                            Toast.makeText(MainActivity.this, "Không thể đặt bàn đích là occupied: " + message, Toast.LENGTH_LONG).show();
-                            fetchTablesFromServer();
+                            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(true);
+                            Toast.makeText(MainActivity.this, "Không thể đặt bàn đích: " + message, Toast.LENGTH_LONG).show();
                         });
                     }
                 });
-            }
+            });
         });
+
+        dialog.show();
     }
 
+    /* Merge helpers (unchanged) */
     private void showMergeDialog(TableItem fromTable) {
         tableRepository.getAllTables(new TableRepository.RepositoryCallback<List<TableItem>>() {
             @Override
@@ -494,6 +827,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void performMerge(TableItem fromTable, TableItem targetTable) {
+        if (fromTable == null || targetTable == null) return;
         progressBar.setVisibility(View.VISIBLE);
         tableRepository.mergeTables(fromTable.getId(), targetTable.getId(), new TableRepository.RepositoryCallback<TableItem>() {
             @Override
@@ -516,6 +850,9 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    /**
+     * showReservationDialogWithPickers: đặt trước bàn (ghi reservation metadata nếu server hỗ trợ)
+     */
     private void showReservationDialogWithPickers(TableItem table) {
         if (table == null) return;
         LinearLayout layout = new LinearLayout(this);
@@ -596,7 +933,16 @@ public class MainActivity extends AppCompatActivity {
                 }
                 dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(false);
                 progressBar.setVisibility(View.VISIBLE);
-                tableRepository.updateTableStatus(table.getId(), "reserved", new TableRepository.RepositoryCallback<TableItem>() {
+
+                // Build reservation payload and send it to update table so reservation metadata stored on server
+                String reservationAt = dateStr + " " + timeStr; // you can change to ISO if server expects
+                Map<String, Object> body = new HashMap<>();
+                body.put("status", "reserved");
+                body.put("reservationName", name);
+                body.put("reservationPhone", phone);
+                body.put("reservationAt", reservationAt);
+
+                tableRepository.updateTable(table.getId(), body, new TableRepository.RepositoryCallback<TableItem>() {
                     @Override
                     public void onSuccess(TableItem updatedTable) {
                         runOnUiThread(() -> {
@@ -627,7 +973,12 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         progressBar.setVisibility(View.VISIBLE);
-        tableRepository.updateTableStatus(table.getId(), "available", new TableRepository.RepositoryCallback<TableItem>() {
+        tableRepository.updateTable(table.getId(), new HashMap<String, Object>() {{
+            put("status", "available");
+            put("reservationName", "");
+            put("reservationPhone", "");
+            put("reservationAt", "");
+        }}, new TableRepository.RepositoryCallback<TableItem>() {
             @Override
             public void onSuccess(TableItem result) {
                 runOnUiThread(() -> {
