@@ -105,7 +105,7 @@ public class MainActivity extends AppCompatActivity {
 
         // Gọi repository để tạo từng món
         for (MenuItem item : sampleMenus) {
-            menuRepository.createMenuItem(item, new MenuRepository.RepositoryCallback<MenuItem>() {
+            menuReposi1tory.createMenuItem(item, new MenuRepository.RepositoryCallback<MenuItem>() {
                 @Override
                 public void onSuccess(MenuItem data) {
                     runOnUiThread(() -> {
