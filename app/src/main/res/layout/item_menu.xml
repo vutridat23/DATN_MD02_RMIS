@@ -28,38 +28,7 @@
             android:layout_centerVertical="true"
             android:contentDescription="thumb" />
 
-        <!-- Name and price -->
-        <LinearLayout
-            android:id="@+id/ll_text"
-            android:orientation="vertical"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_toEndOf="@id/iv_menu_thumb"
-            android:layout_alignParentTop="true"
-            android:layout_marginStart="10dp"
-            android:layout_marginEnd="100dp">
-
-            <TextView
-                android:id="@+id/tv_menu_name"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Tên món"
-                android:textSize="15sp"
-                android:textColor="#222222"
-                android:maxLines="2"
-                android:ellipsize="end" />
-
-            <TextView
-                android:id="@+id/tv_menu_price"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="$1.35"
-                android:textSize="13sp"
-                android:textColor="#555555"
-                android:layout_marginTop="6dp" />
-        </LinearLayout>
-
-        <!-- Availability badge -->
+        <!-- Availability badge (declare early so other views can reference it) -->
         <TextView
             android:id="@+id/tv_badge"
             android:layout_width="wrap_content"
@@ -75,14 +44,46 @@
             android:layout_marginTop="6dp"
             android:layout_marginEnd="8dp" />
 
-        <!-- Quantity controls -->
+        <!-- Name and price - occupies space between thumbnail and badge -->
+        <LinearLayout
+            android:id="@+id/ll_text"
+            android:orientation="vertical"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_toEndOf="@id/iv_menu_thumb"
+            android:layout_toStartOf="@id/tv_badge"
+            android:layout_alignParentTop="true"
+            android:layout_marginStart="10dp"
+            android:layout_marginEnd="8dp">
+
+            <TextView
+                android:id="@+id/tv_menu_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Tên món"
+                android:textSize="15sp"
+                android:textColor="#222222"
+                android:maxLines="2"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/tv_menu_price"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="0 VND"
+                android:textSize="13sp"
+                android:textColor="#555555"
+                android:layout_marginTop="6dp" />
+        </LinearLayout>
+
+        <!-- Quantity controls: positioned at bottom-right, to the start of badge -->
         <LinearLayout
             android:id="@+id/ll_qty"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:layout_alignParentBottom="true"
-            android:layout_alignParentEnd="true"
+            android:layout_toStartOf="@id/tv_badge"
             android:layout_marginEnd="8dp"
             android:layout_marginBottom="8dp"
             android:gravity="center_vertical">
@@ -91,8 +92,10 @@
                 android:id="@+id/btn_minus_menu"
                 android:layout_width="36dp"
                 android:layout_height="36dp"
+                android:backgroundTint="#DDDDDD"
                 android:text="-"
-                android:backgroundTint="#DDDDDD" />
+                android:textColor="@android:color/black"
+                android:textStyle="bold"/>
 
             <TextView
                 android:id="@+id/tv_qty"
