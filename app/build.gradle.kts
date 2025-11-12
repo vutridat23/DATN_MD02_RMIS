@@ -5,7 +5,8 @@ plugins {
 android {
     namespace = "com.ph48845.datn_qlnh_rmis"
     compileSdk {
-        version = release(36)
+        version = release(36
+        )
     }
 
     defaultConfig {
