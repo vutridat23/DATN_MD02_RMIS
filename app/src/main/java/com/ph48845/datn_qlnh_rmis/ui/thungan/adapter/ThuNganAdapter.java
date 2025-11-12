@@ -62,9 +62,9 @@ public class ThuNganAdapter extends RecyclerView.Adapter<ThuNganAdapter.MenuView
 
         public MenuViewHolder(@NonNull View itemView) {
             super(itemView);
-            tvName = itemView.findViewById(R.id.tv_menu_item_name);
-            tvPrice = itemView.findViewById(R.id.tv_menu_item_price);
-            tvCategory = itemView.findViewById(R.id.tv_menu_item_category);
+//            tvName = itemView.findViewById(R.id.tv_menu_item_name);
+//            tvPrice = itemView.findViewById(R.id.tv_menu_item_price);
+//            tvCategory = itemView.findViewById(R.id.tv_menu_item_category);
         }
     }
 }

@@ -1,5 +1,7 @@
 package com.ph48845.datn_qlnh_rmis.data.repository;
 
+
+
 import androidx.annotation.NonNull;
 
 
@@ -29,7 +31,7 @@ public class MenuRepository {
     private final ApiService apiService;
 
     public MenuRepository() {
-        apiService = RetrofitClient.getApiService();
+        apiService = RetrofitClient.getInstance().getApiService();
     }
 
     public void getAllMenuItems(@NonNull final RepositoryCallback<List<MenuItem>> callback) {
@@ -71,23 +73,4 @@ public class MenuRepository {
             }
         });
     }
-
-    public void createMenuItem(MenuItem item, RepositoryCallback<MenuItem> callback) {
-        apiService.createMenuItem(item).enqueue(new Callback<MenuItem>() {
-            @Override
-            public void onResponse(Call<MenuItem> call, Response<MenuItem> response) {
-                if (response.isSuccessful() && response.body() != null) {
-                    callback.onSuccess(response.body());
-                } else {
-                    callback.onError("Mã lỗi: " + response.code());
-                }
-            }
-
-            @Override
-            public void onFailure(Call<MenuItem> call, Throwable t) {
-                callback.onError(t.getMessage());
-            }
-        });
-    }
-
 }

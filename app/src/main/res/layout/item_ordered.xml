@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:id="@+id/card_menu_item"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginTop="8dp"
@@ -17,9 +16,8 @@
         android:layout_height="96dp"
         android:padding="8dp">
 
-        <!-- Thumbnail -->
         <ImageView
-            android:id="@+id/iv_menu_thumb"
+            android:id="@+id/iv_thumb"
             android:layout_width="80dp"
             android:layout_height="80dp"
             android:scaleType="centerCrop"
@@ -28,19 +26,18 @@
             android:layout_centerVertical="true"
             android:contentDescription="thumb" />
 
-        <!-- Name and price -->
         <LinearLayout
             android:id="@+id/ll_text"
             android:orientation="vertical"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_toEndOf="@id/iv_menu_thumb"
+            android:layout_toEndOf="@id/iv_thumb"
             android:layout_alignParentTop="true"
             android:layout_marginStart="10dp"
             android:layout_marginEnd="100dp">
 
             <TextView
-                android:id="@+id/tv_menu_name"
+                android:id="@+id/tv_name"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="Tên món"
@@ -50,66 +47,29 @@
                 android:ellipsize="end" />
 
             <TextView
-                android:id="@+id/tv_menu_price"
+                android:id="@+id/tv_qty_price"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="$1.35"
+                android:text="Số lượng: 2  •  $50.000"
                 android:textSize="13sp"
                 android:textColor="#555555"
                 android:layout_marginTop="6dp" />
         </LinearLayout>
 
-        <!-- Availability badge -->
         <TextView
-            android:id="@+id/tv_badge"
+            android:id="@+id/tv_status_badge"
             android:layout_width="wrap_content"
-            android:layout_height="24dp"
+            android:layout_height="28dp"
             android:layout_alignParentTop="true"
             android:layout_alignParentEnd="true"
-            android:background="@drawable/badge_green_bg"
+            android:layout_marginTop="12dp"
+            android:layout_marginEnd="8dp"
             android:paddingLeft="8dp"
             android:paddingRight="8dp"
-            android:text="Còn món"
+            android:text="Đang nấu"
             android:textColor="#FFFFFF"
             android:textSize="12sp"
-            android:layout_marginTop="6dp"
-            android:layout_marginEnd="8dp" />
-
-        <!-- Quantity controls -->
-        <LinearLayout
-            android:id="@+id/ll_qty"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_alignParentBottom="true"
-            android:layout_alignParentEnd="true"
-            android:layout_marginEnd="8dp"
-            android:layout_marginBottom="8dp"
-            android:gravity="center_vertical">
-
-            <Button
-                android:id="@+id/btn_minus_menu"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
-                android:text="-"
-                android:backgroundTint="#DDDDDD" />
-
-            <TextView
-                android:id="@+id/tv_qty"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
-                android:gravity="center"
-                android:text="0"
-                android:textColor="#333333" />
-
-            <Button
-                android:id="@+id/btn_add_menu"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
-                android:text="+"
-                android:backgroundTint="#2DB06A"
-                android:textColor="#FFFFFF" />
-        </LinearLayout>
+            android:background="@drawable/badge_yellow_bg"/>
 
     </RelativeLayout>
 </androidx.cardview.widget.CardView>

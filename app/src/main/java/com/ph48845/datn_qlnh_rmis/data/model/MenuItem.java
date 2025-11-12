@@ -2,10 +2,9 @@ package com.ph48845.datn_qlnh_rmis.data.model;
 
 
 
-
+import android.graphics.Bitmap;
 import com.google.gson.annotations.SerializedName;
 import java.io.Serializable;
-
 
 public class MenuItem implements Serializable {
 
@@ -27,6 +26,13 @@ public class MenuItem implements Serializable {
     @SerializedName("createdAt")
     private String createdAt;
 
+    // New: store image as a URL (recommended) returned by your backend or storage service
+    @SerializedName("imageUrl")
+    private String imageUrl;
+
+    // Optional: local-only Bitmap for UI use (not serialized). Mark transient so it won't be serialized.
+    private transient Bitmap imageBitmap;
+
     public MenuItem() {}
 
     public MenuItem(String name, double price, String category, String status) {
@@ -43,6 +49,25 @@ public class MenuItem implements Serializable {
         this.category = category;
         this.status = status;
         this.createdAt = createdAt;
+    }
+
+    // New constructors including imageUrl
+    public MenuItem(String name, double price, String category, String status, String imageUrl) {
+        this.name = name;
+        this.price = price;
+        this.category = category;
+        this.status = status;
+        this.imageUrl = imageUrl;
+    }
+
+    public MenuItem(String id, String name, double price, String category, String status, String createdAt, String imageUrl) {
+        this.id = id;
+        this.name = name;
+        this.price = price;
+        this.category = category;
+        this.status = status;
+        this.createdAt = createdAt;
+        this.imageUrl = imageUrl;
     }
 
     // Getters / Setters
@@ -64,6 +89,12 @@ public class MenuItem implements Serializable {
     public String getCreatedAt() { return createdAt; }
     public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
 
+    public String getImageUrl() { return imageUrl; }
+    public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
+
+    public Bitmap getImageBitmap() { return imageBitmap; }
+    public void setImageBitmap(Bitmap imageBitmap) { this.imageBitmap = imageBitmap; }
+
     @Override
     public String toString() {
         return "MenuItem{" +
@@ -73,6 +104,7 @@ public class MenuItem implements Serializable {
                 ", category='" + category + '\'' +
                 ", status='" + status + '\'' +
                 ", createdAt='" + createdAt + '\'' +
+                ", imageUrl='" + imageUrl + '\'' +
                 '}';
     }
 }
