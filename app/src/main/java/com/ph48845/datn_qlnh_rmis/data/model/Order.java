@@ -3,70 +3,75 @@ package com.ph48845.datn_qlnh_rmis.data.model;
 import java.util.List;
 
 public class Order {
-    private String orderId;
-    private String tableId;
-    private String waiterId;
-    private long createdAt;
-    private boolean paid;
+    private String _id;
+    private int tableNumber;
+    private String server; // ObjectId dạng chuỗi
+    private String cashier;
+    private List<Item> items;
     private double totalAmount;
-    private List<OrderItem> items;
+    private double discount;
+    private double finalAmount;
+    private double paidAmount;
+    private double change;
+    private String paymentMethod;
+    private String orderStatus;
 
-    public Order() {
+    public Order(int tableNumber, String server, String cashier, List<Item> items,
+                 double totalAmount, double discount, double finalAmount,
+                 double paidAmount, double change, String paymentMethod, String orderStatus) {
+        this.tableNumber = tableNumber;
+        this.server = server;
+        this.cashier = cashier;
+        this.items = items;
+        this.totalAmount = totalAmount;
+        this.discount = discount;
+        this.finalAmount = finalAmount;
+        this.paidAmount = paidAmount;
+        this.change = change;
+        this.paymentMethod = paymentMethod;
+        this.orderStatus = orderStatus;
     }
 
-    // Getters & Setters
-    public String getOrderId() { return orderId; }
-    public void setOrderId(String orderId) { this.orderId = orderId; }
-
-    public String getTableId() { return tableId; }
-    public void setTableId(String tableId) { this.tableId = tableId; }
-
-    public String getWaiterId() { return waiterId; }
-    public void setWaiterId(String waiterId) { this.waiterId = waiterId; }
-
-    public long getCreatedAt() { return createdAt; }
-    public void setCreatedAt(long createdAt) { this.createdAt = createdAt; }
-
-    public boolean isPaid() { return paid; }
-    public void setPaid(boolean paid) { this.paid = paid; }
-
-    public double getTotalAmount() { return totalAmount; }
-    public void setTotalAmount(double totalAmount) { this.totalAmount = totalAmount; }
-
-    public List<OrderItem> getItems() { return items; }
-    public void setItems(List<OrderItem> items) { this.items = items; }
-
-    // Nested model for order items
-    public static class OrderItem {
-        private String menuItemId;
-        private String menuItemName;
-        private double price;
+    public static class Item {
+        private String menuItem;
         private int quantity;
-        private String status; // e.g., PENDING, PREPARING, READY, SERVED
+        private double price;
 
-        public OrderItem() {}
-
-        public OrderItem(String menuItemId, String menuItemName, double price, int quantity, String status) {
-            this.menuItemId = menuItemId;
-            this.menuItemName = menuItemName;
-            this.price = price;
+        public Item(String menuItem, int quantity, double price) {
+            this.menuItem = menuItem;
             this.quantity = quantity;
-            this.status = status;
+            this.price = price;
         }
 
-        public String getMenuItemId() { return menuItemId; }
-        public void setMenuItemId(String menuItemId) { this.menuItemId = menuItemId; }
 
-        public String getMenuItemName() { return menuItemName; }
-        public void setMenuItemName(String menuItemName) { this.menuItemName = menuItemName; }
+        public String getMenuItem() {
+            return menuItem;
+        }
 
-        public double getPrice() { return price; }
-        public void setPrice(double price) { this.price = price; }
+        public void setMenuItem(String menuItem) {
+            this.menuItem = menuItem;
+        }
 
-        public int getQuantity() { return quantity; }
-        public void setQuantity(int quantity) { this.quantity = quantity; }
+        public int getQuantity() {
+            return quantity;
+        }
 
-        public String getStatus() { return status; }
-        public void setStatus(String status) { this.status = status; }
+        public void setQuantity(int quantity) {
+            this.quantity = quantity;
+        }
+
+        public double getPrice() {
+            return price;
+        }
+
+        public void setPrice(double price) {
+            this.price = price;
+        }
     }
+
+    public String get_id() { return _id; }
+    public int getTableNumber() { return tableNumber; }
+    public double getFinalAmount() { return finalAmount; }
+    public String getPaymentMethod() { return paymentMethod; }
+    public String getOrderStatus() { return orderStatus; }
 }
