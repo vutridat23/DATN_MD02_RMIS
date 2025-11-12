@@ -1,8 +1,5 @@
 package com.ph48845.datn_qlnh_rmis.ui;
 
-
-
-
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
@@ -13,28 +10,26 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-
 import com.ph48845.datn_qlnh_rmis.R;
 import com.ph48845.datn_qlnh_rmis.data.model.MenuItem;
-import com.ph48845.datn_qlnh_rmis.data.model.Order;
 import com.ph48845.datn_qlnh_rmis.data.repository.MenuRepository;
-
 import com.ph48845.datn_qlnh_rmis.data.repository.OrderRepository;
-import com.ph48845.datn_qlnh_rmis.ui.thungan.adapter.ThuNganAdapter;
+// ✅ Thay thế ThuNganAdapter bằng MenuAdapter mới
+import com.ph48845.datn_qlnh_rmis.ui.menu.MenuAdapter; // SỬA ĐƯỜNG DẪN NÀY CHO PHÙ HỢP
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class MainActivity extends AppCompatActivity {
+// ✅ Implement Listener để xử lý sự kiện click từ MenuAdapter
+public class MainActivity extends AppCompatActivity implements MenuAdapter.OnMenuItemClickListener {
 
     private static final String TAG = "MenuActivity";
     private RecyclerView recyclerView;
-    private ThuNganAdapter menuAdapter;
+    private MenuAdapter menuAdapter; // ✅ ĐÃ SỬA: Dùng MenuAdapter
     private ProgressBar progressBar;
-    private MenuRepository menuRepository; // Khai báo Repository
+    private MenuRepository menuRepository;
     private OrderRepository orderRepository;
     private Button btnMenu;
-
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -46,46 +41,43 @@ public class MainActivity extends AppCompatActivity {
         orderRepository = new OrderRepository();
         btnMenu = findViewById(R.id.btn_create_menu);
 
-
         recyclerView = findViewById(R.id.recycler_menu);
         progressBar = findViewById(R.id.progress_bar_loading);
 
         // 1. Cấu hình RecyclerView
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
 
-        // Khởi tạo Adapter với danh sách rỗng (để tránh lỗi NullPointer)
-        menuAdapter = new ThuNganAdapter(new ArrayList<>());
+        // ✅ KHỞI TẠO MenuAdapter với danh sách rỗng và 'this' là Listener
+        // Constructor: MenuAdapter(List<MenuItem> items, OnMenuItemClickListener listener)
+        menuAdapter = new MenuAdapter(new ArrayList<>(), this);
         recyclerView.setAdapter(menuAdapter);
+
         btnMenu.setOnClickListener(v -> createSampleMenu());
 
-        // 2. Gọi API để lấy dữ liệu thông qua Repository
+        // 2. Gọi API để lấy dữ liệu
         fetchMenuItems();
     }
 
     private void fetchMenuItems() {
-        progressBar.setVisibility(View.VISIBLE); // Hiển thị loading
+        progressBar.setVisibility(View.VISIBLE);
 
-        // Gọi phương thức từ Repository, truyền vào Callback để xử lý kết quả
         menuRepository.getAllMenuItems(new MenuRepository.RepositoryCallback<List<MenuItem>>() {
 
             @Override
             public void onSuccess(List<MenuItem> items) {
-                // Chạy trên luồng UI (vì onResponse của Retrofit đã được thực hiện trên luồng chính,
-                // nhưng tốt nhất nên đảm bảo nếu Repository có xử lý bất đồng bộ khác)
                 runOnUiThread(() -> {
-                    progressBar.setVisibility(View.GONE); // Ẩn loading
+                    progressBar.setVisibility(View.GONE);
 
-                    // Cập nhật dữ liệu vào Adapter
-                    menuAdapter.setMenuItems(items);
+                    // ✅ ĐÃ SỬA: Gọi phương thức updateList() của MenuAdapter
+                    menuAdapter.updateList(items);
                     Log.d(TAG, "Lấy thành công " + items.size() + " món ăn.");
                 });
             }
 
             @Override
             public void onError(String message) {
-                // Xử lý lỗi (lỗi mạng, lỗi HTTP, lỗi logic server)
                 runOnUiThread(() -> {
-                    progressBar.setVisibility(View.GONE); // Ẩn loading
+                    progressBar.setVisibility(View.GONE);
                     Toast.makeText(MainActivity.this, "Lỗi tải dữ liệu: " + message, Toast.LENGTH_LONG).show();
                     Log.e(TAG, "Lỗi tải dữ liệu Menu: " + message);
                 });
@@ -93,9 +85,8 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-
     private void createSampleMenu() {
-        // Danh sách món mẫu
+        // (Giữ nguyên code tạo mẫu món ăn)
         List<MenuItem> sampleMenus = new ArrayList<>();
         sampleMenus.add(new MenuItem("Cà phê sữa đá", 25000, "Đồ uống", "available"));
         sampleMenus.add(new MenuItem("Trà đào cam sả", 35000, "Đồ uống", "available"));
@@ -126,7 +117,14 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // --- ✅ TRIỂN KHAI PHƯƠNG THỨC TỪ INTERFACE ---
 
+    @Override
+    public void onMenuItemClick(MenuItem item) {
+        // Xử lý khi người dùng chọn món
+        Toast.makeText(this, "Đã chọn món: " + item.getName(), Toast.LENGTH_SHORT).show();
+        Log.d(TAG, "Món đã chọn: " + item.getName() + ", ID: " + item.getId());
 
-
+        // Logic tiếp theo: Thêm món này vào hóa đơn hiện tại (cần gọi ViewModel hoặc Repository)
+    }
 }

@@ -36,7 +36,8 @@ public class MenuRepository {
                 list.add(new MenuItem(
                         rs.getString("TenMon"),
                         rs.getDouble("Gia"),
-                        rs.getString("LoaiMon")
+                        rs.getString("LoaiMon"),
+                        rs.getString("status")
                 ));
             }
 
