@@ -16,7 +16,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.DATN_QLNH_RMIS">
         <activity
-            android:name=".ui.MainActivity"
+            android:name=".ui.SplashActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -24,6 +24,10 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity android:name=".ui.auth.LoginActivity"/>
+        <activity android:name=".ui.MainActivity"/>
+        <activity android:name=".ui.WelcomeActivity"/>
+        <activity android:name=".ui.admin.AdminActivity"/>
     </application>
 
 </manifest>
