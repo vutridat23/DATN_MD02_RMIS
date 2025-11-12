@@ -1,6 +1,5 @@
 package com.ph48845.datn_qlnh_rmis.ui.phucvu;
 
-
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
@@ -19,6 +18,7 @@ import com.ph48845.datn_qlnh_rmis.adapter.OrderAdapter;
 import com.ph48845.datn_qlnh_rmis.data.model.MenuItem;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
 import com.ph48845.datn_qlnh_rmis.data.model.Order.OrderItem;
+import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
 import com.ph48845.datn_qlnh_rmis.data.repository.MenuRepository;
 import com.ph48845.datn_qlnh_rmis.data.repository.OrderRepository;
 import com.ph48845.datn_qlnh_rmis.data.repository.TableRepository;
@@ -32,8 +32,15 @@ import java.util.Map;
  * OrderActivity: hiển thị danh sách món đã order (mặc định),
  * nút "Thêm món" chuyển sang chế độ thêm món (hiển thị danh sách menu).
  *
- * Sửa: nếu bàn đã có order mở thì khi "Thêm món" sẽ cập nhật order tồn tại (merge items)
- * thay vì tạo order mới.
+ * Sửa: khi bấm vào bàn đang có khách thì sẽ luôn hiện danh sách các món đã order (nếu có),
+ * nếu server trả orders rỗng nhưng bàn có status OCCUPIED thì vẫn show ordered view (với message).
+ *
+ * Logic:
+ *  - Trước hết refetch thông tin bàn (tableId) để biết status hiện tại.
+ *  - Sau đó gọi API lấy orders cho bàn; nếu tìm thấy orders -> merge và hiển thị.
+ *  - Nếu không có orders:
+ *      - nếu bàn hiện là OCCUPIED -> show ordered view (adapter rỗng) và hiển thị Toast "Chưa có món".
+ *      - nếu bàn không occupied -> show menu view để thêm món.
  */
 public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMenuClickListener {
 
@@ -60,7 +67,7 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
     private String tableId;
     private int tableNumber;
 
-    // fake ids for testing (24-hex)
+    // fake ids for testing (24-hex) - remove/replace in production
     private final String fakeServerId = "64a7f3b2c9d1e2f3a4b5c6d7";
     private final String fakeCashierId = "64b8e4c3d1f2a3b4c5d6e7f8";
 
@@ -118,6 +125,7 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
                     for (Map.Entry<String, Integer> e : addQtyMap.entrySet()) {
                         menuAdapter.setQty(e.getKey(), e.getValue());
                     }
+                    Log.d(TAG, "Loaded menu items count=" + (data != null ? data.size() : 0));
                 });
             }
 
@@ -126,55 +134,113 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
                 runOnUiThread(() -> {
                     progressBar.setVisibility(View.GONE);
                     Toast.makeText(OrderActivity.this, "Lỗi tải menu: " + message, Toast.LENGTH_LONG).show();
+                    Log.w(TAG, "loadMenuItems error: " + message);
                 });
             }
         });
     }
 
     /**
-     * Tải order hiện có cho bàn (nếu có) và merge các OrderItem vào ordered list.
-     * Sửa: nếu không có order hoặc server trả orders không thuộc bàn này -> showMenuView() để thêm món.
+     * Load existing orders for the table.
+     *
+     * Changes:
+     *  - First fetch table info (by tableId) to get its status.
+     *  - Then fetch orders for this tableNumber and decide UI:
+     *      * if orders found -> merge items and show ordered view
+     *      * if no orders and table is OCCUPIED -> show ordered view (empty) and inform user
+     *      * if no orders and table is not OCCUPIED -> show menu view so staff can add items
      */
     private void loadExistingOrdersForTable() {
         if (tableNumber <= 0) {
-            // Nếu tableNumber không hợp lệ, chuyển thẳng sang menu để thêm món
+            Log.w(TAG, "loadExistingOrdersForTable: invalid tableNumber=" + tableNumber);
             showMenuView();
             return;
         }
 
         progressBar.setVisibility(View.VISIBLE);
+        Log.d(TAG, "loadExistingOrdersForTable: tableId=" + tableId + " tableNumber=" + tableNumber);
 
-        // Lấy orders của table (server có thể filter theo tableNumber)
+        // If we have tableId, try to fetch latest table info to know its status
+        if (tableId != null && !tableId.trim().isEmpty()) {
+            tableRepository.getTableById(tableId, new TableRepository.RepositoryCallback<TableItem>() {
+                @Override
+                public void onSuccess(TableItem tableItem) {
+                    boolean isOccupied = false;
+                    try {
+                        isOccupied = tableItem != null && tableItem.getStatus() == TableItem.Status.OCCUPIED;
+                    } catch (Exception ignored) {}
+                    // proceed to fetch orders with knowledge of occupation state
+                    fetchOrdersForTable(isOccupied);
+                }
+
+                @Override
+                public void onError(String message) {
+                    Log.w(TAG, "Could not fetch table info: " + message + " - proceeding to fetch orders without table status");
+                    // fallback: fetch orders without knowing status (treat as not-occupied)
+                    fetchOrdersForTable(false);
+                }
+            });
+        } else {
+            // No tableId (maybe caller didn't pass) - still fetch orders by tableNumber
+            fetchOrdersForTable(false);
+        }
+    }
+
+    /**
+     * Internal helper: fetch orders and decide UI based on whether table is occupied (from param).
+     */
+    private void fetchOrdersForTable(final boolean tableIsOccupied) {
         orderRepository.getOrdersByTableNumber(tableNumber, null, new OrderRepository.RepositoryCallback<List<Order>>() {
             @Override
             public void onSuccess(List<Order> orders) {
                 runOnUiThread(() -> {
                     progressBar.setVisibility(View.GONE);
+                    Log.d(TAG, "getOrdersByTableNumber.onSuccess: orders=" + (orders == null ? "null" : orders.size()));
 
                     // Defensive: filter orders whose tableNumber actually equals this.tableNumber
                     List<Order> filtered = new ArrayList<>();
                     if (orders != null) {
                         for (Order o : orders) {
                             if (o == null) continue;
-                            if (o.getTableNumber() == tableNumber) filtered.add(o);
+                            try {
+                                if (o.getTableNumber() == tableNumber) filtered.add(o);
+                            } catch (Exception ex) {
+                                Log.w(TAG, "Error reading order.tableNumber: " + ex.getMessage(), ex);
+                            }
                         }
                     }
 
+                    Log.d(TAG, "Filtered orders for table " + tableNumber + " => count=" + filtered.size());
+                    for (Order o : filtered) {
+                        if (o == null) continue;
+                        Log.d(TAG, "Order id=" + o.getId() + " status=" + o.getOrderStatus() + " itemsCount=" + (o.getItems() == null ? 0 : o.getItems().size()));
+                    }
+
                     if (filtered.isEmpty()) {
-                        // KHÔNG CÓ order thực sự cho bàn này -> show menu để thêm món
-                        showMenuView();
+                        // No orders returned for this table
+                        if (tableIsOccupied) {
+                            // Table is occupied but no orders returned: show ordered view (empty) so staff can see empty list and add items
+                            orderedAdapter.setItems(new ArrayList<>());
+                            tvTotal.setText("0 VND");
+                            Toast.makeText(OrderActivity.this, "Bàn đang có khách nhưng chưa có món. Bạn có thể thêm món.", Toast.LENGTH_LONG).show();
+                            hideMenuView(); // show ordered view (empty)
+                        } else {
+                            // Table not occupied and no orders -> show menu so staff can add items
+                            showMenuView();
+                        }
                         return;
                     }
 
-                    // merge items from all returned orders into list (sum quantities)
+                    // Merge items from all returned orders into list (sum quantities)
                     List<OrderItem> merged = new ArrayList<>();
                     for (Order o : filtered) {
                         if (o == null || o.getItems() == null) continue;
                         for (Order.OrderItem oi : o.getItems()) {
                             if (oi == null) continue;
                             String menuId = oi.getMenuItemId();
-                            if (menuId == null || menuId.trim().isEmpty()) continue;
-
+                            if (menuId == null || menuId.trim().isEmpty()) {
+                                Log.w(TAG, "OrderItem missing menuId in order=" + o.getId() + " name=" + oi.getName());
+                            }
                             boolean found = false;
                             for (OrderItem ex : merged) {
                                 if (ex.getMenuItemId() != null && ex.getMenuItemId().equals(menuId)) {
@@ -184,7 +250,6 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
                                 }
                             }
                             if (!found) {
-                                // safe copy: try 4-arg constructor, else reuse object
                                 try {
                                     merged.add(new OrderItem(menuId, oi.getName(), oi.getQuantity(), oi.getPrice()));
                                 } catch (Exception ex) {
@@ -194,7 +259,6 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
                         }
                     }
 
-                    // update orderedAdapter and total
                     orderedAdapter.setItems(merged);
                     double total = 0.0;
                     for (OrderItem oi : merged) {
@@ -202,7 +266,7 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
                     }
                     tvTotal.setText(String.format("%,.0f VND", total));
 
-                    // ensure ordered view visible
+                    // Ensure ordered view visible
                     hideMenuView();
                 });
             }
@@ -211,8 +275,9 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
             public void onError(String message) {
                 runOnUiThread(() -> {
                     progressBar.setVisibility(View.GONE);
-                    Log.w(TAG, "Lỗi khi lấy orders cho bàn: " + message);
-                    // Trong trường hợp lỗi mạng: để an toàn, show menu để nhân viên có thể thêm món
+                    Log.w(TAG, "Lỗi khi lấy orders cho bàn " + tableNumber + ": " + message);
+                    Toast.makeText(OrderActivity.this, "Lỗi tải đơn hàng: " + message, Toast.LENGTH_LONG).show();
+                    // Fallback: show menu so staff can still add items
                     showMenuView();
                 });
             }
@@ -255,7 +320,7 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
     }
 
     /**
-     * Confirm thêm món: nếu bàn đã có order đang mở thì gộp vào order đó (update),
+     * Confirm thêm món: nếu bàn đã có order đang mở thì gộp vào order tồn tại (update),
      * ngược lại tạo order mới (create).
      */
     private void confirmAddItems() {
@@ -264,7 +329,6 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
             return;
         }
 
-        // disable UI while processing
         progressBar.setVisibility(View.VISIBLE);
         btnConfirm.setEnabled(false);
 
@@ -277,9 +341,7 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
                 if (orders != null && !orders.isEmpty()) {
                     for (Order o : orders) {
                         if (o == null) continue;
-                        // ensure order belongs to this table
                         if (o.getTableNumber() != tableNumber) continue;
-
                         String s = o.getOrderStatus() != null ? o.getOrderStatus().toLowerCase() : "";
                         if (s.contains("pending") || s.contains("preparing") || s.contains("open") || s.contains("unpaid") || s.isEmpty()) {
                             targetOrder = o;
@@ -287,7 +349,6 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
                         }
                     }
                     if (targetOrder == null) {
-                        // fallback: pick the most recent order (by createdAt) if no "pending" found
                         Order newest = null;
                         for (Order o : orders) {
                             if (o == null) continue;
@@ -304,33 +365,26 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
                 }
 
                 if (targetOrder != null) {
-                    // merge to existing order and perform update
                     mergeIntoExistingOrderAndUpdate(targetOrder);
                 } else {
-                    // no existing order -> create new order (fallback to original behavior)
                     createNewOrderFromAddMap();
                 }
             }
 
             @Override
             public void onError(String message) {
-                // If cannot fetch orders, fallback to creating a new order to avoid blocking staff
                 Log.w(TAG, "Cannot fetch orders to merge: " + message);
                 createNewOrderFromAddMap();
             }
         });
     }
 
-    /**
-     * Merge addQtyMap into an existing order and call updateOrder.
-     */
     private void mergeIntoExistingOrderAndUpdate(Order existing) {
         if (existing == null) {
             createNewOrderFromAddMap();
             return;
         }
 
-        // build map menuId -> OrderItem starting from existing items
         Map<String, OrderItem> mergedMap = new HashMap<>();
         if (existing.getItems() != null) {
             for (OrderItem oi : existing.getItems()) {
@@ -338,7 +392,6 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
                 String mid = oi.getMenuItemId();
                 if (mid == null) continue;
                 try {
-                    // copy to avoid mutating original model
                     OrderItem copy = new OrderItem(mid, oi.getName(), oi.getQuantity(), oi.getPrice());
                     mergedMap.put(mid, copy);
                 } catch (Exception ex) {
@@ -347,7 +400,6 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
             }
         }
 
-        // merge in new items from addQtyMap
         for (Map.Entry<String, Integer> e : addQtyMap.entrySet()) {
             String menuId = e.getKey();
             int addQty = e.getValue();
@@ -357,8 +409,8 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
             if (existingOi != null) {
                 existingOi.setQuantity(existingOi.getQuantity() + addQty);
             } else {
-                // find menu info from menuAdapter (if available)
-                MenuItem mi = menuAdapter.findById(menuId);
+                // Safely try to get menu info from adapter without assuming method exists
+                MenuItem mi = getMenuItemFromAdapter(menuId);
                 String name = mi != null ? mi.getName() : "";
                 double price = mi != null ? mi.getPrice() : 0.0;
                 OrderItem newOi;
@@ -375,21 +427,17 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
             }
         }
 
-        // build merged list and compute totals
         List<OrderItem> mergedList = new ArrayList<>(mergedMap.values());
         double total = 0.0;
         for (OrderItem oi : mergedList) {
             total += oi.getPrice() * oi.getQuantity();
         }
 
-        // prepare updates map for partial update
         Map<String, Object> updates = new HashMap<>();
         updates.put("items", mergedList);
         updates.put("totalAmount", total);
         updates.put("finalAmount", total);
-        // you can add other fields to update if your backend expects them (e.g., discount, paidAmount)
 
-        // call updateOrder
         orderRepository.updateOrder(existing.getId(), updates, new OrderRepository.RepositoryCallback<Order>() {
             @Override
             public void onSuccess(Order result) {
@@ -398,7 +446,6 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
                     addQtyMap.clear();
                     Toast.makeText(OrderActivity.this, "Thêm món vào order hiện có thành công", Toast.LENGTH_SHORT).show();
                     hideMenuView();
-                    // reload orders to refresh UI
                     loadExistingOrdersForTable();
                 });
             }
@@ -414,16 +461,14 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         });
     }
 
-    /**
-     * Create a new order from addQtyMap (original behavior).
-     */
     private void createNewOrderFromAddMap() {
         List<OrderItem> items = new ArrayList<>();
         double total = 0.0;
         for (Map.Entry<String, Integer> e : addQtyMap.entrySet()) {
             String menuId = e.getKey();
             int qty = e.getValue();
-            MenuItem mi = menuAdapter.findById(menuId);
+            // Safely try to get menu info from adapter without assuming method exists
+            MenuItem mi = getMenuItemFromAdapter(menuId);
             String name = mi != null ? mi.getName() : "";
             double price = mi != null ? mi.getPrice() : 0.0;
             OrderItem oi;
@@ -474,5 +519,61 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
                 });
             }
         });
+    }
+
+    /**
+     * Helper: safely get MenuItem info from MenuAdapter without assuming adapter has a direct API.
+     * Tries reflection to call findById or getItems if available; otherwise returns null.
+     */
+    @SuppressWarnings("unchecked")
+    private MenuItem getMenuItemFromAdapter(String menuId) {
+        if (menuAdapter == null || menuId == null) return null;
+        // Try direct method findById if present
+        try {
+            java.lang.reflect.Method m = menuAdapter.getClass().getMethod("findById", String.class);
+            Object res = m.invoke(menuAdapter, menuId);
+            if (res instanceof MenuItem) return (MenuItem) res;
+        } catch (NoSuchMethodException nsme) {
+            // ignore and try other options
+        } catch (Exception e) {
+            Log.w(TAG, "getMenuItemFromAdapter: reflection findById failed: " + e.getMessage());
+        }
+
+        // Try getItems() method to iterate items
+        try {
+            java.lang.reflect.Method gi = menuAdapter.getClass().getMethod("getItems");
+            Object list = gi.invoke(menuAdapter);
+            if (list instanceof List) {
+                for (Object o : (List) list) {
+                    if (o instanceof MenuItem) {
+                        MenuItem mi = (MenuItem) o;
+                        if (menuId.equals(mi.getId())) return mi;
+                    }
+                }
+            }
+        } catch (NoSuchMethodException nsme) {
+            // getItems not available - fall through
+        } catch (Exception e) {
+            Log.w(TAG, "getMenuItemFromAdapter: reflection getItems failed: " + e.getMessage());
+        }
+
+        // As last resort, try to access internal fields via reflection (qtyMap/items) - not recommended but fallback
+        try {
+            java.lang.reflect.Field itemsField = menuAdapter.getClass().getDeclaredField("items");
+            itemsField.setAccessible(true);
+            Object itemsObj = itemsField.get(menuAdapter);
+            if (itemsObj instanceof List) {
+                for (Object o : (List) itemsObj) {
+                    if (o instanceof MenuItem) {
+                        MenuItem mi = (MenuItem) o;
+                        if (menuId.equals(mi.getId())) return mi;
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+            // ignore - no further fallback
+        }
+
+        return null;
     }
 }

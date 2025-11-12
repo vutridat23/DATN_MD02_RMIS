@@ -42,18 +42,20 @@ import java.util.Set;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Date;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * MainActivity: hiển thị danh sách bàn và đồng bộ trạng thái bàn với orders trên API.
  *
- * Tính năng chính:
- * - Đồng bộ trạng thái bàn dựa trên orders
- * - Đặt trước (có lưu reservationName/reservationPhone/reservationAt nếu backend hỗ trợ)
- * - Chuyển bàn với quy tắc:
- *     * Nếu nguồn là RESERVED => chỉ được chuyển sang AVAILABLE/EMPTY
- *     * Nếu nguồn là OCCUPIED => không được chuyển vào RESERVED
- *   Khi server không lưu reservation metadata, app sẽ hiện dialog để nhân viên nhập lại ngày/giờ/tên/phone.
- * - Gộp bàn (merge) với fallback nếu server không hỗ trợ endpoint merge
+ * Sửa lại:
+ *  - Sắp xếp bảng hiển thị (floor + số bàn) ổn định.
+ *  - Fix danh sách ứng viên chuyển bàn (showTransferDialog) -- sắp xếp hợp lý theo tầng -> số bàn,
+ *    hiển thị trạng thái đúng (không để "Bàn 10 - " trống).
+ *
+ * Ghi chú: TableAdapter phải có updateList(List<TableItem>) như trước.
  */
 public class MainActivity extends AppCompatActivity {
 
@@ -117,11 +119,16 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        // refresh on resume to reflect any changes
         fetchTablesFromServer();
     }
 
     /**
      * Fetch tables from server and update adapters, then sync status with orders.
+     *
+     * Improvements:
+     * - Determine floor by parsing first number in location string.
+     * - Sort tables within each floor by tableNumber (numeric) to keep stable order.
      */
     public void fetchTablesFromServer() {
         progressBar.setVisibility(View.VISIBLE);
@@ -138,17 +145,39 @@ public class MainActivity extends AppCompatActivity {
                         return;
                     }
 
-                    // phân chia theo location -> floor 1 / floor 2
+                    // defensive: ensure location non-null
+                    for (TableItem t : result) {
+                        if (t == null) continue;
+                        if (t.getLocation() == null) t.setLocation("");
+                    }
+
+                    // phân chia theo floor dựa trên số tầng (first captured number in location)
                     List<TableItem> floor1 = new ArrayList<>();
                     List<TableItem> floor2 = new ArrayList<>();
                     for (TableItem t : result) {
-                        String loc = t.getLocation() != null ? t.getLocation().toLowerCase(Locale.getDefault()) : "";
-                        if (loc.contains("tầng 2") || loc.contains("tang 2") || loc.contains("floor 2") || loc.contains("2")) {
+                        int floor = parseFloorFromLocation(t.getLocation());
+                        if (floor == 2) {
                             floor2.add(t);
                         } else {
+                            // default to floor 1 for any non-2 floors (you can expand to handle other floors)
                             floor1.add(t);
                         }
                     }
+
+                    // sắp xếp từng floor theo tableNumber (numeric) để thứ tự ổn định
+                    Comparator<TableItem> byNumber = (a, b) -> {
+                        if (a == null && b == null) return 0;
+                        if (a == null) return 1;
+                        if (b == null) return -1;
+                        try {
+                            return Integer.compare(a.getTableNumber(), b.getTableNumber());
+                        } catch (Exception e) {
+                            // fallback string
+                            return String.valueOf(a.getTableNumber()).compareTo(String.valueOf(b.getTableNumber()));
+                        }
+                    };
+                    Collections.sort(floor1, byNumber);
+                    Collections.sort(floor2, byNumber);
 
                     adapterFloor1.updateList(floor1);
                     adapterFloor2.updateList(floor2);
@@ -175,14 +204,26 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
+     * Parse floor number from location string.
+     * - Looks for first integer in the string. If found returns it.
+     * - If none found returns 1 (default).
+     */
+    private int parseFloorFromLocation(String location) {
+        if (location == null) return 1;
+        try {
+            String lower = location.toLowerCase(Locale.getDefault());
+            Pattern p = Pattern.compile("(\\d+)");
+            Matcher m = p.matcher(lower);
+            if (m.find()) {
+                String num = m.group(1);
+                return Integer.parseInt(num);
+            }
+        } catch (Exception ignored) {}
+        return 1;
+    }
+
+    /**
      * Đồng bộ trạng thái toàn bộ bàn theo orders.
-     * Cách làm:
-     *  - gọi API 1 lần để lấy tất cả orders
-     *  - build set numbers của bàn có orders
-     *  - duyệt tất cả table: nếu tableNumber in set => desired = occupied
-     *      else desired = available (trừ khi table đang RESERVED thì giữ nguyên)
-     *  - chỉ update những bàn có desired khác current
-     *  - gọi fetchTablesFromServer() 1 lần sau khi tất cả update hoàn tất
      */
     private void syncTableStatusesWithOrders(List<TableItem> tables) {
         if (tables == null || tables.isEmpty()) return;
@@ -299,9 +340,11 @@ public class MainActivity extends AppCompatActivity {
             }
         } catch (Exception ignored) {}
 
-        if (table.getStatus() == TableItem.Status.EMPTY || table.getStatus() == TableItem.Status.AVAILABLE) {
-            popup.getMenu().add(0, 4, 3, "Đặt trước");
-        }
+        try {
+            if (table.getStatus() == TableItem.Status.EMPTY || table.getStatus() == TableItem.Status.AVAILABLE) {
+                popup.getMenu().add(0, 4, 3, "Đặt trước");
+            }
+        } catch (Exception ignored) {}
 
         popup.setOnMenuItemClickListener((MenuItem item) -> {
             int id = item.getItemId();
@@ -327,16 +370,18 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * showTransferDialog - lọc ứng viên theo luật:
-     * - Nếu source RESERVED => chỉ chọn bàn AVAILABLE/EMPTY
-     * - Nếu source OCCUPIED => không chọn bàn RESERVED
+     * SHOW TRANSFER DIALOG
+     *
+     * Sửa:
+     *  - Lọc ứng viên theo rule (giữ nguyên logic của bạn)
+     *  - Sắp xếp ứng viên theo tầng -> số bàn (numeric)
+     *  - Build label với trạng thái hiển thị an toàn (không để trống)
      */
     private void showTransferDialog(TableItem fromTable) {
         tableRepository.getAllTables(new TableRepository.RepositoryCallback<List<TableItem>>() {
             @Override
             public void onSuccess(List<TableItem> result) {
                 runOnUiThread(() -> {
-                    List<String> labels = new ArrayList<>();
                     List<TableItem> candidates = new ArrayList<>();
                     // Determine allowed target statuses depending on fromTable status
                     TableItem.Status fromStatus = TableItem.Status.EMPTY;
@@ -347,9 +392,6 @@ public class MainActivity extends AppCompatActivity {
                         if (fromTable.getId() != null && fromTable.getId().equals(t.getId())) continue;
 
                         // Filter logic:
-                        // - If source is RESERVED => only targets that are AVAILABLE or EMPTY allowed
-                        // - If source is OCCUPIED => disallow targets that are RESERVED (allow AVAILABLE/EMPTY)
-                        // - Otherwise allow any target
                         TableItem.Status targetStatus = t.getStatus();
                         boolean allowed = true;
                         if (fromStatus == TableItem.Status.RESERVED) {
@@ -364,12 +406,10 @@ public class MainActivity extends AppCompatActivity {
 
                         if (!allowed) continue;
 
-                        labels.add("Bàn " + t.getTableNumber() + " - " + t.getStatusDisplay());
                         candidates.add(t);
                     }
 
-                    if (labels.isEmpty()) {
-                        // Provide a clearer message depending on source status
+                    if (candidates.isEmpty()) {
                         if (fromTable.getStatus() == TableItem.Status.RESERVED) {
                             Toast.makeText(MainActivity.this, "Không có bàn trống để chuyển đặt trước.", Toast.LENGTH_SHORT).show();
                         } else if (fromTable.getStatus() == TableItem.Status.OCCUPIED) {
@@ -378,6 +418,25 @@ public class MainActivity extends AppCompatActivity {
                             Toast.makeText(MainActivity.this, "Không có bàn để chuyển.", Toast.LENGTH_SHORT).show();
                         }
                         return;
+                    }
+
+                    // Sort candidates by floor then numeric tableNumber for predictable order
+                    Collections.sort(candidates, (a, b) -> {
+                        int fa = parseFloorFromLocation(a.getLocation());
+                        int fb = parseFloorFromLocation(b.getLocation());
+                        if (fa != fb) return Integer.compare(fa, fb);
+                        try {
+                            return Integer.compare(a.getTableNumber(), b.getTableNumber());
+                        } catch (Exception e) {
+                            return String.valueOf(a.getTableNumber()).compareTo(String.valueOf(b.getTableNumber()));
+                        }
+                    });
+
+                    // Build readable labels safely
+                    List<String> labels = new ArrayList<>();
+                    for (TableItem t : candidates) {
+                        String statusLabel = getStatusLabel(t);
+                        labels.add("Bàn " + t.getTableNumber() + " - " + statusLabel);
                     }
 
                     ArrayAdapter<String> adapter = new ArrayAdapter<>(MainActivity.this, android.R.layout.simple_list_item_1, labels);
@@ -406,9 +465,47 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * performTransfer: refetch fromTable from server first to obtain latest reservation data (if any),
-     * validate rules and then perform transfer.
+     * Helper to return human-friendly status label for a table.
+     * Tries getStatusDisplay() if available; otherwise falls back to enum name or simple mapping.
      */
+    private String getStatusLabel(TableItem t) {
+        if (t == null) return "";
+        try {
+            // try method getStatusDisplay()
+            try {
+                java.lang.reflect.Method m = t.getClass().getMethod("getStatusDisplay");
+                Object res = m.invoke(t);
+                if (res != null) {
+                    String s = String.valueOf(res).trim();
+                    if (!s.isEmpty()) return s;
+                }
+            } catch (NoSuchMethodException ignored) {}
+
+            // fallback to TableItem.Status enum name or numeric mapping
+            TableItem.Status st = t.getStatus();
+            if (st != null) {
+                String name = st.name().toLowerCase(Locale.getDefault());
+                switch (name) {
+                    case "reserved": return "Đã được đặt trước";
+                    case "occupied": return "Đã có khách";
+                    case "available":
+                    case "empty":
+                        return "Trống";
+                    default:
+                        return capitalize(name);
+                }
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "getStatusLabel error: " + e.getMessage());
+        }
+        return "";
+    }
+
+    private String capitalize(String s) {
+        if (s == null || s.isEmpty()) return s;
+        return Character.toUpperCase(s.charAt(0)) + s.substring(1);
+    }
+
     private void performTransfer(final TableItem originalFromTable, final TableItem targetTable) {
         if (originalFromTable == null || targetTable == null) return;
         progressBar.setVisibility(View.VISIBLE);
@@ -444,7 +541,6 @@ public class MainActivity extends AppCompatActivity {
 
                     // If source is RESERVED we do reservation-transfer behavior (preserve reservation on target)
                     if (fromStatus == TableItem.Status.RESERVED) {
-                        // If server has reservation metadata, handle transfer; otherwise fallback to prompt dialog (existing logic)
                         String rName = fromTable.getReservationName();
                         String rPhone = fromTable.getReservationPhone();
                         String rAt = fromTable.getReservationAt();
@@ -474,7 +570,7 @@ public class MainActivity extends AppCompatActivity {
                                 clearSource.put("reservationName", "");
                                 clearSource.put("reservationPhone", "");
                                 clearSource.put("reservationAt", "");
-                                tableRepository.updateTable(fromTable.getId(), clearSource, new TableRepository.RepositoryCallback<TableItem>() {
+                                tableRepository.updateTable(originalFromTable.getId(), clearSource, new TableRepository.RepositoryCallback<TableItem>() {
                                     @Override
                                     public void onSuccess(TableItem updatedSource) {
                                         runOnUiThread(() -> {
@@ -524,7 +620,7 @@ public class MainActivity extends AppCompatActivity {
                     }
 
                     // Otherwise (not reserved) - regular move orders then update statuses
-                    final int fromNumber = fromTable.getTableNumber();
+                    final int fromNumber = originalFromTable.getTableNumber();
                     final int toNumber = targetTable.getTableNumber();
 
                     orderRepository.moveOrdersForTable(fromNumber, toNumber, new OrderRepository.RepositoryCallback<Void>() {
@@ -553,9 +649,6 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    /**
-     * Helper to update target/source statuses after moving orders.
-     */
     private void updateTablesAfterMove(final TableItem fromTable, final TableItem targetTable, final boolean ordersMoved) {
         // set target -> occupied
         tableRepository.updateTableStatus(targetTable.getId(), "occupied", new TableRepository.RepositoryCallback<TableItem>() {
@@ -612,9 +705,6 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    /**
-     * If reservation metadata missing on server, ask staff to enter date/time/name/phone then transfer.
-     */
     private void showTransferReservationDialog(final TableItem fromTable, final TableItem targetTable) {
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
@@ -642,28 +732,9 @@ public class MainActivity extends AppCompatActivity {
         etTime.setClickable(true);
         layout.addView(etTime, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        // Prefill pickers with now or fromTable.reservationAt if present
         final Calendar selectedCal = Calendar.getInstance();
-        SimpleDateFormat isoParser = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault());
-        String existingAt = fromTable != null ? fromTable.getReservationAt() : null;
-        if (existingAt != null && !existingAt.trim().isEmpty()) {
-            try {
-                Date d = isoParser.parse(existingAt);
-                if (d != null) selectedCal.setTime(d);
-            } catch (ParseException ignored) {}
-        }
-
         final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
         final SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm", Locale.getDefault());
-
-        etDate.setText(dateFormat.format(selectedCal.getTime()));
-        etTime.setText(timeFormat.format(selectedCal.getTime()));
-        if (fromTable != null) {
-            String rn = fromTable.getReservationName();
-            String rp = fromTable.getReservationPhone();
-            if (rn != null && !rn.trim().isEmpty()) etName.setText(rn);
-            if (rp != null && !rp.trim().isEmpty()) etPhone.setText(rp);
-        }
 
         etDate.setOnClickListener(v -> {
             InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
@@ -731,7 +802,7 @@ public class MainActivity extends AppCompatActivity {
                         clearSource.put("reservationName", "");
                         clearSource.put("reservationPhone", "");
                         clearSource.put("reservationAt", "");
-                        tableRepository.updateTable(fromTable.getId(), clearSource, new TableRepository.RepositoryCallback<TableItem>() {
+                        tableRepository.updateTable(originalFromTableIdOrFallback(fromTable), clearSource, new TableRepository.RepositoryCallback<TableItem>() {
                             @Override
                             public void onSuccess(TableItem updatedSource) {
                                 runOnUiThread(() -> {
@@ -744,7 +815,6 @@ public class MainActivity extends AppCompatActivity {
 
                             @Override
                             public void onError(String message) {
-                                // rollback: unset reservation on target
                                 Map<String,Object> rollback = new HashMap<>();
                                 rollback.put("status", "available");
                                 tableRepository.updateTable(targetTable.getId(), rollback, new TableRepository.RepositoryCallback<TableItem>() {
@@ -787,6 +857,13 @@ public class MainActivity extends AppCompatActivity {
         dialog.show();
     }
 
+    // helper: return id of fromTable (defensive) - avoids capturing fromTable variable in deep anonymous scopes
+    private String originalFromTableIdOrFallback(TableItem fromTable) {
+        if (fromTable == null) return "";
+        String id = fromTable.getId();
+        return id == null ? "" : id;
+    }
+
     /* Merge helpers (unchanged) */
     private void showMergeDialog(TableItem fromTable) {
         tableRepository.getAllTables(new TableRepository.RepositoryCallback<List<TableItem>>() {
@@ -798,7 +875,7 @@ public class MainActivity extends AppCompatActivity {
                     for (TableItem t : result) {
                         if (t == null) continue;
                         if (fromTable.getId() != null && fromTable.getId().equals(t.getId())) continue;
-                        labels.add("Bàn " + t.getTableNumber() + " - " + t.getStatusDisplay());
+                        labels.add("Bàn " + t.getTableNumber() + " - " + getStatusLabel(t));
                         candidates.add(t);
                     }
                     ArrayAdapter<String> adapter = new ArrayAdapter<>(MainActivity.this, android.R.layout.simple_list_item_1, labels);

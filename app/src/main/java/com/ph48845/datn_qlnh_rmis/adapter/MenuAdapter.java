@@ -1,7 +1,6 @@
 package com.ph48845.datn_qlnh_rmis.adapter;
 
-
-
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -12,22 +11,32 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
-
+import com.bumptech.glide.Glide;
+import com.bumptech.glide.load.DataSource;
+import com.bumptech.glide.load.engine.DiskCacheStrategy;
+import com.bumptech.glide.load.engine.GlideException;
+import com.bumptech.glide.request.RequestListener;
+import com.bumptech.glide.request.target.Target;
 import com.ph48845.datn_qlnh_rmis.R;
 import com.ph48845.datn_qlnh_rmis.data.model.MenuItem;
 
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Adapter hiển thị danh sách món theo layout item_menu_list.xml
- * Listener cung cấp onAddMenuItem/onRemoveMenuItem (tăng/giảm qty)
+ * MenuAdapter with Glide, URL normalization and debug logs.
  */
 public class MenuAdapter extends RecyclerView.Adapter<MenuAdapter.MenuViewHolder> {
+
+    private static final String TAG = "MenuAdapter";
+    // Adjust FALLBACK_BASE to match your Retrofit base URL if running on local network
+    private static final String FALLBACK_BASE = "http://192.168.1.84:3000";
 
     private List<MenuItem> items = new ArrayList<>();
     private final OnMenuClickListener listener;
     private final java.util.Map<String, Integer> qtyMap = new java.util.HashMap<>();
+    private static final DecimalFormat PRICE_FMT = new DecimalFormat("#,###");
 
     public interface OnMenuClickListener {
         void onAddMenuItem(MenuItem menu);
@@ -38,9 +47,7 @@ public class MenuAdapter extends RecyclerView.Adapter<MenuAdapter.MenuViewHolder
         if (items != null) {
             this.items = items;
             for (MenuItem m : items) {
-                if (m != null && m.getId() != null) {
-                    qtyMap.put(m.getId(), 0);
-                }
+                if (m != null && m.getId() != null) qtyMap.put(m.getId(), 0);
             }
         }
         this.listener = listener;
@@ -61,24 +68,6 @@ public class MenuAdapter extends RecyclerView.Adapter<MenuAdapter.MenuViewHolder
         notifyDataSetChanged();
     }
 
-    /**
-     * Return a copy/reference to items (read-only usage intended).
-     */
-    public List<MenuItem> getItems() {
-        return items;
-    }
-
-    /**
-     * Find MenuItem by id or return null.
-     */
-    public MenuItem findById(String id) {
-        if (id == null || items == null) return null;
-        for (MenuItem m : items) {
-            if (m != null && id.equals(m.getId())) return m;
-        }
-        return null;
-    }
-
     @NonNull
     @Override
     public MenuViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
@@ -89,17 +78,61 @@ public class MenuAdapter extends RecyclerView.Adapter<MenuAdapter.MenuViewHolder
     @Override
     public void onBindViewHolder(@NonNull MenuViewHolder holder, int position) {
         MenuItem m = items.get(position);
-        holder.tvName.setText(m.getName() != null ? m.getName() : "");
-        holder.tvPrice.setText(String.format("%,.2f", m.getPrice()));
+        if (m == null) {
+            holder.tvName.setText("(Không tên)");
+            holder.tvPrice.setText("");
+            holder.ivThumb.setImageResource(R.drawable.ic_menu_placeholder);
+            holder.tvQty.setText("0");
+            return;
+        }
 
-        // Thumbnail: placeholder (replace with Glide if imageUrl present)
-        holder.ivThumb.setImageResource(R.drawable.ic_menu_placeholder);
+        // Debug log
+        Log.d(TAG, "Binding menu pos=" + position + " id=" + m.getId() + " name=\"" + m.getName() + "\" price=" + m.getPrice() + " imageUrl=\"" + m.getImageUrl() + "\"");
 
-        // Availability badge: default "Còn món". If your MenuItem has stock field adapt here.
+        // Name
+        String name = m.getName();
+        holder.tvName.setText(name == null || name.trim().isEmpty() ? "(Không tên)" : name);
+
+        // Price formatted
+        holder.tvPrice.setText(PRICE_FMT.format(m.getPrice()) + " VND");
+
+        // Image handling: normalize relative URL and load with Glide
+        String imageUrl = m.getImageUrl();
+        if (imageUrl != null) imageUrl = imageUrl.trim();
+        if (imageUrl == null || imageUrl.isEmpty()) {
+            holder.ivThumb.setImageResource(R.drawable.ic_menu_placeholder);
+        } else {
+            if (!imageUrl.startsWith("http://") && !imageUrl.startsWith("https://")) {
+                if (!imageUrl.startsWith("/")) imageUrl = "/" + imageUrl;
+                imageUrl = FALLBACK_BASE + imageUrl;
+                Log.d(TAG, "Normalized image URL -> " + imageUrl);
+            }
+            Glide.with(holder.ivThumb.getContext())
+                    .load(imageUrl)
+                    .centerCrop()
+                    .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
+                    .placeholder(R.drawable.ic_menu_placeholder)
+                    .error(R.drawable.ic_menu_placeholder)
+                    .listener(new RequestListener<android.graphics.drawable.Drawable>() {
+                        @Override
+                        public boolean onLoadFailed(GlideException e, Object model, Target<android.graphics.drawable.Drawable> target, boolean isFirstResource) {
+                            Log.w(TAG, "Glide load failed for model=" + model + " err=" + (e != null ? e.getMessage() : "null"));
+                            return false; // allow placeholder
+                        }
+
+                        @Override
+                        public boolean onResourceReady(android.graphics.drawable.Drawable resource, Object model, Target<android.graphics.drawable.Drawable> target, DataSource dataSource, boolean isFirstResource) {
+                            return false;
+                        }
+                    })
+                    .into(holder.ivThumb);
+        }
+
+        // Badge default
         holder.tvBadge.setText("Còn món");
         holder.tvBadge.setBackgroundResource(R.drawable.badge_green_bg);
 
-        // Quantity from internal map (adapter-side)
+        // Quantity UI
         Integer q = qtyMap.get(m.getId());
         if (q == null) q = 0;
         holder.tvQty.setText(String.valueOf(q));
