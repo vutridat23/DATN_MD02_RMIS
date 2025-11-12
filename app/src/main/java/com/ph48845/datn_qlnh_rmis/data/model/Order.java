@@ -1,24 +1,19 @@
 package com.ph48845.datn_qlnh_rmis.data.model;
 
-
-
-
 import com.google.gson.annotations.SerializedName;
 
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
-
 public class Order implements Serializable {
-
+    // ... (Giữ nguyên các thuộc tính và Getters/Setters của lớp Order)
     @SerializedName("_id")
     private String id;
 
     @SerializedName("tableNumber")
     private int tableNumber;
 
-    // store references as String ids (ObjectId)
     @SerializedName("server")
     private String serverId;
 
@@ -78,7 +73,7 @@ public class Order implements Serializable {
         this.orderStatus = orderStatus;
     }
 
-    // Getters / Setters
+    // Getters / Setters (Giữ nguyên)
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
 
@@ -171,6 +166,7 @@ public class Order implements Serializable {
 
         public OrderItem() {}
 
+        // Constructor 4 tham số (giữ nguyên)
         public OrderItem(String menuItemId, String name, int quantity, double price) {
             this.menuItemId = menuItemId;
             this.name = name;
@@ -179,7 +175,19 @@ public class Order implements Serializable {
             this.status = "pending";
         }
 
-        // Getters / Setters
+        // --- CONSTRUCTOR 5 THAM SỐ ĐÃ THÊM ĐỂ KHẮC PHỤC LỖI ---
+        // Sửa lỗi 'Cannot resolve constructor OrderItem(String, String, double, int, String)'
+        // Lưu ý: Tôi đã sắp xếp tham số price (double) trước quantity (int) để khớp với cách bạn gọi trong ThuNganActivity.
+        public OrderItem(String menuItemId, String name, double price, int quantity, String status) {
+            this.menuItemId = menuItemId;
+            this.name = name;
+            this.price = price;
+            this.quantity = quantity;
+            this.status = status;
+        }
+        // --------------------------------------------------------
+
+        // Getters / Setters (Giữ nguyên)
         public String getMenuItemId() { return menuItemId; }
         public void setMenuItemId(String menuItemId) { this.menuItemId = menuItemId; }
 
