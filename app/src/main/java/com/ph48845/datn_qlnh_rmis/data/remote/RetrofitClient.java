@@ -12,7 +12,7 @@ import retrofit2.converter.gson.GsonConverterFactory;
 public class RetrofitClient {
 
     // Thay URL này bằng địa chỉ API thật của bạn
-    private static final String BASE_URL = "http://192.168.1.229:3000";
+    private static final String BASE_URL = "http://192.168.1.84:3000/";
 
     private static Retrofit retrofit;
 
