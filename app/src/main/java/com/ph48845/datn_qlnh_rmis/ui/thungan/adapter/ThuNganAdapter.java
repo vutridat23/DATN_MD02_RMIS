@@ -1,7 +1,6 @@
 package com.ph48845.datn_qlnh_rmis.ui.thungan.adapter;
 
-
-
+import android.content.Context; // CẦN THIẾT: Thêm Context để giải quyết lỗi 2 tham số
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -9,62 +8,77 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
-
 import com.ph48845.datn_qlnh_rmis.R;
-import com.ph48845.datn_qlnh_rmis.data.model.MenuItem;
+// CẦN THIẾT: Import Order để sử dụng Order.OrderItem
+import com.ph48845.datn_qlnh_rmis.data.model.Order;
 
 import java.util.List;
 import java.text.DecimalFormat;
 
-public class ThuNganAdapter extends RecyclerView.Adapter<ThuNganAdapter.MenuViewHolder> {
+// Đổi tên ViewHolder cho rõ ràng
+public class ThuNganAdapter extends RecyclerView.Adapter<ThuNganAdapter.OrderItemViewHolder> {
 
-    private List<MenuItem> menuItems;
+    private Context context; // Thêm Context
+    private List<Order.OrderItem> orderItems; // Đổi từ List<MenuItem> sang List<Order.OrderItem>
 
-    public ThuNganAdapter(List<MenuItem> menuItems) {
-        this.menuItems = menuItems;
+    // CONSTRUCTOR ĐÃ SỬA: Chấp nhận 2 tham số (Context và List<Order.OrderItem>)
+    public ThuNganAdapter(Context context, List<Order.OrderItem> orderItems) {
+        this.context = context;
+        this.orderItems = orderItems;
     }
 
-    // Phương thức giúp cập nhật dữ liệu mới sau khi gọi API
-    public void setMenuItems(List<MenuItem> newItems) {
-        this.menuItems = newItems;
+    // Phương thức giúp cập nhật dữ liệu mới
+    public void setOrderItems(List<Order.OrderItem> newItems) {
+        this.orderItems = newItems;
         notifyDataSetChanged();
     }
 
     @NonNull
     @Override
-    public MenuViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+    public OrderItemViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        // Giả sử layout item_order_item hiển thị chi tiết món trong đơn hàng
+        // HOẶC bạn vẫn dùng item_menu nếu layout đủ các TextView cần thiết
         View view = LayoutInflater.from(parent.getContext())
                 .inflate(R.layout.item_menu, parent, false);
-        return new MenuViewHolder(view);
+        return new OrderItemViewHolder(view);
     }
 
     @Override
-    public void onBindViewHolder(@NonNull MenuViewHolder holder, int position) {
-        MenuItem item = menuItems.get(position);
+    public void onBindViewHolder(@NonNull OrderItemViewHolder holder, int position) {
+        Order.OrderItem item = orderItems.get(position);
 
-        // Sử dụng DecimalFormat để định dạng giá cho dễ đọc
+        // Sử dụng DecimalFormat để định dạng giá
         DecimalFormat formatter = new DecimalFormat("#,### VNĐ");
 
-        holder.tvName.setText(item.getName());
-        holder.tvPrice.setText("Giá: " + formatter.format(item.getPrice()));
-        holder.tvCategory.setText("Danh mục: " + item.getCategory());
-        // TODO: Xử lý hiển thị ảnh món ăn nếu có trường ảnh
+        // Hiển thị Tên món và Số lượng
+        holder.tvName.setText(item.getName() + " x" + item.getQuantity());
+
+        // Hiển thị Tổng tiền cho món đó (Giá * Số lượng)
+        double subtotal = item.getPrice() * item.getQuantity();
+        holder.tvPrice.setText(formatter.format(subtotal));
+
+        // Hiển thị trạng thái món ăn (Ví dụ: READY, PENDING)
+        // Nếu layout item_menu có tvCategory, có thể dùng để hiển thị status
+        if (holder.tvCategory != null) {
+            holder.tvCategory.setText("Trạng thái: " + item.getStatus());
+        }
     }
 
     @Override
     public int getItemCount() {
-        return menuItems.size();
+        return orderItems.size();
     }
 
-    // ViewHolder: Giữ các view để tái sử dụng
-    public static class MenuViewHolder extends RecyclerView.ViewHolder {
-        TextView tvName, tvPrice, tvCategory;
+    // ViewHolder đã đổi tên và cập nhật các TextView
+    public static class OrderItemViewHolder extends RecyclerView.ViewHolder {
+        TextView tvName, tvPrice, tvCategory; // Giữ nguyên ID từ layout item_menu
 
-        public MenuViewHolder(@NonNull View itemView) {
+        public OrderItemViewHolder(@NonNull View itemView) {
             super(itemView);
-            tvName = itemView.findViewById(R.id.tv_menu_item_name);
-            tvPrice = itemView.findViewById(R.id.tv_menu_item_price);
-            tvCategory = itemView.findViewById(R.id.tv_menu_item_category);
+            // Các ID này phải khớp với R.layout.item_menu
+            tvName = itemView.findViewById(R.id.tv_menu_name);
+            tvPrice = itemView.findViewById(R.id.tv_menu_price);
+            tvCategory = itemView.findViewById(R.id.tv_badge);
         }
     }
 }

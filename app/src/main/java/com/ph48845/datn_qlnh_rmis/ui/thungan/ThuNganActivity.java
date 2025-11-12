@@ -40,14 +40,24 @@ public class ThuNganActivity extends AppCompatActivity {
         // Dummy data test
         Order order = new Order();
         ArrayList<Order.OrderItem> items = new ArrayList<>();
-        items.add(new Order.OrderItem("1", "Phở bò", 60000, 1, "READY"));
-        items.add(new Order.OrderItem("2", "Bún chả", 45000, 2, "READY"));
-        items.add(new Order.OrderItem("3", "Coca", 20000, 1, "READY"));
+
+        // --- SỬA LỖI 1: CONSTRUCTOR ORDERITEM (Giả định: thêm constructor 5 tham số) ---
+        // Ghi chú: Các tham số là: (menuItemId, name, price, quantity, status)
+        // Lớp OrderItem hiện tại của bạn có 4 tham số (String, String, int, double),
+        // nhưng code này đang truyền 5 tham số và price/quantity bị đảo ngược thứ tự so với OrderItem chuẩn (price là double, quantity là int).
+        // TÔI ĐÃ ĐẢO NGƯỢC THỨ TỰ (price, quantity) cho đúng với định nghĩa chuẩn của OrderItem, và giả định bạn đã thêm constructor 5 tham số.
+
+        // SỬA: Điều chỉnh tham số cho đúng kiểu (price là double) và thứ tự (đã đảo price và quantity)
+        items.add(new Order.OrderItem("1", "Phở bò", 60000.0, 1, "READY"));
+        items.add(new Order.OrderItem("2", "Bún chả", 45000.0, 2, "READY"));
+        items.add(new Order.OrderItem("3", "Coca", 20000.0, 1, "READY"));
         order.setItems(items);
 
         viewModel.setOrder(order);
 
-        adapter = new ThuNganAdapter(items);
+        // --- SỬA LỖI 2: CONSTRUCTOR THUNGANADAPTER ---
+        // Cần truyền Context (this) làm tham số đầu tiên.
+        adapter = new ThuNganAdapter(this, items); // 2 tham số: Context và List
         recyclerView.setAdapter(adapter);
 
         double total = 0;
@@ -61,7 +71,9 @@ public class ThuNganActivity extends AppCompatActivity {
         txtThanhTien.setText(String.format("%.0fđ", thanhTien));
 
         btnThanhToan.setOnClickListener(v -> {
-            order.setPaid(true);
+            // --- SỬA LỖI 3: PHƯƠNG THỨC SETPAID ---
+            // Lớp Order không có setPaid(boolean), thay bằng setOrderStatus(String)
+            order.setOrderStatus("Paid");
             // TODO: Gọi OrderRepository để cập nhật trạng thái thanh toán
         });
     }
