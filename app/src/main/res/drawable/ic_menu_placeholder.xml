@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Background gray rectangle -->
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#E0E0E0" />
+        </shape>
+    </item>
+
+    <!-- Centered system image as placeholder -->
+    <item android:drawable="@android:drawable/ic_menu_report_image"
+        android:gravity="center" />
+</layer-list>

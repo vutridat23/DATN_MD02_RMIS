@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="6dp">
+
+    <ImageView
+        android:id="@+id/iv_menu_thumb"
+        android:layout_width="match_parent"
+        android:layout_height="96dp"
+        android:scaleType="centerCrop"
+        android:src="@drawable/ic_menu_placeholder" />
+
+    <TextView
+        android:id="@+id/tv_menu_name"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Tên món"
+        android:textSize="14sp"
+        android:maxLines="2"
+        android:ellipsize="end"
+        android:paddingTop="4dp"/>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/tv_menu_price"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:text="0 đ"
+            android:textSize="14sp"/>
+
+        <Button
+            android:id="@+id/btn_minus_menu"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:text="-" />
+
+        <Button
+            android:id="@+id/btn_add_menu"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:text="+" />
+    </LinearLayout>
+
+</LinearLayout>
