@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:padding="6dp">
+
+    <!-- CardView used for colored background and elevation -->
+    <androidx.cardview.widget.CardView
+        android:id="@+id/card_table"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:cardCornerRadius="6dp"
+        app:cardUseCompatPadding="true"
+        app:cardPreventCornerOverlap="true"
+        app:cardElevation="2dp"
+        app:layout_constraintDimensionRatio="1:1"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:padding="8dp">
+
+            <TextView
+                android:id="@+id/tv_table_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Bàn 1"
+                android:textColor="#ffffff"
+                android:textStyle="bold"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/tv_table_capacity"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Sức chứa: 4 người"
+                android:textColor="#ffffff"
+                android:textSize="12sp"
+                android:layout_marginTop="6dp" />
+
+            <TextView
+                android:id="@+id/tv_table_status"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textColor="#ffffff"
+                android:textSize="12sp"
+                android:layout_marginTop="6dp" />
+
+            <TextView
+                android:id="@+id/tv_table_sub"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textColor="#ffffff"
+                android:textSize="11sp"
+                android:layout_marginTop="6dp" />
+        </LinearLayout>
+    </androidx.cardview.widget.CardView>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

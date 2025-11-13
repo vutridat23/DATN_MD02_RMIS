@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/card_menu_item"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="8dp"
+    android:layout_marginBottom="8dp"
+    android:layout_marginStart="4dp"
+    android:layout_marginEnd="4dp"
+    app:cardCornerRadius="8dp"
+    app:cardElevation="2dp"
+    app:cardUseCompatPadding="true">
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="96dp"
+        android:padding="8dp">
+
+        <!-- Thumbnail -->
+        <ImageView
+            android:id="@+id/iv_menu_thumb"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:scaleType="centerCrop"
+            android:src="@drawable/ic_menu_placeholder"
+            android:layout_alignParentStart="true"
+            android:layout_centerVertical="true"
+            android:contentDescription="thumb" />
+
+        <!-- Availability badge (declare early so other views can reference it) -->
+        <TextView
+            android:id="@+id/tv_badge"
+            android:layout_width="wrap_content"
+            android:layout_height="24dp"
+            android:layout_alignParentTop="true"
+            android:layout_alignParentEnd="true"
+            android:background="@drawable/badge_green_bg"
+            android:paddingLeft="8dp"
+            android:paddingRight="8dp"
+            android:text="Còn món"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp"
+            android:layout_marginTop="6dp"
+            android:layout_marginEnd="8dp" />
+
+        <!-- Name and price - occupies space between thumbnail and badge -->
+        <LinearLayout
+            android:id="@+id/ll_text"
+            android:orientation="vertical"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_toEndOf="@id/iv_menu_thumb"
+            android:layout_toStartOf="@id/tv_badge"
+            android:layout_alignParentTop="true"
+            android:layout_marginStart="10dp"
+            android:layout_marginEnd="8dp">
+
+            <TextView
+                android:id="@+id/tv_menu_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Tên món"
+                android:textSize="15sp"
+                android:textColor="#222222"
+                android:maxLines="2"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/tv_menu_price"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="0 VND"
+                android:textSize="13sp"
+                android:textColor="#555555"
+                android:layout_marginTop="6dp" />
+        </LinearLayout>
+
+        <!-- Quantity controls: positioned at bottom-right, to the start of badge -->
+        <LinearLayout
+            android:id="@+id/ll_qty"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_alignParentBottom="true"
+            android:layout_toStartOf="@id/tv_badge"
+            android:layout_marginEnd="8dp"
+            android:layout_marginBottom="8dp"
+            android:gravity="center_vertical">
+
+            <Button
+                android:id="@+id/btn_minus_menu"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:backgroundTint="#DDDDDD"
+                android:text="-"
+                android:textColor="@android:color/black"
+                android:textStyle="bold"/>
+
+            <TextView
+                android:id="@+id/tv_qty"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:gravity="center"
+                android:text="0"
+                android:textColor="#333333" />
+
+            <Button
+                android:id="@+id/btn_add_menu"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:text="+"
+                android:backgroundTint="#2DB06A"
+                android:textColor="#FFFFFF" />
+        </LinearLayout>
+
+    </RelativeLayout>
+</androidx.cardview.widget.CardView>
