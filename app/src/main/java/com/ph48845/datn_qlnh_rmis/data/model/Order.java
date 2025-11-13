@@ -10,6 +10,19 @@ public class Order {
     private boolean paid;
     private double totalAmount;
     private List<OrderItem> items;
+    public String _id; // ObjectId từ MongoDB
+    public int tableNumber;
+    public String server;
+    public String cashier;
+    public double discount;
+    public double finalAmount;
+    public double paidAmount;
+    public double change;
+    public String paymentMethod;
+    public String orderStatus;
+    public List<String> mergedFrom;
+    public List<String> splitTo;
+    public String paidAt;
 
     public Order() {
     }
@@ -42,7 +55,10 @@ public class Order {
         private String menuItemName;
         private double price;
         private int quantity;
-        private String status; // e.g., PENDING, PREPARING, READY, SERVED
+
+        public String menuItem; // ObjectId của món (MongoDB)
+        public String status; // "pending", "preparing", "ready", "soldout"
+        public String note;
 
         public OrderItem() {}
 
@@ -70,3 +86,4 @@ public class Order {
         public void setStatus(String status) { this.status = status; }
     }
 }
+
