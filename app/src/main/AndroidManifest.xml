@@ -19,6 +19,15 @@
             android:name=".ui.phucvu.OrderActivity"
             android:exported="false" />
         <activity
+            android:name=".ui.thungan.ThuNganActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.thungan.InvoiceActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.revenue.RevenueActivity"
+            android:exported="false" />
+        <activity
             android:name=".ui.MainActivity"
             android:exported="true">
             <intent-filter>
