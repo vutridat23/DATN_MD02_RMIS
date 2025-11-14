@@ -3,74 +3,78 @@ package com.ph48845.datn_qlnh_rmis.data.repository;
 import android.util.Log;
 
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
-
 import com.ph48845.datn_qlnh_rmis.data.remote.ApiResponse;
+import com.ph48845.datn_qlnh_rmis.data.remote.OrderApi;
 import com.ph48845.datn_qlnh_rmis.data.remote.RetrofitClient;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-
-import java.util.Map;
-
-/**
- * OrderRepository: create order + fetch orders for a table + delete/update order + move orders
- *
- * Fix: moveOrdersForTable is defensive — it filters returned orders by the source tableNumber
- * so we don't accidentally move all orders if backend returned an unfiltered list.
- */
 public class OrderRepository {
 
     private static final String TAG = "OrderRepository";
 
+    private final OrderApi api;
+
+    // Constructor inject cho ViewModel tự tạo Retrofit
+    public OrderRepository(OrderApi api) {
+        this.api = api;
+    }
+
+    // Constructor cũ: dùng singleton RetrofitClient
+    public OrderRepository() {
+        this.api = RetrofitClient.getInstance().getOrderApi();
+    }
+
+    // ===== Callback interface giữ nguyên =====
     public interface RepositoryCallback<T> {
         void onSuccess(T result);
         void onError(String message);
     }
 
+    // ===== Các method dạng Call cho BepViewModel =====
+    public Call<List<Order>> getAllOrders() {
+        return api.getAllOrders();
+    }
+
+    public Call<Void> updateOrderItemStatus(String orderId, String itemId, String newStatus) {
+        return api.updateOrderItemStatus(orderId, itemId, new OrderApi.StatusUpdate(newStatus));
+    }
+
+    // ===== Các wrapper callback nguyên gốc =====
     public void createOrder(final Order order, final RepositoryCallback<Order> callback) {
         if (order == null) {
             callback.onError("Order is null");
             return;
         }
-
-        Call<Order> call = RetrofitClient.getInstance().getApiService().createOrder(order);
-        call.enqueue(new Callback<Order>() {
+        api.createOrder(order).enqueue(new Callback<Order>() {
             @Override
             public void onResponse(Call<Order> call, Response<Order> response) {
                 if (response.isSuccessful() && response.body() != null) {
                     callback.onSuccess(response.body());
                 } else {
-                    String msg = "HTTP " + response.code() + " - " + response.message();
-                    try {
-                        if (response.errorBody() != null) msg += " - " + response.errorBody().string();
-                    } catch (Exception ignored) {}
-                    Log.e(TAG, "createOrder error: " + msg);
-                    callback.onError(msg);
+                    callback.onError(buildHttpError("createOrder", response));
                 }
             }
-
             @Override
             public void onFailure(Call<Order> call, Throwable t) {
-                Log.e(TAG, "createOrder onFailure", t);
-                callback.onError(t.getMessage() != null ? t.getMessage() : "Network error");
+                callback.onError(logFailure("createOrder onFailure", t));
             }
         });
     }
 
     /**
-     * Lấy các order thuộc bàn (tableNumber). Nếu status==null sẽ lấy tất cả.
+     * Lấy các order thuộc bàn (tableNumber). Nếu status == null sẽ lấy tất cả.
      */
     public void getOrdersByTableNumber(Integer tableNumber, String status, final RepositoryCallback<List<Order>> callback) {
-        Call<ApiResponse<List<Order>>> call = RetrofitClient.getInstance().getApiService().getOrdersByTable(tableNumber, status);
-        call.enqueue(new Callback<ApiResponse<List<Order>>>() {
+        api.getOrdersByTable(tableNumber, status).enqueue(new Callback<ApiResponse<List<Order>>>() {
             @Override
             public void onResponse(Call<ApiResponse<List<Order>>> call, Response<ApiResponse<List<Order>>> response) {
                 if (response.isSuccessful()) {
@@ -88,93 +92,61 @@ public class OrderRepository {
                         callback.onError("Response body is null");
                     }
                 } else {
-                    String err = "HTTP " + response.code() + " - " + response.message();
-                    try {
-                        if (response.errorBody() != null) err += " - " + response.errorBody().string();
-                    } catch (IOException ignored) {}
-                    Log.e(TAG, "getOrdersByTableNumber error: " + err);
-                    callback.onError(err);
+                    callback.onError(buildHttpError("getOrdersByTableNumber", response));
                 }
             }
-
             @Override
             public void onFailure(Call<ApiResponse<List<Order>>> call, Throwable t) {
-                Log.e(TAG, "getOrdersByTableNumber onFailure", t);
-                callback.onError(t.getMessage() != null ? t.getMessage() : "Network error");
+                callback.onError(logFailure("getOrdersByTableNumber onFailure", t));
             }
         });
     }
 
-    /**
-     * Delete an order by its id.
-     */
     public void deleteOrder(String orderId, final RepositoryCallback<Void> callback) {
         if (orderId == null || orderId.trim().isEmpty()) {
             callback.onError("Invalid order id");
             return;
         }
-        Call<Void> call = RetrofitClient.getInstance().getApiService().deleteOrder(orderId);
-        call.enqueue(new Callback<Void>() {
+        api.deleteOrder(orderId).enqueue(new Callback<Void>() {
             @Override
             public void onResponse(Call<Void> call, Response<Void> response) {
                 if (response.isSuccessful()) {
                     callback.onSuccess(null);
                 } else {
-                    String msg = "HTTP " + response.code() + " - " + response.message();
-                    try {
-                        if (response.errorBody() != null) msg += " - " + response.errorBody().string();
-                    } catch (IOException ignored) {}
-                    Log.e(TAG, "deleteOrder error: " + msg);
-                    callback.onError(msg);
+                    callback.onError(buildHttpError("deleteOrder", response));
                 }
             }
-
             @Override
             public void onFailure(Call<Void> call, Throwable t) {
-                Log.e(TAG, "deleteOrder onFailure", t);
-                callback.onError(t.getMessage() != null ? t.getMessage() : "Network error");
+                callback.onError(logFailure("deleteOrder onFailure", t));
             }
         });
     }
 
-    /**
-     * Update an order partially (e.g., change tableNumber)
-     */
     public void updateOrder(String orderId, Map<String, Object> updates, final RepositoryCallback<Order> callback) {
         if (orderId == null || orderId.trim().isEmpty()) {
             callback.onError("Invalid order id");
             return;
         }
-        Call<Order> call = RetrofitClient.getInstance().getApiService().updateOrder(orderId, updates);
-        call.enqueue(new Callback<Order>() {
+        api.updateOrder(orderId, updates).enqueue(new Callback<Order>() {
             @Override
             public void onResponse(Call<Order> call, Response<Order> response) {
                 if (response.isSuccessful() && response.body() != null) {
                     callback.onSuccess(response.body());
                 } else {
-                    String msg = "HTTP " + response.code() + " - " + response.message();
-                    try {
-                        if (response.errorBody() != null) msg += " - " + response.errorBody().string();
-                    } catch (IOException ignored) {}
-                    Log.e(TAG, "updateOrder error: " + msg);
-                    callback.onError(msg);
+                    callback.onError(buildHttpError("updateOrder", response));
                 }
             }
-
             @Override
             public void onFailure(Call<Order> call, Throwable t) {
-                Log.e(TAG, "updateOrder onFailure", t);
-                callback.onError(t.getMessage() != null ? t.getMessage() : "Network error");
+                callback.onError(logFailure("updateOrder onFailure", t));
             }
         });
     }
 
     /**
      * Move all orders from one tableNumber to another (best-effort).
-     * onComplete callback will be called when all updates finished (success or fail).
-     *
-     * Defensive behavior: if backend returns unfiltered list, we explicitly filter by fromTableNumber
-     * so only orders that actually belong to the source table are moved.
+     * Giữ logic phòng thủ: chỉ di chuyển order đúng bàn nguồn.
      */
     public void moveOrdersForTable(int fromTableNumber, int toTableNumber, final RepositoryCallback<Void> callback) {
         if (fromTableNumber <= 0) {
@@ -186,24 +158,22 @@ public class OrderRepository {
             return;
         }
 
-        // 1) get orders of fromTable
         getOrdersByTableNumber(fromTableNumber, null, new RepositoryCallback<List<Order>>() {
             @Override
             public void onSuccess(List<Order> orders) {
                 if (orders == null || orders.isEmpty()) {
-                    // nothing to move
                     Log.d(TAG, "moveOrdersForTable: no orders found for table " + fromTableNumber);
                     callback.onSuccess(null);
                     return;
                 }
 
-                // Defensive filter: keep only orders whose tableNumber equals fromTableNumber
                 List<Order> toMove = new ArrayList<>();
                 for (Order o : orders) {
-                    if (o == null) continue;
-                    try {
-                        if (o.getTableNumber() == fromTableNumber) toMove.add(o);
-                    } catch (Exception ignored) {}
+                    if (o != null) {
+                        try {
+                            if (o.getTableNumber() == fromTableNumber) toMove.add(o);
+                        } catch (Exception ignored) {}
+                    }
                 }
 
                 if (toMove.isEmpty()) {
@@ -216,15 +186,13 @@ public class OrderRepository {
                 final int[] finished = {0};
                 final int[] errors = {0};
 
-                Log.d(TAG, "moveOrdersForTable: will move " + total + " orders from table " + fromTableNumber + " -> " + toTableNumber);
+                Log.d(TAG, "moveOrdersForTable: will move " + total + " orders from table "
+                        + fromTableNumber + " -> " + toTableNumber);
 
                 for (Order o : toMove) {
                     if (o == null || o.getId() == null) {
                         finished[0]++;
-                        if (finished[0] >= total) {
-                            if (errors[0] == 0) callback.onSuccess(null);
-                            else callback.onError("Some order updates failed");
-                        }
+                        checkMoveFinished(finished, errors, total, callback);
                         continue;
                     }
 
@@ -234,23 +202,17 @@ public class OrderRepository {
                     updateOrder(o.getId(), updates, new RepositoryCallback<Order>() {
                         @Override
                         public void onSuccess(Order result) {
-                            Log.d(TAG, "Moved order " + o.getId() + " to table " + toTableNumber);
                             finished[0]++;
-                            if (finished[0] >= total) {
-                                if (errors[0] == 0) callback.onSuccess(null);
-                                else callback.onError("Some order updates failed");
-                            }
+                            Log.d(TAG, "Moved order " + o.getId());
+                            checkMoveFinished(finished, errors, total, callback);
                         }
 
                         @Override
                         public void onError(String message) {
-                            Log.w(TAG, "Failed to move order " + o.getId() + " : " + message);
                             errors[0]++;
                             finished[0]++;
-                            if (finished[0] >= total) {
-                                if (errors[0] == 0) callback.onSuccess(null);
-                                else callback.onError("Some order updates failed");
-                            }
+                            Log.w(TAG, "Failed move order " + o.getId() + ": " + message);
+                            checkMoveFinished(finished, errors, total, callback);
                         }
                     });
                 }
@@ -258,9 +220,31 @@ public class OrderRepository {
 
             @Override
             public void onError(String message) {
-                Log.w(TAG, "Cannot fetch orders for table " + fromTableNumber + " : " + message);
+                Log.w(TAG, "Cannot fetch orders for table " + fromTableNumber + ": " + message);
                 callback.onError(message);
             }
         });
+    }
+
+    // ===== Helpers =====
+    private void checkMoveFinished(int[] finished, int[] errors, int total, RepositoryCallback<Void> callback) {
+        if (finished[0] >= total) {
+            if (errors[0] == 0) callback.onSuccess(null);
+            else callback.onError("Some order updates failed");
+        }
+    }
+
+    private String buildHttpError(String action, Response<?> response) {
+        String msg = "HTTP " + response.code() + " - " + response.message();
+        try {
+            if (response.errorBody() != null) msg += " - " + response.errorBody().string();
+        } catch (IOException ignored) {}
+        Log.e(TAG, action + " error: " + msg);
+        return msg;
+    }
+
+    private String logFailure(String logMsg, Throwable t) {
+        Log.e(TAG, logMsg, t);
+        return t.getMessage() != null ? t.getMessage() : "Network error";
     }
 }

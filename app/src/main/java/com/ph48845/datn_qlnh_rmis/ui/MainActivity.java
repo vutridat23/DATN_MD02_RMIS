@@ -35,7 +35,6 @@ import com.ph48845.datn_qlnh_rmis.ui.revenue.RevenueActivity;
 import android.widget.ImageView;
 import android.widget.PopupMenu;
 
-import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -45,7 +44,6 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Date;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.regex.Matcher;
