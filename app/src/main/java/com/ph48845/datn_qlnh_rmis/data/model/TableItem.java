@@ -54,6 +54,8 @@ public class TableItem implements Serializable {
     @SerializedName("reservationAt")
     private String reservationAt; // ISO datetime or "yyyy-MM-dd HH:mm"
 
+
+
     public enum Status {
         EMPTY,
         AVAILABLE,
