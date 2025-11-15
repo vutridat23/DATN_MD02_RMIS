@@ -5,7 +5,7 @@ import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.ViewModel;
 
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
-import com.ph48845.datn_qlnh_rmis.data.remote.OrderApi;
+import com.ph48845.datn_qlnh_rmis.data.remote.ApiService;
 import com.ph48845.datn_qlnh_rmis.data.remote.RetrofitClient;
 import com.ph48845.datn_qlnh_rmis.data.repository.OrderRepository;
 
@@ -25,7 +25,7 @@ public class BepViewModel extends ViewModel {
     private List<Order> allOrders = new ArrayList<>();
 
     public BepViewModel() {
-        OrderApi api = RetrofitClient.getInstance().getOrderApi();
+        ApiService api = RetrofitClient.getInstance().getApiService();
         orderRepository = new OrderRepository(api);
     }
 

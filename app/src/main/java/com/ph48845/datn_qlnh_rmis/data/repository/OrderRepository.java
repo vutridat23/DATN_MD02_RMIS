@@ -4,6 +4,7 @@ import android.util.Log;
 
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
 import com.ph48845.datn_qlnh_rmis.data.remote.ApiResponse;
+import com.ph48845.datn_qlnh_rmis.data.remote.ApiService;
 import com.ph48845.datn_qlnh_rmis.data.remote.OrderApi;
 import com.ph48845.datn_qlnh_rmis.data.remote.RetrofitClient;
 
@@ -21,16 +22,16 @@ public class OrderRepository {
 
     private static final String TAG = "OrderRepository";
 
-    private final OrderApi api;
+    private final ApiService api;
 
     // Constructor inject cho ViewModel tự tạo Retrofit
-    public OrderRepository(OrderApi api) {
+    public OrderRepository(ApiService api) {
         this.api = api;
     }
 
     // Constructor cũ: dùng singleton RetrofitClient
     public OrderRepository() {
-        this.api = RetrofitClient.getInstance().getOrderApi();
+        this.api = RetrofitClient.getInstance().getApiService();
     }
 
     // ===== Callback interface giữ nguyên =====
@@ -45,7 +46,7 @@ public class OrderRepository {
     }
 
     public Call<Void> updateOrderItemStatus(String orderId, String itemId, String newStatus) {
-        return api.updateOrderItemStatus(orderId, itemId, new OrderApi.StatusUpdate(newStatus));
+        return api.updateOrderItemStatus(orderId, itemId, new ApiService.StatusUpdate(newStatus));
     }
 
     // ===== Các wrapper callback nguyên gốc =====

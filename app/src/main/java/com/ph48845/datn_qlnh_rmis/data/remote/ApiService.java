@@ -47,11 +47,25 @@ public interface ApiService {
     Call<Void> deleteMenuItem(@Path("id") String itemId);
 
     // --- ORDER ENDPOINTS ---
+
+    // ĐÃ THÊM: Phương thức lấy tất cả orders (cho OrderRepository.getAllOrders())
     @GET("orders")
-    // use wrapper to be consistent with other endpoints (menu / tables)
+// Bỏ lớp ApiResponse ra
+    Call<List<Order>> getAllOrders();
+
+    @GET("orders")
+        // use wrapper to be consistent with other endpoints (menu / tables)
     Call<ApiResponse<List<Order>>> getOrdersByTable(
             @Query("tableNumber") Integer tableNumber,
             @Query("status") String status
+    );
+
+    // ĐÃ THÊM: Phương thức cập nhật trạng thái item trong order
+    @PUT("orders/{orderId}/item/{itemId}/status")
+    Call<Void> updateOrderItemStatus(
+            @Path("orderId") String orderId,
+            @Path("itemId") String itemId,
+            @Body StatusUpdate statusUpdate // Sử dụng lớp StatusUpdate ở dưới
     );
 
     @POST("orders")
@@ -80,4 +94,18 @@ public interface ApiService {
 
     @POST("tables/{id}/merge")
     Call<TableItem> mergeTable(@Path("id") String targetTableId, @Body Map<String, String> body);
+
+
+    /**
+     * Helper class for sending status updates to the server.
+     * This replaces OrderApi.StatusUpdate previously used.
+     */
+    class StatusUpdate {
+        // Tên trường phải khớp với tên trường mà API backend mong muốn
+        private final String newStatus;
+
+        public StatusUpdate(String newStatus) {
+            this.newStatus = newStatus;
+        }
+    }
 }
