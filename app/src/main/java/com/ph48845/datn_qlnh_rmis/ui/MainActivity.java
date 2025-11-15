@@ -31,7 +31,7 @@ import com.ph48845.datn_qlnh_rmis.data.repository.OrderRepository;
 import com.ph48845.datn_qlnh_rmis.data.repository.TableRepository;
 import com.ph48845.datn_qlnh_rmis.ui.phucvu.OrderActivity;
 import com.ph48845.datn_qlnh_rmis.ui.thungan.ThuNganActivity;
-import com.ph48845.datn_qlnh_rmis.ui.revenue.RevenueActivity;
+//import com.ph48845.datn_qlnh_rmis.ui.revenue.RevenueActivity;
 import android.widget.ImageView;
 import android.widget.PopupMenu;
 
@@ -141,7 +141,7 @@ public class MainActivity extends AppCompatActivity {
                 return true;
             } else if (id == 2) {
                 // Mở màn hình Thống kê doanh thu
-                Intent intent = new Intent(MainActivity.this, RevenueActivity.class);
+                Intent intent = new Intent(MainActivity.this,MainActivity.class);
                 startActivity(intent);
                 return true;
             }
