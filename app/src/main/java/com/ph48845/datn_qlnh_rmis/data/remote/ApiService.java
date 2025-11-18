@@ -1,6 +1,7 @@
 package com.ph48845.datn_qlnh_rmis.data.remote;
 
 
+import com.ph48845.datn_qlnh_rmis.data.model.LoginResponse;
 import com.ph48845.datn_qlnh_rmis.data.model.MenuItem;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
 import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
@@ -27,8 +28,8 @@ public interface ApiService {
     @GET("users")
     Call<List<User>> getAllUsers();
 
-    @POST("auth/login")
-    Call<User> login(@Body User user);
+    @POST("/users/login")
+    Call<LoginResponse> login(@Body User user);
 
     @POST("users")
     Call<User> createUser(@Body User user);

@@ -307,12 +307,16 @@ public class Order implements Serializable {
         @SerializedName("menuItem")
         private Object menuItemRaw;
 
-        public String menuItem;
-        public String status;
-        public String note;
-        public String menuItemName;
-
+        @SerializedName("menuItemId") // Đặt tên JSON rõ ràng để gửi đi
         private String menuItemId;
+
+        @SerializedName("status")
+        private String status;
+        @SerializedName("note")
+        private String note;
+        @SerializedName("menuItemName")
+        private String menuItemName;
+
         @SerializedName("name")
         private String name;
         @SerializedName("quantity")
@@ -331,7 +335,6 @@ public class Order implements Serializable {
             this.quantity = quantity;
             this.price = price;
             this.status = status;
-            this.menuItem = menuItemId;
         }
 
         public OrderItem(String menuItemId, String name, int quantity, double price) {
@@ -345,7 +348,6 @@ public class Order implements Serializable {
                     if (menuItemRaw instanceof String) {
                         String rawId = (String) menuItemRaw;
                         if (menuItemId == null || menuItemId.isEmpty()) menuItemId = rawId;
-                        if (menuItem == null || menuItem.isEmpty()) menuItem = rawId;
                     } else if (menuItemRaw instanceof Map) {
                         Map<?, ?> map = (Map<?, ?>) menuItemRaw;
                         Object idObj = map.get("_id");
@@ -353,7 +355,6 @@ public class Order implements Serializable {
                         if (idObj != null) {
                             String idStr = String.valueOf(idObj);
                             if (menuItemId == null || menuItemId.isEmpty()) menuItemId = idStr;
-                            if (menuItem == null || menuItem.isEmpty()) menuItem = idStr;
                         }
                         Object nObj = map.get("name");
                         if (nObj != null && (name == null || name.isEmpty())) {
@@ -376,13 +377,10 @@ public class Order implements Serializable {
                     } else {
                         String rawStr = String.valueOf(menuItemRaw);
                         if (menuItemId == null || menuItemId.isEmpty()) menuItemId = rawStr;
-                        if (menuItem == null || menuItem.isEmpty()) menuItem = rawStr;
                     }
                 }
             } catch (Exception ignored) {}
 
-            if (menuItemId == null) menuItemId = menuItem != null ? menuItem : "";
-            if (menuItem == null) menuItem = menuItemId != null ? menuItemId : "";
             if (name == null) name = "";
             if (menuItemName == null || menuItemName.isEmpty()) menuItemName = name;
             if (imageUrl == null) imageUrl = "";
@@ -391,20 +389,24 @@ public class Order implements Serializable {
         }
 
         // ---------- Getters / Setters ----------
+
+
+
         public Object getMenuItemRaw() { return menuItemRaw; }
         public void setMenuItemRaw(Object menuItemRaw) { this.menuItemRaw = menuItemRaw; }
 
-        public String getMenuItemId() { return menuItemId == null ? "" : menuItemId; }
-        public void setMenuItemId(String menuItemId) {
-            this.menuItemId = menuItemId;
-            if (this.menuItem == null || this.menuItem.isEmpty()) this.menuItem = menuItemId;
+        public String getMenuItemId() {
+            return menuItemId == null ? "" : menuItemId;
         }
 
-        public String getMenuItem() { return menuItem == null ? "" : menuItem; }
-        public void setMenuItem(String menuItem) {
-            this.menuItem = menuItem;
-            if (this.menuItemId == null || this.menuItemId.isEmpty()) this.menuItemId = menuItem;
+        public void setMenuItemId(String menuItemId) {
+            this.menuItemId = menuItemId;
         }
+
+        public String getMenuItem() {
+            return menuItemId == null ? "" : menuItemId;
+        }
+
 
         public String getName() { return name == null ? "" : name; }
         public void setName(String name) {
@@ -434,7 +436,6 @@ public class Order implements Serializable {
         public String toString() {
             return "OrderItem{" +
                     "menuItemId='" + menuItemId + '\'' +
-                    ", menuItem='" + menuItem + '\'' +
                     ", name='" + name + '\'' +
                     ", quantity=" + quantity +
                     ", price=" + price +

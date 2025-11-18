@@ -57,8 +57,8 @@ public class BepViewModel extends ViewModel {
             for (Order order : orders) {
                 if (order == null || order.items == null) continue;
                 for (Order.OrderItem item : order.items) {
-                    if (item == null || item.status == null) continue;
-                    if (item.status.equalsIgnoreCase("pending") || item.status.equalsIgnoreCase("preparing")) {
+                    if (item == null || item.getStatus() == null) continue;
+                    if (item.getStatus().equalsIgnoreCase("pending") || item.getStatus().equalsIgnoreCase("preparing")) {
                         result.add(item);
                     }
                 }
@@ -76,12 +76,12 @@ public class BepViewModel extends ViewModel {
     public void updateOrderItemStatus(Order order, Order.OrderItem item, String newStatus) {
         if (order == null || item == null || newStatus == null || newStatus.trim().isEmpty()) return;
         // Dùng order._id & item.menuItem (theo model hiện tại)
-        orderRepository.updateOrderItemStatus(order._id, item.menuItem, newStatus)
+        orderRepository.updateOrderItemStatus(order._id, item.getMenuItemId(), newStatus)
                 .enqueue(new Callback<Void>() {
                     @Override
                     public void onResponse(Call<Void> call, Response<Void> res) {
                         if (res.isSuccessful()) {
-                            item.status = newStatus;
+                            item.setStatus(newStatus);
                             loadItemsForBep(allOrders);
                         } else {
                             errorLiveData.setValue("Update item status failed HTTP " + res.code());
