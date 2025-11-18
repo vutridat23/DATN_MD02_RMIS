@@ -4,8 +4,6 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.text.TextUtils;
-import android.util.Log;
-import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
@@ -20,9 +18,7 @@ import com.ph48845.datn_qlnh_rmis.data.model.User;
 import com.ph48845.datn_qlnh_rmis.data.repository.AuthRepository; // Import Repository
 import com.ph48845.datn_qlnh_rmis.ui.MainActivity;
 import com.ph48845.datn_qlnh_rmis.ui.bep.BepActivity;
-import com.ph48845.datn_qlnh_rmis.ui.revenue.RevenueActivity;
 import com.ph48845.datn_qlnh_rmis.ui.thungan.ThuNganActivity;
-import com.ph48845.datn_qlnh_rmis.ui.phucvu.OrderActivity;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -73,7 +69,7 @@ public class LoginActivity extends AppCompatActivity {
         // --- SỬ DỤNG REPOSITORY ---
         // Code cũ: RetrofitClient.getInstance().getApiService().login(user)...
         // Code mới: Gọi qua Repository
-        authRepository.login(usernameInput, passwordInput).enqueue(new Callback<LoginResponse>() {
+        authRepository.login(usernameInput, passwordInput).enqueue(new Callback<>() {
             @Override
             public void onResponse(@NonNull Call<LoginResponse> call, @NonNull Response<LoginResponse> response) {
                 // Code xử lý kết quả ở đây
@@ -127,11 +123,8 @@ public class LoginActivity extends AppCompatActivity {
             case "kitchen": intent = new Intent(LoginActivity.this, BepActivity.class); break;
             default: intent = new Intent(LoginActivity.this, MainActivity.class); break;
         }
-
-        if (intent != null) {
             startActivity(intent);
             finish();
-        }
     }
 
 //    private void checkExistingLogin() {
