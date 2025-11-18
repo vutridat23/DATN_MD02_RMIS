@@ -1,5 +1,6 @@
 package com.ph48845.datn_qlnh_rmis.ui.bep;
 
+import androidx.annotation.NonNull;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.ViewModel;
@@ -30,9 +31,9 @@ public class BepViewModel extends ViewModel {
     }
 
     public void fetchOrders() {
-        orderRepository.getAllOrders().enqueue(new Callback<List<Order>>() {
+        orderRepository.getAllOrders().enqueue(new Callback<>() {
             @Override
-            public void onResponse(Call<List<Order>> call, Response<List<Order>> res) {
+            public void onResponse(@NonNull Call<List<Order>> call, @NonNull Response<List<Order>> res) {
                 if (res.isSuccessful() && res.body() != null) {
                     allOrders = res.body();
                 } else {
@@ -43,7 +44,7 @@ public class BepViewModel extends ViewModel {
             }
 
             @Override
-            public void onFailure(Call<List<Order>> call, Throwable t) {
+            public void onFailure(@NonNull Call<List<Order>> call, @NonNull Throwable t) {
                 allOrders = new ArrayList<>();
                 errorLiveData.setValue("Fetch orders error: " + (t.getMessage() != null ? t.getMessage() : "Network"));
                 loadItemsForBep(allOrders);
@@ -57,8 +58,8 @@ public class BepViewModel extends ViewModel {
             for (Order order : orders) {
                 if (order == null || order.items == null) continue;
                 for (Order.OrderItem item : order.items) {
-                    if (item == null || item.status == null) continue;
-                    if (item.status.equalsIgnoreCase("pending") || item.status.equalsIgnoreCase("preparing")) {
+                    if (item == null || item.getStatus() == null) continue;
+                    if (item.getStatus().equalsIgnoreCase("pending") || item.getStatus().equalsIgnoreCase("preparing")) {
                         result.add(item);
                     }
                 }
@@ -76,12 +77,12 @@ public class BepViewModel extends ViewModel {
     public void updateOrderItemStatus(Order order, Order.OrderItem item, String newStatus) {
         if (order == null || item == null || newStatus == null || newStatus.trim().isEmpty()) return;
         // Dùng order._id & item.menuItem (theo model hiện tại)
-        orderRepository.updateOrderItemStatus(order._id, item.menuItem, newStatus)
-                .enqueue(new Callback<Void>() {
+        orderRepository.updateOrderItemStatus(order._id, item.getMenuItemId(), newStatus)
+                .enqueue(new Callback<>() {
                     @Override
-                    public void onResponse(Call<Void> call, Response<Void> res) {
+                    public void onResponse(@NonNull Call<Void> call, @NonNull Response<Void> res) {
                         if (res.isSuccessful()) {
-                            item.status = newStatus;
+                            item.setStatus(newStatus);
                             loadItemsForBep(allOrders);
                         } else {
                             errorLiveData.setValue("Update item status failed HTTP " + res.code());
@@ -89,7 +90,7 @@ public class BepViewModel extends ViewModel {
                     }
 
                     @Override
-                    public void onFailure(Call<Void> call, Throwable t) {
+                    public void onFailure(@NonNull Call<Void> call, @NonNull Throwable t) {
                         errorLiveData.setValue("Update item status error: " + (t.getMessage() != null ? t.getMessage() : "Network"));
                     }
                 });

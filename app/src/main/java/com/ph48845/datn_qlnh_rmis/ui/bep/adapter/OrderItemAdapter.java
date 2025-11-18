@@ -38,8 +38,8 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.Orde
     public void onBindViewHolder(@NonNull OrderItemViewHolder vh, int pos) {
         Order.OrderItem item = items.get(pos);
         // Hiển thị data
-        vh.txtTenMon.setText(item.menuItem);
-        vh.txtTrangThai.setText(item.status);
+        vh.txtTenMon.setText(item.getMenuItem());
+        vh.txtTrangThai.setText(item.getStatus());
 
         vh.btnDanNhan.setOnClickListener(view -> listener.onStatusChange(currentOrder, item, "pending"));
         vh.btnDangLam.setOnClickListener(view -> listener.onStatusChange(currentOrder, item, "preparing"));
