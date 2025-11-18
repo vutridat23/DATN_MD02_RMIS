@@ -106,11 +106,7 @@ public class OnboardingActivity extends AppCompatActivity {
         int childCount = layoutOnboardingIndicators.getChildCount();
         for (int i = 0; i < childCount; i++) {
             ImageView imageView = (ImageView) layoutOnboardingIndicators.getChildAt(i);
-            if (i == index) {
-                imageView.setSelected(true);
-            } else {
-                imageView.setSelected(false);
-            }
+            imageView.setSelected(i == index);
         }
 
         if (index == adapter.getItemCount() - 1) {
