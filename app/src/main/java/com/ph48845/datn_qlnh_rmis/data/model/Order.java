@@ -4,269 +4,418 @@ import com.google.gson.annotations.SerializedName;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Order model - extended OrderItem to be tolerant with server formats.
- *
- * Notes:
- * - The server may return order.items[].menuItem as either a String id or an object { _id, name, price, imageUrl }.
- * - We keep a raw menuItem field (Object) and provide normalize() to extract id/name/price/imageUrl into fields used by the UI.
- * - Call order.normalizeItems() after deserialization (or call each OrderItem.normalize()) before using items in UI.
- */
+
 public class Order implements Serializable {
 
+    // SỬA LỖI GSON CONFLICT: Đánh dấu tất cả các trường "Legacy" hoặc không có chú thích
+    // tương ứng với trường @SerializedName là transient.
+    public transient String _id;
+    public transient int tableNumber;
+    public transient String serverLegacy;
+    public transient String cashierLegacy;
+    public transient List<OrderItem> items;
+    public transient double discountLegacy;
+    public transient double finalAmountLegacy;
+    public transient double paidAmountLegacy;
+    public transient double changeLegacy;
+    public transient String paymentMethodLegacy;
+    public transient String orderStatusLegacy;
+    public transient List<String> mergedFromLegacy;
+    public transient List<String> splitToLegacy;
+    public transient String paidAtLegacy;
+
+    // Các trường khác không liên quan trực tiếp đến JSON keys nhưng cần giữ lại
+    private String orderId;
+    private String tableId;
+    private String waiterId;
+    private transient long createdAt; // Đã sửa thành transient ở lần trước do conflict
+    private boolean paid;
+    private transient double totalAmount; // <--- ĐÃ THÊM TRANSIENT VÀO ĐÂY ĐỂ GIẢI QUYẾT LỖI XUNG ĐỘT
+
+    // ================== Annotated Fields (Gson uses these) ==================
     @SerializedName("_id")
-    private String id;
+    private String idAnnotated;
 
     @SerializedName("tableNumber")
-    private int tableNumber;
+    private Integer tableNumberAnnotated;
 
-    // store references as String ids (ObjectId)
     @SerializedName("server")
-    private String serverId;
+    private String serverIdAnnotated;
 
     @SerializedName("cashier")
-    private String cashierId;
+    private String cashierIdAnnotated;
 
     @SerializedName("items")
-    private List<OrderItem> items = new ArrayList<>();
+    private List<OrderItem> itemsAnnotated;
 
     @SerializedName("totalAmount")
-    private double totalAmount;
+    private Double totalAmountAnnotated;
 
     @SerializedName("discount")
-    private double discount;
+    private Double discountAnnotated;
 
     @SerializedName("finalAmount")
-    private double finalAmount;
+    private Double finalAmountAnnotated;
 
     @SerializedName("paidAmount")
-    private double paidAmount;
+    private Double paidAmountAnnotated;
 
     @SerializedName("change")
-    private double change;
+    private Double changeAnnotated;
 
     @SerializedName("paymentMethod")
-    private String paymentMethod;
+    private String paymentMethodAnnotated;
 
     @SerializedName("orderStatus")
-    private String orderStatus;
-
+    private String orderStatusAnnotated;
 
     @SerializedName("mergedFrom")
-    private List<String> mergedFrom = new ArrayList<>();
+    private List<String> mergedFromAnnotated;
 
     @SerializedName("splitTo")
-    private List<String> splitTo = new ArrayList<>();
+    private List<String> splitToAnnotated;
 
     @SerializedName("createdAt")
-    private String createdAt;
+    private String createdAtAnnotated;
 
     @SerializedName("paidAt")
-    private String paidAt;
+    private String paidAtAnnotated;
 
-    public Order() {}
-
+    // ================== Constructors ==================
+    public Order() {
+        if (items == null) items = new ArrayList<>();
+        if (mergedFromLegacy == null) mergedFromLegacy = new ArrayList<>();
+        if (splitToLegacy == null) splitToLegacy = new ArrayList<>();
+    }
 
     public Order(int tableNumber, String serverId, List<OrderItem> items,
                  double totalAmount, double discount, double finalAmount,
                  String paymentMethod, String orderStatus) {
+        this();
         this.tableNumber = tableNumber;
-        this.serverId = serverId;
-        this.items = items;
-        this.totalAmount = totalAmount;
-        this.discount = discount;
-        this.finalAmount = finalAmount;
-        this.paymentMethod = paymentMethod;
-        this.orderStatus = orderStatus;
+        this.serverLegacy = serverId;
+        this.items = items != null ? items : new ArrayList<>();
+        this.totalAmount = totalAmount; // Giá trị này chỉ dùng cho constructor và sẽ không được Gson parse
+        this.discountLegacy = discount;
+        this.finalAmountLegacy = finalAmount;
+        this.paymentMethodLegacy = paymentMethod;
+        this.orderStatusLegacy = orderStatus;
+
+        // Cập nhật các trường Annotated trong constructor để đồng bộ (nếu cần)
+        this.tableNumberAnnotated = tableNumber;
+        this.serverIdAnnotated = serverId;
+        this.itemsAnnotated = items;
+        this.totalAmountAnnotated = totalAmount;
+        this.discountAnnotated = discount;
+        this.finalAmountAnnotated = finalAmount;
+        this.paymentMethodAnnotated = paymentMethod;
+        this.orderStatusAnnotated = orderStatus;
     }
 
-    // Getters / Setters
-    public String getId() { return id; }
-    public void setId(String id) { this.id = id; }
-
-    public int getTableNumber() { return tableNumber; }
-    public void setTableNumber(int tableNumber) { this.tableNumber = tableNumber; }
-
-    public String getServerId() { return serverId; }
-    public void setServerId(String serverId) { this.serverId = serverId; }
-
-    public String getCashierId() { return cashierId; }
-    public void setCashierId(String cashierId) { this.cashierId = cashierId; }
-
-    public List<OrderItem> getItems() { return items; }
-    public void setItems(List<OrderItem> items) { this.items = items; }
-
-    public double getTotalAmount() { return totalAmount; }
-    public void setTotalAmount(double totalAmount) { this.totalAmount = totalAmount; }
-
-    public double getDiscount() { return discount; }
-    public void setDiscount(double discount) { this.discount = discount; }
-
-    public double getFinalAmount() { return finalAmount; }
-    public void setFinalAmount(double finalAmount) { this.finalAmount = finalAmount; }
-
-    public double getPaidAmount() { return paidAmount; }
-    public void setPaidAmount(double paidAmount) { this.paidAmount = paidAmount; }
-
-    public double getChange() { return change; }
-    public void setChange(double change) { this.change = change; }
-
-    public String getPaymentMethod() { return paymentMethod; }
-    public void setPaymentMethod(String paymentMethod) { this.paymentMethod = paymentMethod; }
-
-    public String getOrderStatus() { return orderStatus; }
-    public void setOrderStatus(String orderStatus) { this.orderStatus = orderStatus; }
-
-    public List<String> getMergedFrom() { return mergedFrom; }
-    public void setMergedFrom(List<String> mergedFrom) { this.mergedFrom = mergedFrom; }
-
-    public List<String> getSplitTo() { return splitTo; }
-    public void setSplitTo(List<String> splitTo) { this.splitTo = splitTo; }
-
-    public String getCreatedAt() { return createdAt; }
-    public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
-
-    public String getPaidAt() { return paidAt; }
-    public void setPaidAt(String paidAt) { this.paidAt = paidAt; }
-
-    @Override
-    public String toString() {
-        return "Order{" +
-                "id='" + id + '\'' +
-                ", tableNumber=" + tableNumber +
-                ", serverId='" + serverId + '\'' +
-                ", cashierId='" + cashierId + '\'' +
-                ", items=" + items +
-                ", totalAmount=" + totalAmount +
-                ", discount=" + discount +
-                ", finalAmount=" + finalAmount +
-                ", paidAmount=" + paidAmount +
-                ", change=" + change +
-                ", paymentMethod='" + paymentMethod + '\'' +
-                ", orderStatus='" + orderStatus + '\'' +
-                ", mergedFrom=" + mergedFrom +
-                ", splitTo=" + splitTo +
-                ", createdAt='" + createdAt + '\'' +
-                ", paidAt='" + paidAt + '\'' +
-                '}';
-    }
-
-    /**
-     * Normalize all items - call this after deserialization.
-     */
+    // ================== Normalization ==================
     public void normalizeItems() {
-        if (items == null) return;
-        for (OrderItem oi : items) {
+        List<OrderItem> list = getItems();
+        for (OrderItem oi : list) {
             if (oi != null) oi.normalize();
         }
     }
 
-    /**
-     * Inner class representing an item in the order.
-     * Tolerant with server formats: menuItem may be an id (String) or an object map.
-     */
+    // ================== Getters / Setters (unified) ==================
+    public String getOrderId() { return orderId; }
+    public void setOrderId(String orderId) { this.orderId = orderId; }
+
+    public String getTableId() { return tableId; }
+    public void setTableId(String tableId) { this.tableId = tableId; }
+
+    public String getWaiterId() { return waiterId; }
+    public void setWaiterId(String waiterId) { this.waiterId = waiterId; }
+
+    public long getCreatedAtEpoch() { return createdAt; }
+    public void setCreatedAtEpoch(long createdAt) { this.createdAt = createdAt; }
+
+    public boolean isPaid() { return paid; }
+    public void setPaid(boolean paid) { this.paid = paid; }
+
+    public double getTotalAmount() {
+        // Trả về trường Annotated, nếu null thì dùng trường transient (chỉ có giá trị nếu được set thủ công)
+        return totalAmountAnnotated != null ? totalAmountAnnotated : totalAmount;
+    }
+    public void setTotalAmount(double totalAmount) {
+        this.totalAmount = totalAmount;
+        this.totalAmountAnnotated = totalAmount;
+    }
+
+    public List<OrderItem> getItems() {
+        if (itemsAnnotated != null && !itemsAnnotated.isEmpty()) return itemsAnnotated;
+        if (items == null) items = new ArrayList<>();
+        return items;
+    }
+    public void setItems(List<OrderItem> items) {
+        this.items = items;
+        this.itemsAnnotated = items;
+    }
+
+    public String getId() {
+        return idAnnotated != null ? idAnnotated : _id;
+    }
+    public void setId(String id) {
+        this._id = id;
+        this.idAnnotated = id;
+    }
+
+    public int getTableNumber() {
+        return tableNumberAnnotated != null ? tableNumberAnnotated : tableNumber;
+    }
+    public void setTableNumber(int tableNumber) {
+        this.tableNumber = tableNumber;
+        this.tableNumberAnnotated = tableNumber;
+    }
+
+    public String getServerId() {
+        return serverIdAnnotated != null ? serverIdAnnotated : serverLegacy;
+    }
+    public void setServerId(String serverId) {
+        this.serverLegacy = serverId;
+        this.serverIdAnnotated = serverId;
+    }
+
+    public String getCashierId() {
+        return cashierIdAnnotated != null ? cashierIdAnnotated : cashierLegacy;
+    }
+    public void setCashierId(String cashierId) {
+        this.cashierLegacy = cashierId;
+        this.cashierIdAnnotated = cashierId;
+    }
+
+    public double getDiscount() {
+        return discountAnnotated != null ? discountAnnotated : discountLegacy;
+    }
+    public void setDiscount(double discount) {
+        this.discountLegacy = discount;
+        this.discountAnnotated = discount;
+    }
+
+    public double getFinalAmount() {
+        return finalAmountAnnotated != null ? finalAmountAnnotated : finalAmountLegacy;
+    }
+    public void setFinalAmount(double finalAmount) {
+        this.finalAmountLegacy = finalAmount;
+        this.finalAmountAnnotated = finalAmount;
+    }
+
+    public double getPaidAmount() {
+        return paidAmountAnnotated != null ? paidAmountAnnotated : paidAmountLegacy;
+    }
+    public void setPaidAmount(double paidAmount) {
+        this.paidAmountLegacy = paidAmount;
+        this.paidAmountAnnotated = paidAmount;
+    }
+
+    public double getChange() {
+        return changeAnnotated != null ? changeAnnotated : changeLegacy;
+    }
+    public void setChange(double change) {
+        this.changeLegacy = change;
+        this.changeAnnotated = change;
+    }
+
+    public String getPaymentMethod() {
+        return paymentMethodAnnotated != null ? paymentMethodAnnotated : paymentMethodLegacy;
+    }
+    public void setPaymentMethod(String paymentMethod) {
+        this.paymentMethodLegacy = paymentMethod;
+        this.paymentMethodAnnotated = paymentMethod;
+    }
+
+    public String getOrderStatus() {
+        return orderStatusAnnotated != null ? orderStatusAnnotated : orderStatusLegacy;
+    }
+    public void setOrderStatus(String orderStatus) {
+        this.orderStatusLegacy = orderStatus;
+        this.orderStatusAnnotated = orderStatus;
+    }
+
+    public List<String> getMergedFrom() {
+        if (mergedFromAnnotated != null && !mergedFromAnnotated.isEmpty()) return mergedFromAnnotated;
+        if (mergedFromLegacy == null) mergedFromLegacy = new ArrayList<>();
+        return mergedFromLegacy;
+    }
+    public void setMergedFrom(List<String> mergedFrom) {
+        this.mergedFromLegacy = mergedFrom;
+        this.mergedFromAnnotated = mergedFrom;
+    }
+
+    public List<String> getSplitTo() {
+        if (splitToAnnotated != null && !splitToAnnotated.isEmpty()) return splitToAnnotated;
+        if (splitToLegacy == null) splitToLegacy = new ArrayList<>();
+        return splitToLegacy;
+    }
+    public void setSplitTo(List<String> splitTo) {
+        this.splitToLegacy = splitTo;
+        this.splitToAnnotated = splitTo;
+    }
+
+    public String getCreatedAt() {
+        return createdAtAnnotated != null ? createdAtAnnotated : createdAtEpochToString();
+    }
+    public void setCreatedAt(String createdAt) {
+        this.createdAtAnnotated = createdAt;
+        this.createdAt = 0; // epoch not known
+    }
+
+    public String getPaidAt() {
+        return paidAtAnnotated != null ? paidAtAnnotated : paidAtLegacy;
+    }
+    public void setPaidAt(String paidAt) {
+        this.paidAtLegacy = paidAt;
+        this.paidAtAnnotated = paidAt;
+    }
+
+    private String createdAtEpochToString() {
+        return createdAtAnnotated != null ? createdAtAnnotated : (createdAt > 0 ? String.valueOf(createdAt) : null);
+    }
+
+    @Override
+    public String toString() {
+        return "Order{" +
+                "id='" + getId() + '\'' +
+                ", tableNumber=" + getTableNumber() +
+                ", serverId='" + getServerId() + '\'' +
+                ", cashierId='" + getCashierId() + '\'' +
+                ", items=" + getItems() +
+                ", totalAmount=" + getTotalAmount() +
+                ", discount=" + getDiscount() +
+                ", finalAmount=" + getFinalAmount() +
+                ", paidAmount=" + getPaidAmount() +
+                ", change=" + getChange() +
+                ", paymentMethod='" + getPaymentMethod() + '\'' +
+                ", orderStatus='" + getOrderStatus() + '\'' +
+                ", mergedFrom=" + getMergedFrom() +
+                ", splitTo=" + getSplitTo() +
+                ", createdAt='" + getCreatedAt() + '\'' +
+                ", paidAt='" + getPaidAt() + '\'' +
+                '}';
+    }
+
+    // ================== Inner OrderItem ==================
     public static class OrderItem implements Serializable {
 
-        // server might return either "menuItem" as id or as nested object
         @SerializedName("menuItem")
         private Object menuItemRaw;
 
-        // canonical fields used by UI
+        @SerializedName("menuItemId") // Đặt tên JSON rõ ràng để gửi đi
         private String menuItemId;
 
-        @SerializedName("name")
-        private String name; // snapshot of menu name at order time
+        @SerializedName("status")
+        private String status;
+        @SerializedName("note")
+        private String note;
+        @SerializedName("menuItemName")
+        private String menuItemName;
 
+        @SerializedName("name")
+        private String name;
         @SerializedName("quantity")
         private int quantity;
-
         @SerializedName("price")
         private double price;
-
         @SerializedName(value = "imageUrl", alternate = {"image", "thumbnail", "img"})
         private String imageUrl;
 
-        @SerializedName("status")
-        private String status; // pending, preparing, done, cancelled
-
         public OrderItem() {}
 
-        public OrderItem(String menuItemId, String name, int quantity, double price) {
-            this.menuItemRaw = null;
+        public OrderItem(String menuItemId, String name, int quantity, double price, String status) {
             this.menuItemId = menuItemId;
             this.name = name;
+            this.menuItemName = name;
             this.quantity = quantity;
             this.price = price;
-            this.status = "pending";
-            this.imageUrl = "";
+            this.status = status;
         }
 
-        public OrderItem(String menuItemId, String name, int quantity, double price, String imageUrl) {
-            this(menuItemId, name, quantity, price);
-            this.imageUrl = imageUrl;
+        public OrderItem(String menuItemId, String name, int quantity, double price) {
+            this(menuItemId, name, quantity, price, "pending");
         }
 
-        /**
-         * Normalize the possibly-nested menuItemRaw into menuItemId/name/price/imageUrl.
-         * Works if menuItemRaw is a String (id) or a Map (LinkedTreeMap from Gson).
-         */
         @SuppressWarnings("unchecked")
         public void normalize() {
-            // if menuItemRaw is a simple id string
             try {
                 if (menuItemRaw != null) {
                     if (menuItemRaw instanceof String) {
-                        if ((menuItemId == null || menuItemId.isEmpty())) {
-                            menuItemId = (String) menuItemRaw;
-                        }
+                        String rawId = (String) menuItemRaw;
+                        if (menuItemId == null || menuItemId.isEmpty()) menuItemId = rawId;
                     } else if (menuItemRaw instanceof Map) {
-                        Map<?,?> m = (Map<?,?>) menuItemRaw;
-                        // id
-                        Object idObj = m.get("_id");
-                        if (idObj == null) idObj = m.get("id");
-                        if (idObj != null) menuItemId = String.valueOf(idObj);
-                        // name
-                        Object n = m.get("name");
-                        if ((name == null || name.trim().isEmpty()) && n != null) name = String.valueOf(n);
-                        // price
-                        try {
-                            Object p = m.get("price");
-                            if (p != null) {
-                                if (p instanceof Number) price = ((Number) p).doubleValue();
-                                else price = Double.parseDouble(String.valueOf(p));
-                            }
-                        } catch (Exception ignored) {}
-                        // image
-                        Object img = m.get("imageUrl");
-                        if (img == null) img = m.get("image");
-                        if (img == null) img = m.get("thumbnail");
-                        if (img != null) imageUrl = String.valueOf(img);
+                        Map<?, ?> map = (Map<?, ?>) menuItemRaw;
+                        Object idObj = map.get("_id");
+                        if (idObj == null) idObj = map.get("id");
+                        if (idObj != null) {
+                            String idStr = String.valueOf(idObj);
+                            if (menuItemId == null || menuItemId.isEmpty()) menuItemId = idStr;
+                        }
+                        Object nObj = map.get("name");
+                        if (nObj != null && (name == null || name.isEmpty())) {
+                            name = String.valueOf(nObj);
+                            if (menuItemName == null || menuItemName.isEmpty()) menuItemName = name;
+                        }
+                        Object pObj = map.get("price");
+                        if (pObj != null) {
+                            try {
+                                if (pObj instanceof Number) price = ((Number) pObj).doubleValue();
+                                else price = Double.parseDouble(String.valueOf(pObj));
+                            } catch (Exception ignored) {}
+                        }
+                        Object imgObj = map.get("imageUrl");
+                        if (imgObj == null) imgObj = map.get("image");
+                        if (imgObj == null) imgObj = map.get("thumbnail");
+                        if (imgObj != null && (imageUrl == null || imageUrl.isEmpty())) {
+                            imageUrl = String.valueOf(imgObj);
+                        }
                     } else {
-                        // other types: try toString
-                        if (menuItemId == null || menuItemId.isEmpty()) menuItemId = String.valueOf(menuItemRaw);
+                        String rawStr = String.valueOf(menuItemRaw);
+                        if (menuItemId == null || menuItemId.isEmpty()) menuItemId = rawStr;
                     }
                 }
             } catch (Exception ignored) {}
 
-            // defensive defaults
             if (name == null) name = "";
+            if (menuItemName == null || menuItemName.isEmpty()) menuItemName = name;
             if (imageUrl == null) imageUrl = "";
-            // menuItemId may still be null if server didn't send it
-            if (menuItemId == null) menuItemId = "";
+            if (status == null) status = "";
+            if (note == null) note = "";
         }
 
-        // Getters / Setters
+        // ---------- Getters / Setters ----------
+
+
+
         public Object getMenuItemRaw() { return menuItemRaw; }
         public void setMenuItemRaw(Object menuItemRaw) { this.menuItemRaw = menuItemRaw; }
 
-        public String getMenuItemId() { return menuItemId == null ? "" : menuItemId; }
-        public void setMenuItemId(String menuItemId) { this.menuItemId = menuItemId; }
+        public String getMenuItemId() {
+            return menuItemId == null ? "" : menuItemId;
+        }
+
+        public void setMenuItemId(String menuItemId) {
+            this.menuItemId = menuItemId;
+        }
+
+        public String getMenuItem() {
+            return menuItemId == null ? "" : menuItemId;
+        }
+
 
         public String getName() { return name == null ? "" : name; }
-        public void setName(String name) { this.name = name; }
+        public void setName(String name) {
+            this.name = name;
+            if (this.menuItemName == null || this.menuItemName.isEmpty()) this.menuItemName = name;
+        }
+
+        public String getMenuItemName() { return menuItemName == null ? "" : menuItemName; }
+        public void setMenuItemName(String menuItemName) { this.menuItemName = menuItemName; }
 
         public int getQuantity() { return quantity; }
         public void setQuantity(int quantity) { this.quantity = quantity; }
@@ -280,17 +429,38 @@ public class Order implements Serializable {
         public String getStatus() { return status == null ? "" : status; }
         public void setStatus(String status) { this.status = status; }
 
+        public String getNote() { return note == null ? "" : note; }
+        public void setNote(String note) { this.note = note; }
+
         @Override
         public String toString() {
             return "OrderItem{" +
-                    "menuItemRaw=" + (menuItemRaw != null ? menuItemRaw.toString() : "null") +
-                    ", menuItemId='" + menuItemId + '\'' +
+                    "menuItemId='" + menuItemId + '\'' +
                     ", name='" + name + '\'' +
                     ", quantity=" + quantity +
                     ", price=" + price +
-                    ", imageUrl='" + imageUrl + '\'' +
                     ", status='" + status + '\'' +
+                    ", note='" + note + '\'' +
+                    ", imageUrl='" + imageUrl + '\'' +
                     '}';
         }
+    }
+
+    // ================== Convenience helpers ==================
+    public boolean hasItems() {
+        return !getItems().isEmpty();
+    }
+
+    public List<OrderItem> safeItems() {
+        return Collections.unmodifiableList(getItems());
+    }
+
+    public OrderItem findItemById(String id) {
+        if (id == null) return null;
+        for (OrderItem oi : getItems()) {
+            if (oi == null) continue;
+            if (id.equals(oi.getMenuItemId()) || id.equals(oi.getMenuItem())) return oi;
+        }
+        return null;
     }
 }

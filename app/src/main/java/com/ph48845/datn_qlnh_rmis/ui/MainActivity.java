@@ -30,8 +30,11 @@ import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
 import com.ph48845.datn_qlnh_rmis.data.repository.OrderRepository;
 import com.ph48845.datn_qlnh_rmis.data.repository.TableRepository;
 import com.ph48845.datn_qlnh_rmis.ui.phucvu.OrderActivity;
+import com.ph48845.datn_qlnh_rmis.ui.thungan.ThuNganActivity;
+//import com.ph48845.datn_qlnh_rmis.ui.revenue.RevenueActivity;
+import android.widget.ImageView;
+import android.widget.PopupMenu;
 
-import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -41,7 +44,6 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Date;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.regex.Matcher;
@@ -112,8 +114,41 @@ public class MainActivity extends AppCompatActivity {
         rvFloor1.setAdapter(adapterFloor1);
         rvFloor2.setAdapter(adapterFloor2);
 
+        // Setup menu/avatar click to open ThuNganActivity
+        ImageView avatar = findViewById(R.id.avatar);
+        if (avatar != null) {
+            avatar.setOnClickListener(v -> showMenu(v));
+        }
+
         // initial load
         fetchTablesFromServer();
+    }
+
+    /**
+     * Hiển thị menu khi click vào avatar
+     */
+    private void showMenu(View anchor) {
+        PopupMenu popup = new PopupMenu(this, anchor);
+        popup.getMenu().add(0, 1, 0, "Thu Ngân");
+        popup.getMenu().add(0, 2, 1, "Thống kê doanh thu");
+        
+        popup.setOnMenuItemClickListener(item -> {
+            int id = item.getItemId();
+            if (id == 1) {
+                // Mở màn hình Thu Ngân
+                Intent intent = new Intent(MainActivity.this, ThuNganActivity.class);
+                startActivity(intent);
+                return true;
+            } else if (id == 2) {
+                // Mở màn hình Thống kê doanh thu
+                Intent intent = new Intent(MainActivity.this,MainActivity.class);
+                startActivity(intent);
+                return true;
+            }
+            return false;
+        });
+        
+        popup.show();
     }
 
     @Override
