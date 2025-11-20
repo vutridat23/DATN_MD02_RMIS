@@ -68,6 +68,8 @@ dependencies {
     // ... các dependencies hiện có
     implementation ("androidx.multidex:multidex:2.0.1")
 
+    implementation("io.socket:socket.io-client:2.0.1")
+
 
     // OkHttp + logging
     implementation("com.squareup.okhttp3:okhttp:4.11.0")

@@ -1,4 +1,4 @@
-package com.ph48845.datn_qlnh_rmis.adapter;
+package com.ph48845.datn_qlnh_rmis.ui.phucvu.adapter;
 
 
 

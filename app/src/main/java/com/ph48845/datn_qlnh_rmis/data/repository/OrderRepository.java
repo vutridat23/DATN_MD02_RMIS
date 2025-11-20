@@ -5,7 +5,6 @@ import android.util.Log;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
 import com.ph48845.datn_qlnh_rmis.data.remote.ApiResponse;
 import com.ph48845.datn_qlnh_rmis.data.remote.ApiService;
-import com.ph48845.datn_qlnh_rmis.data.remote.OrderApi;
 import com.ph48845.datn_qlnh_rmis.data.remote.RetrofitClient;
 
 import java.io.IOException;
@@ -24,24 +23,20 @@ public class OrderRepository {
 
     private final ApiService api;
 
-    // Constructor inject cho ViewModel tự tạo Retrofit
     public OrderRepository(ApiService api) {
         this.api = api;
     }
 
-    // Constructor cũ: dùng singleton RetrofitClient
     public OrderRepository() {
         this.api = RetrofitClient.getInstance().getApiService();
     }
 
-    // ===== Callback interface giữ nguyên =====
     public interface RepositoryCallback<T> {
         void onSuccess(T result);
         void onError(String message);
     }
 
-    // ===== Các method dạng Call cho BepViewModel =====
-    public Call<List<Order>> getAllOrders() {
+    public Call<ApiResponse<List<Order>>> getAllOrders() {
         return api.getAllOrders();
     }
 
@@ -49,53 +44,75 @@ public class OrderRepository {
         return api.updateOrderItemStatus(orderId, itemId, new ApiService.StatusUpdate(newStatus));
     }
 
-    // ===== Các wrapper callback nguyên gốc =====
     public void createOrder(final Order order, final RepositoryCallback<Order> callback) {
         if (order == null) {
             callback.onError("Order is null");
             return;
         }
-        api.createOrder(order).enqueue(new Callback<Order>() {
+
+        try {
+            order.prepareForCreate();
+        } catch (Exception ignored) {}
+
+        api.createOrder(order).enqueue(new Callback<ApiResponse<Order>>() {
             @Override
-            public void onResponse(Call<Order> call, Response<Order> response) {
+            public void onResponse(Call<ApiResponse<Order>> call, Response<ApiResponse<Order>> response) {
                 if (response.isSuccessful() && response.body() != null) {
-                    callback.onSuccess(response.body());
+                    ApiResponse<Order> apiResp = response.body();
+                    if (apiResp.getData() != null) {
+                        callback.onSuccess(apiResp.getData());
+                    } else {
+                        callback.onError("Server returned no order data: " + apiResp.getMessage());
+                    }
                 } else {
                     callback.onError(buildHttpError("createOrder", response));
                 }
             }
+
             @Override
-            public void onFailure(Call<Order> call, Throwable t) {
+            public void onFailure(Call<ApiResponse<Order>> call, Throwable t) {
                 callback.onError(logFailure("createOrder onFailure", t));
             }
         });
     }
 
-    /**
-     * Lấy các order thuộc bàn (tableNumber). Nếu status == null sẽ lấy tất cả.
-     */
+    public void createOrderFromItems(int tableNumber, String serverId, List<Order.OrderItem> items, final RepositoryCallback<Order> callback) {
+        Order o = new Order();
+        o.setTableNumber(tableNumber);
+        o.setServerId(serverId);
+        if (items != null) o.setItems(items);
+        o.prepareForCreate();
+        createOrder(o, callback);
+    }
+
     public void getOrdersByTableNumber(Integer tableNumber, String status, final RepositoryCallback<List<Order>> callback) {
         api.getOrdersByTable(tableNumber, status).enqueue(new Callback<ApiResponse<List<Order>>>() {
             @Override
             public void onResponse(Call<ApiResponse<List<Order>>> call, Response<ApiResponse<List<Order>>> response) {
-                if (response.isSuccessful()) {
+                if (response.isSuccessful() && response.body() != null) {
                     ApiResponse<List<Order>> apiResponse = response.body();
-                    if (apiResponse != null) {
-                        List<Order> list = apiResponse.getData();
-                        if (list != null) {
-                            callback.onSuccess(list);
-                        } else {
-                            String msg = "Server returned empty order list";
-                            if (apiResponse.getMessage() != null) msg += ": " + apiResponse.getMessage();
-                            callback.onError(msg);
+                    List<Order> list = apiResponse.getData();
+                    if (list != null) {
+                        try {
+                            for (Order o : list) {
+                                if (o != null) {
+                                    o.normalizeItems();
+                                }
+                            }
+                        } catch (Exception e) {
+                            Log.w(TAG, "normalizeItems failed: " + e.getMessage());
                         }
+                        callback.onSuccess(list);
                     } else {
-                        callback.onError("Response body is null");
+                        String msg = "Server returned empty order list";
+                        if (apiResponse.getMessage() != null) msg += ": " + apiResponse.getMessage();
+                        callback.onError(msg);
                     }
                 } else {
                     callback.onError(buildHttpError("getOrdersByTableNumber", response));
                 }
             }
+
             @Override
             public void onFailure(Call<ApiResponse<List<Order>>> call, Throwable t) {
                 callback.onError(logFailure("getOrdersByTableNumber onFailure", t));
@@ -117,6 +134,7 @@ public class OrderRepository {
                     callback.onError(buildHttpError("deleteOrder", response));
                 }
             }
+
             @Override
             public void onFailure(Call<Void> call, Throwable t) {
                 callback.onError(logFailure("deleteOrder onFailure", t));
@@ -129,26 +147,28 @@ public class OrderRepository {
             callback.onError("Invalid order id");
             return;
         }
-        api.updateOrder(orderId, updates).enqueue(new Callback<Order>() {
+        api.updateOrder(orderId, updates).enqueue(new Callback<ApiResponse<Order>>() {
             @Override
-            public void onResponse(Call<Order> call, Response<Order> response) {
+            public void onResponse(Call<ApiResponse<Order>> call, Response<ApiResponse<Order>> response) {
                 if (response.isSuccessful() && response.body() != null) {
-                    callback.onSuccess(response.body());
+                    ApiResponse<Order> apiResp = response.body();
+                    if (apiResp.getData() != null) {
+                        callback.onSuccess(apiResp.getData());
+                    } else {
+                        callback.onError("Server returned no order data: " + apiResp.getMessage());
+                    }
                 } else {
                     callback.onError(buildHttpError("updateOrder", response));
                 }
             }
+
             @Override
-            public void onFailure(Call<Order> call, Throwable t) {
+            public void onFailure(Call<ApiResponse<Order>> call, Throwable t) {
                 callback.onError(logFailure("updateOrder onFailure", t));
             }
         });
     }
 
-    /**
-     * Move all orders from one tableNumber to another (best-effort).
-     * Giữ logic phòng thủ: chỉ di chuyển order đúng bàn nguồn.
-     */
     public void moveOrdersForTable(int fromTableNumber, int toTableNumber, final RepositoryCallback<Void> callback) {
         if (fromTableNumber <= 0) {
             callback.onError("Invalid fromTableNumber: " + fromTableNumber);
@@ -227,7 +247,6 @@ public class OrderRepository {
         });
     }
 
-    // ===== Helpers =====
     private void checkMoveFinished(int[] finished, int[] errors, int total, RepositoryCallback<Void> callback) {
         if (finished[0] >= total) {
             if (errors[0] == 0) callback.onSuccess(null);

@@ -24,7 +24,7 @@ import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.ph48845.datn_qlnh_rmis.R;
-import com.ph48845.datn_qlnh_rmis.adapter.TableAdapter;
+import com.ph48845.datn_qlnh_rmis.ui.phucvu.adapter.TableAdapter;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
 import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
 import com.ph48845.datn_qlnh_rmis.data.repository.OrderRepository;
@@ -33,7 +33,6 @@ import com.ph48845.datn_qlnh_rmis.ui.phucvu.OrderActivity;
 import com.ph48845.datn_qlnh_rmis.ui.thungan.ThuNganActivity;
 //import com.ph48845.datn_qlnh_rmis.ui.revenue.RevenueActivity;
 import android.widget.ImageView;
-import android.widget.PopupMenu;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
