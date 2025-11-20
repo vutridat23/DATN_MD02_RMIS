@@ -17,6 +17,55 @@
         android:background="#4CAF50"
         android:textColor="#FFF"/>
 
+    <!-- Controls row: Realtime toggle + refresh button + progress -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:orientation="horizontal"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:gravity="center_vertical"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="8dp">
+
+        <Button
+            android:id="@+id/btn_bep_realtime"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:text="Realtime OFF"
+            android:textAllCaps="false"
+            android:paddingLeft="12dp"
+            android:paddingRight="12dp"
+            android:backgroundTint="#2196F3"
+            android:textColor="#FFFFFF" />
+
+        <View
+            android:layout_width="12dp"
+            android:layout_height="match_parent" />
+
+        <Button
+            android:id="@+id/btn_bep_refresh"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:text="Làm mới"
+            android:textAllCaps="false"
+            android:backgroundTint="#4CAF50"
+            android:textColor="#FFFFFF" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1" />
+
+        <ProgressBar
+            android:id="@+id/progress_bep"
+            style="?android:attr/progressBarStyleLarge"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:indeterminate="true"
+            android:visibility="gone" />
+    </LinearLayout>
+
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerOrderBep"
         android:layout_width="match_parent"
