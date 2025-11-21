@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp">
+
+  <LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:orientation="vertical">
+    <!-- Header với nút Back -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="16dp">
+
+      <ImageButton
+          android:id="@+id/btnBack"
+          android:layout_width="40dp"
+          android:layout_height="40dp"
+          android:background="?attr/selectableItemBackgroundBorderless"
+          android:src="@drawable/back"
+          android:contentDescription="Back"/>
+
+      <TextView
+          android:id="@+id/tvTitle"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:text="Chọn phương thức thanh toán"
+          android:textSize="20sp"
+          android:textStyle="bold"
+          android:layout_marginStart="12dp"/>
+    </LinearLayout>
+
+
+    <TextView
+        android:id="@+id/tvTotalAmount"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Tổng: 0₫"
+        android:textSize="18sp"
+        android:layout_marginBottom="24dp"/>
+
+    <!-- TIỀN MẶT -->
+    <androidx.cardview.widget.CardView
+        android:id="@+id/cardCash"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="12dp"
+        android:clickable="true"
+        android:foreground="?attr/selectableItemBackground"
+        app:cardElevation="4dp"
+        app:cardCornerRadius="8dp">
+
+      <LinearLayout
+          android:padding="16dp"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:orientation="horizontal"
+          android:gravity="center_vertical">
+
+        <ImageView
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@android:drawable/ic_menu_send" />
+
+        <TextView
+            android:layout_marginStart="12dp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Thanh toán tiền mặt"
+            android:textSize="16sp"/>
+      </LinearLayout>
+    </androidx.cardview.widget.CardView>
+
+
+    <!-- QR -->
+    <androidx.cardview.widget.CardView
+        android:id="@+id/cardQR"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="12dp"
+        android:clickable="true"
+        android:foreground="?attr/selectableItemBackground"
+        app:cardElevation="4dp"
+        app:cardCornerRadius="8dp">
+
+      <LinearLayout
+          android:padding="16dp"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:orientation="horizontal"
+          android:gravity="center_vertical">
+
+        <ImageView
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@android:drawable/ic_menu_camera" />
+
+        <TextView
+            android:layout_marginStart="12dp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Thanh toán bằng mã QR"
+            android:textSize="16sp"/>
+      </LinearLayout>
+    </androidx.cardview.widget.CardView>
+
+
+    <!-- THẺ NGÂN HÀNG -->
+    <androidx.cardview.widget.CardView
+        android:id="@+id/cardCard"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="12dp"
+        android:clickable="true"
+        android:foreground="?attr/selectableItemBackground"
+        app:cardElevation="4dp"
+        app:cardCornerRadius="8dp">
+
+      <LinearLayout
+          android:padding="16dp"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:orientation="horizontal"
+          android:gravity="center_vertical">
+
+        <ImageView
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@android:drawable/ic_menu_compass" />
+
+        <TextView
+            android:layout_marginStart="12dp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Thanh toán bằng thẻ ngân hàng"
+            android:textSize="16sp"/>
+      </LinearLayout>
+    </androidx.cardview.widget.CardView>
+
+  </LinearLayout>
+</ScrollView>

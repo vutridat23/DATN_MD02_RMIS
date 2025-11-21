@@ -1,5 +1,6 @@
 package com.ph48845.datn_qlnh_rmis.ui.thungan;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.MenuItem;
@@ -16,6 +17,8 @@ import androidx.appcompat.widget.Toolbar;
 import com.ph48845.datn_qlnh_rmis.R;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
 import com.ph48845.datn_qlnh_rmis.data.repository.OrderRepository;
+import com.ph48845.datn_qlnh_rmis.ui.thanhtoan.ThanhToanActivity;
+
 
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
@@ -63,7 +66,7 @@ public class InvoiceActivity extends AppCompatActivity {
 
         initViews();
         setupToolbar();
-        
+
         orderRepository = new OrderRepository();
 
         // Load dữ liệu từ API
@@ -87,8 +90,28 @@ public class InvoiceActivity extends AppCompatActivity {
 
         // Click listener cho nút thanh toán
         btnPayment.setOnClickListener(v -> {
-            // TODO: Xử lý thanh toán
-            Toast.makeText(this, "Chức năng thanh toán đang được phát triển", Toast.LENGTH_SHORT).show();
+            if (orders == null || orders.isEmpty()) {
+                Toast.makeText(InvoiceActivity.this, "Không có đơn hàng để thanh toán", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            // Lọc order theo bàn hiện tại
+            Order orderToPay = null;
+            for (Order o : orders) {
+                if (o != null && o.getTableNumber() == tableNumber) {
+                    orderToPay = o;
+                    break;
+                }
+            }
+
+            if (orderToPay == null) {
+                Toast.makeText(InvoiceActivity.this, "Không tìm thấy đơn hàng của bàn này", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            Intent intent = new Intent(InvoiceActivity.this, ThanhToanActivity.class);
+            intent.putExtra("orderId", orderToPay.getId());
+            startActivity(intent);
         });
     }
 
@@ -114,13 +137,25 @@ public class InvoiceActivity extends AppCompatActivity {
             public void onSuccess(List<Order> orderList) {
                 runOnUiThread(() -> {
                     progressBar.setVisibility(View.GONE);
-                    
+
                     if (orderList == null || orderList.isEmpty()) {
                         Toast.makeText(InvoiceActivity.this, "Không có đơn hàng cho bàn này", Toast.LENGTH_SHORT).show();
                         return;
                     }
 
-                    orders = orderList;
+                    // Chỉ lấy các order có tableNumber = bàn hiện tại
+                    orders = new ArrayList<>();
+                    for (Order order : orderList) {
+                        if (order != null && order.getTableNumber() == tableNumber) {
+                            orders.add(order);
+                        }
+                    }
+
+                    if (orders.isEmpty()) {
+                        Toast.makeText(InvoiceActivity.this, "Không có đơn hàng cho bàn này", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+
                     displayInvoice();
                 });
             }
@@ -140,74 +175,143 @@ public class InvoiceActivity extends AppCompatActivity {
      * Hiển thị hóa đơn với dữ liệu đã load
      */
     private void displayInvoice() {
-        // Tạo mã đơn từ order đầu tiên (hoặc có thể tạo mới)
+        // XÓA TẤT CẢ VIEW CŨ CHỈ 1 LẦN Ở ĐÂY
+        llItemsContainer.removeAllViews();
+
+        if (orders == null || orders.isEmpty()) return;
+
+        // Hiển thị mã đơn chung (có thể dùng order đầu tiên)
         String orderCode = generateOrderCode();
         tvOrderCode.setText("Mã đơn: " + orderCode);
 
-        // Gộp tất cả items từ các orders
-        List<Order.OrderItem> allItems = new ArrayList<>();
+        for (int i = 0; i < orders.size(); i++) {
+            Order order = orders.get(i);
+            if (order == null) continue;
+
+            order.normalizeItems();
+
+            // Thêm header cho mỗi order (nếu có nhiều orders)
+            if (orders.size() > 1) {
+                TextView tvOrderHeader = new TextView(this);
+                tvOrderHeader.setText("Đơn #" + (i + 1) + " - ID: " + order.getId());
+                tvOrderHeader.setTextSize(16);
+                tvOrderHeader.setTextColor(0xFF000000);
+                tvOrderHeader.setTypeface(null, android.graphics.Typeface.BOLD);
+                LinearLayout.LayoutParams headerParams = new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                );
+                headerParams.setMargins(
+                        (int) (16 * getResources().getDisplayMetrics().density),
+                        (int) (16 * getResources().getDisplayMetrics().density),
+                        (int) (16 * getResources().getDisplayMetrics().density),
+                        (int) (8 * getResources().getDisplayMetrics().density)
+                );
+                tvOrderHeader.setLayoutParams(headerParams);
+                llItemsContainer.addView(tvOrderHeader);
+            }
+
+            // Hiển thị món của order này - KHÔNG XÓA VIEW NỮA
+            displayItemsForOrder(order.getItems());
+
+            // Thêm separator nếu không phải order cuối
+            if (i < orders.size() - 1) {
+                View separator = new View(this);
+                LinearLayout.LayoutParams separatorParams = new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        (int) (1 * getResources().getDisplayMetrics().density)
+                );
+                separatorParams.setMargins(
+                        (int) (16 * getResources().getDisplayMetrics().density),
+                        (int) (16 * getResources().getDisplayMetrics().density),
+                        (int) (16 * getResources().getDisplayMetrics().density),
+                        (int) (16 * getResources().getDisplayMetrics().density)
+                );
+                separator.setLayoutParams(separatorParams);
+                separator.setBackgroundColor(0xFFE0E0E0);
+                llItemsContainer.addView(separator);
+            }
+        }
+
+        // Tính tổng
         double totalAmount = 0;
         double totalDiscount = 0;
-
         for (Order order : orders) {
             if (order == null) continue;
-            order.normalizeItems();
-            
-            if (order.getItems() != null) {
-                allItems.addAll(order.getItems());
-            }
-            
             totalAmount += order.getTotalAmount();
             totalDiscount += order.getDiscount();
         }
-
-        // Hiển thị danh sách món ăn
-        displayItems(allItems);
-
-        // Tính toán và hiển thị tổng kết
         double finalAmount = totalAmount - totalDiscount;
 
         tvTotalAmount.setText(formatCurrency(totalAmount));
         tvDiscountAmount.setText(formatCurrency(totalDiscount));
         tvFinalAmount.setText(formatCurrency(finalAmount));
 
-        // Hiển thị thông tin chiết khấu nếu có
-        if (totalDiscount > 0) {
+        if (totalDiscount > 0 && totalAmount > 0) {
             double discountPercent = (totalDiscount / totalAmount) * 100;
             tvDiscountInfo.setText("Chiết khấu mã giảm giá: " + String.format("%.0f", discountPercent) + "%");
             tvDiscountInfo.setVisibility(View.VISIBLE);
         } else {
             tvDiscountInfo.setVisibility(View.GONE);
         }
+
+        Log.d(TAG, "Displayed " + orders.size() + " orders with total items count");
     }
 
     /**
-     * Hiển thị danh sách món ăn trong container
+     * Hiển thị danh sách món ăn của 1 order - KHÔNG XÓA VIEW
      */
-    private void displayItems(List<Order.OrderItem> items) {
-        llItemsContainer.removeAllViews();
-
+    private void displayItemsForOrder(List<Order.OrderItem> items) {
         if (items == null || items.isEmpty()) {
+            TextView tvEmpty = new TextView(this);
+            tvEmpty.setText("  (Chưa có món)");
+            tvEmpty.setTextSize(14);
+            tvEmpty.setTextColor(0xFF757575);
+            LinearLayout.LayoutParams emptyParams = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+            );
+            emptyParams.setMargins(
+                    (int) (16 * getResources().getDisplayMetrics().density),
+                    (int) (8 * getResources().getDisplayMetrics().density),
+                    (int) (16 * getResources().getDisplayMetrics().density),
+                    (int) (8 * getResources().getDisplayMetrics().density)
+            );
+            tvEmpty.setLayoutParams(emptyParams);
+            llItemsContainer.addView(tvEmpty);
             return;
         }
 
         for (Order.OrderItem item : items) {
             if (item == null) continue;
 
-            // Tạo row cho mỗi món
+            // Lấy tên món
+            String itemName = "(Không tên)";
+            if (item.getName() != null && !item.getName().isEmpty()) {
+                itemName = item.getName();
+            }
+
+            // Hoặc dùng menuItemName nếu bạn muốn:
+            // if (item.getMenuItemName() != null && !item.getMenuItemName().isEmpty()) {
+            //     itemName = item.getMenuItemName();
+            // }
+
+            // Tạo row hiển thị món
             LinearLayout row = new LinearLayout(this);
             row.setOrientation(LinearLayout.HORIZONTAL);
-            row.setPadding(
-                (int) (16 * getResources().getDisplayMetrics().density),
-                (int) (12 * getResources().getDisplayMetrics().density),
-                (int) (16 * getResources().getDisplayMetrics().density),
-                (int) (12 * getResources().getDisplayMetrics().density)
+            // ... phần còn lại giữ nguyên ...
+
+        row.setPadding(
+                    (int) (16 * getResources().getDisplayMetrics().density),
+                    (int) (8 * getResources().getDisplayMetrics().density),
+                    (int) (16 * getResources().getDisplayMetrics().density),
+                    (int) (8 * getResources().getDisplayMetrics().density)
             );
 
-            // Món ăn
+            // TextView tên món
             TextView tvName = new TextView(this);
             tvName.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 2f));
-            tvName.setText(item.getName() != null ? item.getName() : "(Không tên)");
+            tvName.setText(itemName);
             tvName.setTextColor(0xFF000000);
             tvName.setTextSize(14);
             row.addView(tvName);
@@ -235,6 +339,7 @@ public class InvoiceActivity extends AppCompatActivity {
         }
     }
 
+
     /**
      * Format số tiền theo định dạng Việt Nam (₫)
      */
@@ -247,22 +352,21 @@ public class InvoiceActivity extends AppCompatActivity {
      */
     private String generateOrderCode() {
         if (orders != null && !orders.isEmpty() && orders.get(0).getId() != null) {
-            // Sử dụng ID của order đầu tiên, format thành HD2025-XXXX
             String orderId = orders.get(0).getId();
-            // Lấy 4 ký tự cuối của ID và chuyển thành số
             String suffix = "0000";
+
             if (orderId.length() >= 4) {
                 String last4 = orderId.substring(orderId.length() - 4);
-                // Lấy các chữ số từ 4 ký tự cuối
                 StringBuilder digits = new StringBuilder();
+
                 for (char c : last4.toCharArray()) {
                     if (Character.isDigit(c)) {
                         digits.append(c);
                     } else {
-                        // Chuyển ký tự thành số (0-9)
                         digits.append(Math.abs(c) % 10);
                     }
                 }
+
                 if (digits.length() > 0) {
                     try {
                         int num = Integer.parseInt(digits.toString()) % 10000;
@@ -272,11 +376,12 @@ public class InvoiceActivity extends AppCompatActivity {
                     }
                 }
             }
-            
+
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy", Locale.getDefault());
             String year = sdf.format(new Date());
             return "HD" + year + "-" + suffix;
         }
+
         // Fallback: tạo mã từ timestamp
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MMddHHmm", Locale.getDefault());
         return "HD" + sdf.format(new Date());
@@ -291,4 +396,3 @@ public class InvoiceActivity extends AppCompatActivity {
         return super.onOptionsItemSelected(item);
     }
 }
-
