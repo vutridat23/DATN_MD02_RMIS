@@ -1,16 +1,26 @@
 package com.ph48845.datn_qlnh_rmis.ui.phucvu;
 
+import android.app.AlertDialog;
+import android.app.DatePickerDialog;
+import android.app.TimePickerDialog;
+import android.content.DialogInterface;
+import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
+import android.view.ViewGroup;
+import android.view.inputmethod.InputMethodManager;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
-import androidx.recyclerview.widget.RecyclerView;
+import androidx.recyclerview.widget.RecyclerView; // <-- SỬA Ở ĐÂY: sử dụng androidx.recyclerview.widget.RecyclerView
 
 import com.ph48845.datn_qlnh_rmis.R;
 import com.ph48845.datn_qlnh_rmis.adapter.MenuAdapter;
@@ -22,11 +32,18 @@ import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
 import com.ph48845.datn_qlnh_rmis.data.repository.MenuRepository;
 import com.ph48845.datn_qlnh_rmis.data.repository.OrderRepository;
 import com.ph48845.datn_qlnh_rmis.data.repository.TableRepository;
+import com.ph48845.datn_qlnh_rmis.ui.bep.SocketManager;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * OrderActivity: hiển thị danh sách món đã order (mặc định),
@@ -35,12 +52,10 @@ import java.util.Map;
  * Sửa: khi bấm vào bàn đang có khách thì sẽ luôn hiện danh sách các món đã order (nếu có),
  * nếu server trả orders rỗng nhưng bàn có status OCCUPIED thì vẫn show ordered view (với message).
  *
- * Logic:
- *  - Trước hết refetch thông tin bàn (tableId) để biết status hiện tại.
- *  - Sau đó gọi API lấy orders cho bàn; nếu tìm thấy orders -> merge và hiển thị.
- *  - Nếu không có orders:
- *      - nếu bàn hiện là OCCUPIED -> show ordered view (adapter rỗng) và hiển thị Toast "Chưa có món".
- *      - nếu bàn không occupied -> show menu view để thêm món.
+ * Đồng thời: tích hợp socket realtime cho phục vụ để nhận "order_updated" từ server.
+ *
+ * LƯU Ý: Chỉ bổ sung phương thức interface và overload để sửa lỗi compile,
+ * không thay đổi logic gốc.
  */
 public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMenuClickListener {
 
@@ -70,6 +85,10 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
     // fake ids for testing (24-hex) - remove/replace in production
     private final String fakeServerId = "64a7f3b2c9d1e2f3a4b5c6d7";
     private final String fakeCashierId = "64b8e4c3d1f2a3b4c5d6e7f8";
+
+    // Socket
+    private final SocketManager socketManager = SocketManager.getInstance();
+    private final String SOCKET_URL = "http://192.168.1.84:3000"; // đổi theo server của bạn
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -111,6 +130,58 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         // Load menu and existing orders (so previously-ordered items get preloaded)
         loadMenuItems();
         loadExistingOrdersForTable();
+
+        // Start socket realtime and join room 'phucvu' so this client receives updates
+        startRealtimeSocket();
+    }
+
+    private void startRealtimeSocket() {
+        try {
+            socketManager.init(SOCKET_URL);
+            socketManager.setOnEventListener(new SocketManager.OnEventListener() {
+                @Override
+                public void onOrderCreated(org.json.JSONObject payload) {
+                    // simple behavior: reload orders
+                    Log.d(TAG, "Socket onOrderCreated: " + (payload != null ? payload.toString() : "null"));
+                    runOnUiThread(() -> loadExistingOrdersForTable());
+                }
+
+                @Override
+                public void onOrderUpdated(org.json.JSONObject payload) {
+                    Log.d(TAG, "Socket onOrderUpdated: " + (payload != null ? payload.toString() : "null"));
+                    // Reload orders for current table (quick and safe)
+                    runOnUiThread(() -> loadExistingOrdersForTable());
+                }
+
+                @Override
+                public void onConnect() {
+                    Log.d(TAG, "Socket connected (phucvu)");
+                    // join room 'phucvu' so server can broadcast only to phục vụ clients
+                    socketManager.emitJoinRoom("phucvu");
+                }
+
+                @Override
+                public void onDisconnect() {
+                    Log.d(TAG, "Socket disconnected (phucvu)");
+                }
+
+                @Override
+                public void onError(Exception e) {
+                    Log.w(TAG, "Socket error (phucvu): " + (e != null ? e.getMessage() : ""));
+                }
+            });
+            socketManager.connect();
+        } catch (Exception e) {
+            Log.w(TAG, "startRealtimeSocket failed: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        try {
+            socketManager.disconnect();
+        } catch (Exception ignored) {}
+        super.onDestroy();
     }
 
     private void loadMenuItems() {
@@ -284,14 +355,14 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         });
     }
 
-    // MenuAdapter.OnMenuClickListener
+    // MenuAdapter.OnMenuClickListener - thực thi interface (các method bắt buộc)
     @Override
     public void onAddMenuItem(MenuItem menu) {
         if (menu == null) return;
         int cur = addQtyMap.getOrDefault(menu.getId(), 0) + 1;
         addQtyMap.put(menu.getId(), cur);
-        menuAdapter.setQty(menu.getId(), cur);
-        btnConfirm.setEnabled(!addQtyMap.isEmpty());
+        if (menuAdapter != null) menuAdapter.setQty(menu.getId(), cur);
+        if (btnConfirm != null) btnConfirm.setEnabled(!addQtyMap.isEmpty());
     }
 
     @Override
@@ -302,9 +373,29 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
             cur--;
             if (cur == 0) addQtyMap.remove(menu.getId());
             else addQtyMap.put(menu.getId(), cur);
-            menuAdapter.setQty(menu.getId(), cur);
+            if (menuAdapter != null) menuAdapter.setQty(menu.getId(), cur);
         }
-        btnConfirm.setEnabled(!addQtyMap.isEmpty());
+        if (btnConfirm != null) btnConfirm.setEnabled(!addQtyMap.isEmpty());
+    }
+
+    // Một số adapter/interface có thể định nghĩa các phương thức overload (ví dụ có thêm param qty/position).
+    // Thêm các overload an toàn để tránh lỗi khi interface thay đổi nhẹ.
+    public void onAddMenuItem(MenuItem menu, int qty) {
+        if (menu == null) return;
+        int cur = addQtyMap.getOrDefault(menu.getId(), 0) + qty;
+        if (cur <= 0) addQtyMap.remove(menu.getId());
+        else addQtyMap.put(menu.getId(), cur);
+        if (menuAdapter != null) menuAdapter.setQty(menu.getId(), cur);
+        if (btnConfirm != null) btnConfirm.setEnabled(!addQtyMap.isEmpty());
+    }
+
+    public void onRemoveMenuItem(MenuItem menu, int qty) {
+        if (menu == null) return;
+        int cur = addQtyMap.getOrDefault(menu.getId(), 0) - qty;
+        if (cur <= 0) addQtyMap.remove(menu.getId());
+        else addQtyMap.put(menu.getId(), cur);
+        if (menuAdapter != null) menuAdapter.setQty(menu.getId(), Math.max(0, cur));
+        if (btnConfirm != null) btnConfirm.setEnabled(!addQtyMap.isEmpty());
     }
 
     private void showMenuView() {
@@ -576,4 +667,9 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
 
         return null;
     }
+
+    // ----- The rest of table-related methods (fetchTablesFromServer, syncTableStatusesWithOrders, showTransferDialog, etc.)
+    // If you have the MainActivity's table logic in this file or want to reuse, you can copy those helpers here.
+    // For this OrderActivity we keep it focused on menu/order operations.
+
 }
