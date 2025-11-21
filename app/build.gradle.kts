@@ -85,6 +85,9 @@ dependencies {
     annotationProcessor ("com.github.bumptech.glide:compiler:4.15.1")
     implementation("androidx.cardview:cardview:1.0.0")
 
+    //Sockets
+    implementation("io.socket:socket.io-client:2.0.1")
+
 
     // Test libs gốc
     testImplementation(libs.junit)
