@@ -41,7 +41,8 @@ public class OrderRepository {
     }
 
     // ===== Các method dạng Call cho BepViewModel =====
-    public Call<List<Order>> getAllOrders() {
+    // Sửa: trả về Call<ApiResponse<List<Order>>> để khớp với ApiService.getAllOrders()
+    public Call<ApiResponse<List<Order>>> getAllOrders() {
         return api.getAllOrders();
     }
 
@@ -55,17 +56,24 @@ public class OrderRepository {
             callback.onError("Order is null");
             return;
         }
-        api.createOrder(order).enqueue(new Callback<Order>() {
+        // ApiService.createOrder returns Call<ApiResponse<Order>> (wrapper)
+        api.createOrder(order).enqueue(new Callback<ApiResponse<Order>>() {
             @Override
-            public void onResponse(Call<Order> call, Response<Order> response) {
+            public void onResponse(Call<ApiResponse<Order>> call, Response<ApiResponse<Order>> response) {
                 if (response.isSuccessful() && response.body() != null) {
-                    callback.onSuccess(response.body());
+                    ApiResponse<Order> apiResp = response.body();
+                    if (apiResp.getData() != null) {
+                        callback.onSuccess(apiResp.getData());
+                    } else {
+                        callback.onError("Server returned no order data: " + apiResp.getMessage());
+                    }
                 } else {
                     callback.onError(buildHttpError("createOrder", response));
                 }
             }
+
             @Override
-            public void onFailure(Call<Order> call, Throwable t) {
+            public void onFailure(Call<ApiResponse<Order>> call, Throwable t) {
                 callback.onError(logFailure("createOrder onFailure", t));
             }
         });
@@ -129,17 +137,24 @@ public class OrderRepository {
             callback.onError("Invalid order id");
             return;
         }
-        api.updateOrder(orderId, updates).enqueue(new Callback<Order>() {
+        // ApiService.updateOrder returns Call<ApiResponse<Order>> (wrapper)
+        api.updateOrder(orderId, updates).enqueue(new Callback<ApiResponse<Order>>() {
             @Override
-            public void onResponse(Call<Order> call, Response<Order> response) {
+            public void onResponse(Call<ApiResponse<Order>> call, Response<ApiResponse<Order>> response) {
                 if (response.isSuccessful() && response.body() != null) {
-                    callback.onSuccess(response.body());
+                    ApiResponse<Order> apiResp = response.body();
+                    if (apiResp.getData() != null) {
+                        callback.onSuccess(apiResp.getData());
+                    } else {
+                        callback.onError("Server returned no order data: " + apiResp.getMessage());
+                    }
                 } else {
                     callback.onError(buildHttpError("updateOrder", response));
                 }
             }
+
             @Override
-            public void onFailure(Call<Order> call, Throwable t) {
+            public void onFailure(Call<ApiResponse<Order>> call, Throwable t) {
                 callback.onError(logFailure("updateOrder onFailure", t));
             }
         });
