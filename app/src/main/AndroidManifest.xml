@@ -14,24 +14,27 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.DATN_QLNH_RMIS"
         android:usesCleartextTraffic="true">
-
+        <activity
+            android:name=".ui.thanhtoan.QRPaymentActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.thanhtoan.ThanhToanActivity"
+            android:exported="false" />
         <activity
             android:name=".ui.auth.OnboardingActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
+
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
         <activity
             android:name=".ui.auth.LoginActivity"
             android:exported="false" />
-
         <activity
             android:name=".ui.MainActivity"
             android:exported="false" />
-
         <activity
             android:name=".ui.phucvu.OrderActivity"
             android:exported="false" />
@@ -47,7 +50,6 @@
         <activity
             android:name=".ui.bep.BepActivity"
             android:exported="false" />
-
     </application>
 
 </manifest>
