@@ -15,6 +15,15 @@
         android:theme="@style/Theme.DATN_QLNH_RMIS"
         android:usesCleartextTraffic="true">
         <activity
+            android:name=".ui.thungan.RevenueActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.thungan.HistoryActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.thungan.ProfileActivity"
+            android:exported="false" />
+        <activity
             android:name=".ui.thanhtoan.QRPaymentActivity"
             android:exported="false" />
         <activity

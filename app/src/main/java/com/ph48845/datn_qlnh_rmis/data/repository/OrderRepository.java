@@ -291,4 +291,31 @@ public class OrderRepository {
             }
         });
     }
+    public void getOrdersByDate(String fromDate, String toDate, RepositoryCallback<List<Order>> callback) {
+        Map<String, String> params = new HashMap<>();
+        if (fromDate != null) params.put("fromDate", fromDate);
+        if (toDate != null) params.put("toDate", toDate);
+
+        api.getOrdersByDate(params).enqueue(new Callback<ApiResponse<List<Order>>>() {
+            @Override
+            public void onResponse(Call<ApiResponse<List<Order>>> call, Response<ApiResponse<List<Order>>> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    List<Order> orders = response.body().getData();
+                    if (orders != null) {
+                        callback.onSuccess(orders);
+                    } else {
+                        callback.onError("Server trả về danh sách rỗng");
+                    }
+                } else {
+                    callback.onError("Lỗi tải dữ liệu: " + response.code());
+                }
+            }
+
+            @Override
+            public void onFailure(Call<ApiResponse<List<Order>>> call, Throwable t) {
+                callback.onError("Lỗi kết nối: " + t.getMessage());
+            }
+        });
+    }
+
 }

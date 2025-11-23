@@ -3,6 +3,7 @@ package com.ph48845.datn_qlnh_rmis.data.remote;
 import com.ph48845.datn_qlnh_rmis.data.model.LoginResponse;
 import com.ph48845.datn_qlnh_rmis.data.model.MenuItem;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
+import com.ph48845.datn_qlnh_rmis.data.model.RevenueItem;
 import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
 import com.ph48845.datn_qlnh_rmis.data.model.User;
 
@@ -18,6 +19,7 @@ import retrofit2.http.PUT;
 import retrofit2.http.PATCH;
 import retrofit2.http.Path;
 import retrofit2.http.Query;
+import retrofit2.http.QueryMap;
 
 /**
  * Retrofit API definitions.
@@ -96,6 +98,16 @@ public interface ApiService {
     // --- ORDER PAYMENT ENDPOINT ---
     @POST("orders/pay")
     Call<ApiResponse<Order>> payOrder(@Body Map<String, Object> body);
+    @GET("orders/byDate")
+    Call<ApiResponse<List<Order>>> getOrdersByDate(@QueryMap Map<String, String> params);
+
+//    @GET("revenue/daily")
+//    Call<ApiResponse<List<RevenueItem>>> getRevenueByDay(@Query("date") String date);
+    @GET("revenue/daily")
+    Call<ApiResponse<List<RevenueItem>>> getRevenueByRange(
+            @Query("fromDate") String fromDate,
+            @Query("toDate") String toDate
+    );
 
 
     // --- TABLE ENDPOINTS ---

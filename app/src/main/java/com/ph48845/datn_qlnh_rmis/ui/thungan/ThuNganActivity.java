@@ -1,6 +1,7 @@
 package com.ph48845.datn_qlnh_rmis.ui.thungan;
 
 import android.content.Intent;
+import android.widget.ImageView;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.MenuItem;
@@ -45,6 +46,7 @@ public class ThuNganActivity extends AppCompatActivity {
     private ThuNganAdapter adapterFloor2;
     private ThuNganViewModel viewModel;
     private OrderRepository orderRepository;
+    private ImageView nav_profile;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -58,6 +60,13 @@ public class ThuNganActivity extends AppCompatActivity {
         viewModel = new ThuNganViewModel();
         orderRepository = new OrderRepository();
 
+        nav_profile.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent intent = new Intent(ThuNganActivity.this, ProfileActivity.class);
+                startActivity(intent);
+            }
+        });
         // Load dữ liệu
         loadActiveTables();
     }
@@ -69,7 +78,9 @@ public class ThuNganActivity extends AppCompatActivity {
         rvFloor2 = findViewById(R.id.recycler_floor2);
         headerFloor1 = findViewById(R.id.header_floor1);
         headerFloor2 = findViewById(R.id.header_floor2);
+        nav_profile = findViewById(R.id.nav_profile);
     }
+
 
     private void setupToolbar() {
         setSupportActionBar(toolbar);
@@ -243,4 +254,5 @@ public class ThuNganActivity extends AppCompatActivity {
         }
         return super.onOptionsItemSelected(item);
     }
+
 }
