@@ -45,51 +45,34 @@ dependencies {
     androidTestImplementation(libs.espresso.core)
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
 
-    // ✅ Retrofit + Gson (nếu sau này gọi API)
+    // Retrofit + Gson
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
     implementation("com.squareup.retrofit2:converter-gson:2.11.0")
 
-    // ✅ RecyclerView (hiển thị danh sách)
+    // RecyclerView
     implementation("androidx.recyclerview:recyclerview:1.4.0")
 
-    // ✅ Glide (nếu hiển thị ảnh món ăn)
+    // Glide
     implementation("com.github.bumptech.glide:glide:4.16.0")
     annotationProcessor("com.github.bumptech.glide:compiler:4.16.0")
 
-    implementation("com.squareup.retrofit2:retrofit:2.9.0")
-    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
-
     implementation("androidx.core:core-ktx:1.9.0")
-// Hoặc phiên bản mới hơn
     implementation("androidx.appcompat:appcompat:1.6.1")
-// Hoặc phiên bản mới hơn
-
-    // ... các dependencies hiện có
-    implementation ("androidx.multidex:multidex:2.0.1")
-
+    implementation("androidx.multidex:multidex:2.0.1")
 
     // OkHttp + logging
     implementation("com.squareup.okhttp3:okhttp:4.11.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.11.0")
-// Optional: lifecycle (if you use ViewModel)
+    
+    // Lifecycle
     implementation("androidx.lifecycle:lifecycle-runtime:2.6.1")
 
-    implementation("com.squareup.retrofit2:retrofit:2.9.0")
-    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
-    implementation("com.squareup.okhttp3:logging-interceptor:4.11.0")
+    // Gson
     implementation("com.google.code.gson:gson:2.10.1")
 
-
-    implementation ("com.github.bumptech.glide:glide:4.15.1")
-    annotationProcessor ("com.github.bumptech.glide:compiler:4.15.1")
+    // CardView
     implementation("androidx.cardview:cardview:1.0.0")
 
-    //Sockets
+    // Sockets
     implementation("io.socket:socket.io-client:2.0.1")
-
-
-    // Test libs gốc
-    testImplementation(libs.junit)
-    androidTestImplementation(libs.ext.junit)
-    androidTestImplementation(libs.espresso.core)
 }

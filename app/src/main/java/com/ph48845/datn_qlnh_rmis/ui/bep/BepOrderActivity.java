@@ -122,9 +122,11 @@ public class BepOrderActivity extends AppCompatActivity implements OrderItemAdap
                         for (Order.OrderItem item : items) {
                             if (item == null) continue;
                             
-                            String status = item.getStatus() == null ? "" : item.getStatus().trim().toLowerCase();
+                            String status = item.getStatus();
                             // Only show items that are pending, preparing, or processing
-                            if ("pending".equals(status) || "preparing".equals(status) || "processing".equals(status)) {
+                            if (status != null && ("pending".equalsIgnoreCase(status.trim()) || 
+                                "preparing".equalsIgnoreCase(status.trim()) || 
+                                "processing".equalsIgnoreCase(status.trim()))) {
                                 itemsToShow.add(new ItemWithOrder(order, item));
                             }
                         }
