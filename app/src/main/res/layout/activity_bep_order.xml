@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@android:color/white">
+
+    <!-- Toolbar -->
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="#4CAF50"
+        android:elevation="4dp"
+        app:titleTextColor="@android:color/white"
+        app:navigationIcon="?attr/homeAsUpIndicator" />
+
+    <!-- Table Info Header -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp"
+        android:background="#E8F5E9">
+
+        <TextView
+            android:id="@+id/tv_table_info"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Bàn 1"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:textColor="#2E7D32" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Danh sách món cần làm"
+            android:textSize="14sp"
+            android:textColor="#4CAF50"
+            android:layout_marginTop="4dp" />
+
+    </LinearLayout>
+
+    <!-- Progress Bar -->
+    <ProgressBar
+        android:id="@+id/progress_bar"
+        style="?android:attr/progressBarStyleLarge"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:layout_marginTop="32dp"
+        android:visibility="gone" />
+
+    <!-- RecyclerView for Order Items -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rv_order_items"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:padding="8dp"
+        android:clipToPadding="false" />
+
+    <!-- Empty State (optional - can be added later) -->
+    <TextView
+        android:id="@+id/tv_empty_state"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:text="Không có món nào cần làm"
+        android:textSize="16sp"
+        android:textColor="@android:color/darker_gray"
+        android:visibility="gone"
+        android:layout_marginTop="32dp" />
+
+</LinearLayout>
