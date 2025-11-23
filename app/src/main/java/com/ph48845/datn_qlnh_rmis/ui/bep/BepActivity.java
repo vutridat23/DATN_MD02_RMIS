@@ -19,6 +19,7 @@ import com.ph48845.datn_qlnh_rmis.ui.bep.adapter.BepTableAdapter;
 import com.ph48845.datn_qlnh_rmis.ui.thungan.ThuNganViewModel;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -63,7 +64,7 @@ public class BepActivity extends AppCompatActivity {
             startActivity(intent);
         };
         
-        adapter = new BepTableAdapter(this, new ArrayList<>(), listener);
+        adapter = new BepTableAdapter(new ArrayList<>(), listener);
         rvKitchen.setAdapter(adapter);
 
         // ViewModel - reuse ThuNganViewModel to get active tables
@@ -97,7 +98,7 @@ public class BepActivity extends AppCompatActivity {
                     allTables.addAll(floor2Tables);
                     
                     // Sort by table number
-                    allTables.sort((a, b) -> Integer.compare(a.getTableNumber(), b.getTableNumber()));
+                    allTables.sort(Comparator.comparing(TableItem::getTableNumber));
                     
                     // Update adapter
                     adapter.updateList(allTables);

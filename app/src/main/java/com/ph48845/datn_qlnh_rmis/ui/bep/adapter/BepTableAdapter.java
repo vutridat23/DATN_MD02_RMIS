@@ -1,6 +1,5 @@
 package com.ph48845.datn_qlnh_rmis.ui.bep.adapter;
 
-import android.content.Context;
 import android.graphics.Color;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -23,7 +22,6 @@ import java.util.List;
  */
 public class BepTableAdapter extends RecyclerView.Adapter<BepTableAdapter.TableViewHolder> {
 
-    private final Context context;
     private List<TableItem> tableList;
     private OnTableClickListener listener;
 
@@ -31,8 +29,7 @@ public class BepTableAdapter extends RecyclerView.Adapter<BepTableAdapter.TableV
         void onTableClick(TableItem table);
     }
 
-    public BepTableAdapter(Context context, List<TableItem> tableList, OnTableClickListener listener) {
-        this.context = context;
+    public BepTableAdapter(List<TableItem> tableList, OnTableClickListener listener) {
         this.tableList = tableList != null ? tableList : new ArrayList<>();
         this.listener = listener;
     }

@@ -123,10 +123,13 @@ public class BepOrderActivity extends AppCompatActivity implements OrderItemAdap
                             if (item == null) continue;
                             
                             String status = item.getStatus();
+                            if (status == null) continue;
+                            
+                            String trimmedStatus = status.trim();
                             // Only show items that are pending, preparing, or processing
-                            if (status != null && ("pending".equalsIgnoreCase(status.trim()) || 
-                                "preparing".equalsIgnoreCase(status.trim()) || 
-                                "processing".equalsIgnoreCase(status.trim()))) {
+                            if ("pending".equalsIgnoreCase(trimmedStatus) || 
+                                "preparing".equalsIgnoreCase(trimmedStatus) || 
+                                "processing".equalsIgnoreCase(trimmedStatus)) {
                                 itemsToShow.add(new ItemWithOrder(order, item));
                             }
                         }
