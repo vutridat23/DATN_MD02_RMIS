@@ -170,13 +170,24 @@ public class BepOrderActivity extends AppCompatActivity implements OrderItemAdap
         String orderId = order.getId();
         String itemId = item.getMenuItemId();
         
-        if (orderId == null || orderId.trim().isEmpty() || itemId == null || itemId.trim().isEmpty()) {
+        // Validate and trim IDs
+        if (orderId == null || itemId == null) {
             Toast.makeText(this, "Không thể cập nhật trạng thái", Toast.LENGTH_SHORT).show();
             return;
         }
         
-        // Update status on server
-        orderRepository.updateOrderItemStatus(orderId, itemId, newStatus).enqueue(new retrofit2.Callback<Void>() {
+        orderId = orderId.trim();
+        itemId = itemId.trim();
+        
+        if (orderId.isEmpty() || itemId.isEmpty()) {
+            Toast.makeText(this, "Không thể cập nhật trạng thái", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        // Update status on server (use trimmed IDs)
+        final String finalOrderId = orderId;
+        final String finalItemId = itemId;
+        orderRepository.updateOrderItemStatus(finalOrderId, finalItemId, newStatus).enqueue(new retrofit2.Callback<Void>() {
             @Override
             public void onResponse(retrofit2.Call<Void> call, retrofit2.Response<Void> response) {
                 runOnUiThread(() -> {
