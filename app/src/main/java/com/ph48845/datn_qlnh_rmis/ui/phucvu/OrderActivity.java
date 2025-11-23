@@ -25,6 +25,10 @@ import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
 import com.ph48845.datn_qlnh_rmis.data.repository.MenuRepository;
 import com.ph48845.datn_qlnh_rmis.data.repository.OrderRepository;
 import com.ph48845.datn_qlnh_rmis.data.repository.TableRepository;
+import com.ph48845.datn_qlnh_rmis.ui.phucvu.adapter.SocketManager;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -32,8 +36,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * OrderActivity: hiển thị danh sách món đã order (mặc định),
- * đã thêm logging and snapshot sending when creating/updating orders.
+ * OrderActivity with realtime socket updates for item status.
+ * Full implementation included.
  */
 public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMenuClickListener {
 
@@ -55,13 +59,17 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
     private OrderAdapter orderedAdapter;
     private MenuAdapter menuAdapter;
 
-    // cart for adding new items (menuId -> qty)
     private final Map<String, Integer> addQtyMap = new HashMap<>();
     private String tableId;
     private int tableNumber;
 
     private final String fakeServerId = "64a7f3b2c9d1e2f3a4b5c6d7";
     private final String fakeCashierId = "64b8e4c3d1f2a3b4c5d6e7f8";
+
+    // Socket
+    private SocketManager socketManager;
+    // default socket url (change to your server)
+    private String socketUrl = "http://192.168.1.84:3000";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -75,22 +83,13 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         tvTotal = findViewById(R.id.tv_total_amount_ordered);
         btnAddMore = findViewById(R.id.btn_add_more);
         btnConfirm = findViewById(R.id.btn_confirm_order);
-
         imgBack = findViewById(R.id.btn_back);
 
-        imgBack.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Intent intent = new Intent(OrderActivity.this, MainActivity.class);
-                // nếu MainActivity đã tồn tại trong back stack, FLAG sẽ reuse nó và pop các Activity trên nó
-                startActivity(intent);
-
-                finish(); // optional: kết thúc activity hiện tại
-            }
+        imgBack.setOnClickListener(v -> {
+            Intent intent = new Intent(OrderActivity.this, MainActivity.class);
+            startActivity(intent);
+            finish();
         });
-
-
-
 
         menuRepository = new MenuRepository();
         orderRepository = new OrderRepository();
@@ -99,6 +98,9 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         tableId = getIntent().getStringExtra("tableId");
         tableNumber = getIntent().getIntExtra("tableNumber", 0);
         tvTable.setText("Bàn " + tableNumber);
+
+        String extraSocket = getIntent().getStringExtra("socketUrl");
+        if (extraSocket != null && !extraSocket.trim().isEmpty()) socketUrl = extraSocket.trim();
 
         rvOrderedList.setLayoutManager(new LinearLayoutManager(this));
         orderedAdapter = new OrderAdapter(new ArrayList<>(), item -> {
@@ -111,10 +113,216 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         rvMenuList.setAdapter(menuAdapter);
 
         btnAddMore.setOnClickListener(v -> showMenuView());
-        btnConfirm.setOnClickListener(v -> confirmAddItems());
+        btnConfirm.setOnClickListener(v -> confirmAddItems(v));
+
+        initSocket();
 
         loadMenuItems();
         loadExistingOrdersForTable();
+    }
+
+    private void initSocket() {
+        try {
+            socketManager = SocketManager.getInstance();
+            socketManager.init(socketUrl);
+            socketManager.setOnEventListener(new SocketManager.OnEventListener() {
+                @Override
+                public void onOrderCreated(JSONObject payload) {
+                    Log.d(TAG, "socket order_created payload: " + (payload != null ? payload.toString() : "null"));
+                    handleOrderSocketPayload(payload);
+                }
+
+                @Override
+                public void onOrderUpdated(JSONObject payload) {
+                    Log.d(TAG, "socket order_updated payload: " + (payload != null ? payload.toString() : "null"));
+                    handleOrderSocketPayload(payload);
+                }
+
+                @Override
+                public void onConnect() {
+                    Log.d(TAG, "socket connected (OrderActivity)");
+                    // join table rooms (if server expects it)
+                    try {
+                        socketManager.joinTable(tableNumber);
+                        Log.d(TAG, "joinTable() emitted for table " + tableNumber);
+                    } catch (Exception e) {
+                        Log.w(TAG, "joinTable emit failed", e);
+                    }
+                }
+
+                @Override
+                public void onDisconnect() {
+                    Log.d(TAG, "socket disconnected (OrderActivity)");
+                }
+
+                @Override
+                public void onError(Exception e) {
+                    Log.w(TAG, "socket error: " + e.getMessage(), e);
+                }
+            });
+            // connect immediately for debug (onResume also calls connect)
+            socketManager.connect();
+        } catch (Exception e) {
+            Log.w(TAG, "initSocket failed: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Xử lý payload socket: có logging, cố gắng match item bằng id/raw/name/image,
+     * dùng final local copies trước khi vào lambda để tránh lỗi "variable used in lambda should be final".
+     */
+    private void handleOrderSocketPayload(JSONObject payload) {
+        if (payload == null) return;
+        Log.d(TAG, "handleOrderSocketPayload raw: " + payload.toString());
+
+        try {
+            JSONObject orderJson = payload;
+            if (payload.has("order") && payload.opt("order") instanceof JSONObject) {
+                orderJson = payload.optJSONObject("order");
+            }
+
+            int payloadTableNumber = -1;
+            if (orderJson.has("tableNumber")) payloadTableNumber = orderJson.optInt("tableNumber", -1);
+            else if (orderJson.has("table")) payloadTableNumber = orderJson.optInt("table", -1);
+            else if (payload.has("tableNumber")) payloadTableNumber = payload.optInt("tableNumber", -1);
+
+            JSONArray itemsArr = orderJson.optJSONArray("items");
+            if (itemsArr == null) {
+                Log.d(TAG, "handleOrderSocketPayload: no items array in payload");
+                return;
+            }
+
+            if (payloadTableNumber != -1 && payloadTableNumber != tableNumber) {
+                Log.d(TAG, "handleOrderSocketPayload: payload tableNumber=" + payloadTableNumber + " not match current=" + tableNumber + " -> ignore");
+                return;
+            }
+
+            for (int i = 0; i < itemsArr.length(); i++) {
+                JSONObject it = itemsArr.optJSONObject(i);
+                if (it == null) continue;
+
+                // Extract menuId: try multiple shapes
+                String menuId = null;
+                if (it.has("menuItem")) {
+                    Object mi = it.opt("menuItem");
+                    if (mi instanceof JSONObject) {
+                        menuId = ((JSONObject) mi).optString("_id", null);
+                        if ((menuId == null || menuId.isEmpty())) menuId = ((JSONObject) mi).optString("id", null);
+                    } else if (mi instanceof String) {
+                        menuId = (String) mi;
+                    }
+                }
+                if (menuId == null || menuId.isEmpty()) {
+                    menuId = it.optString("menuItemId", it.optString("menuItemRaw", null));
+                }
+
+                String imageUrl = it.optString("imageUrl", it.optString("image", null));
+                String menuName = it.optString("menuItemName", it.optString("name", null));
+                String status = it.optString("status", it.optString("state", ""));
+
+                final String candidateId = (menuId != null && !menuId.isEmpty()) ? menuId
+                        : (imageUrl != null && !imageUrl.isEmpty()) ? imageUrl
+                        : (menuName != null && !menuName.isEmpty()) ? menuName : null;
+                final String st = status != null ? status : "";
+
+                Log.d(TAG, "handleOrderSocketPayload item[" + i + "]: menuId=" + menuId + " imageUrl=" + imageUrl + " name=" + menuName + " status=" + st);
+
+                if (candidateId == null) {
+                    Log.d(TAG, "handleOrderSocketPayload: skipping item with no identifiable id/name/image");
+                    continue;
+                }
+
+                runOnUiThread(() -> {
+                    boolean updated = false;
+                    try {
+                        if (orderedAdapter != null) {
+                            updated = orderedAdapter.updateItemStatus(candidateId, st);
+                        }
+                    } catch (Exception e) {
+                        Log.w(TAG, "updateItemStatus exception", e);
+                    }
+
+                    if (!updated) {
+                        // fallback: try to match by name or imageUrl manually
+                        try {
+                            List<Order.OrderItem> shown = orderedAdapter != null ? orderedAdapter.getItems() : null;
+                            if (shown != null) {
+                                for (Order.OrderItem oi : shown) {
+                                    if (oi == null) continue;
+                                    String nameLocal = oi.getMenuItemName();
+                                    if (nameLocal == null || nameLocal.isEmpty()) nameLocal = oi.getName();
+                                    if (menuName != null && nameLocal != null && nameLocal.equalsIgnoreCase(menuName)) {
+                                        oi.setStatus(st);
+                                        int idx = orderedAdapter.getItems().indexOf(oi);
+                                        if (idx >= 0) orderedAdapter.notifyItemChanged(idx);
+                                        updated = true;
+                                        Log.d(TAG, "handleOrderSocketPayload: matched by name and updated pos=" + idx);
+                                        break;
+                                    }
+                                    String imgLocal = oi.getImageUrl();
+                                    if (imageUrl != null && imgLocal != null && imgLocal.equals(imageUrl)) {
+                                        oi.setStatus(st);
+                                        int idx = orderedAdapter.getItems().indexOf(oi);
+                                        if (idx >= 0) orderedAdapter.notifyItemChanged(idx);
+                                        updated = true;
+                                        Log.d(TAG, "handleOrderSocketPayload: matched by image and updated pos=" + idx);
+                                        break;
+                                    }
+                                }
+                            }
+                        } catch (Exception ex) {
+                            Log.w(TAG, "fallback matching failed", ex);
+                        }
+                    }
+
+                    if (!updated) {
+                        Log.d(TAG, "handleOrderSocketPayload: no local match, reloading full orders");
+                        loadExistingOrdersForTable();
+                    }
+                });
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "handleOrderSocketPayload failed", e);
+            runOnUiThread(this::loadExistingOrdersForTable);
+        }
+
+        // in toàn bộ item hiện có trên adapter (debug)
+        try {
+            List<Order.OrderItem> shown = orderedAdapter != null ? orderedAdapter.getItems() : null;
+            if (shown == null) Log.d(TAG, "DEBUG adapter items = null");
+            else {
+                Log.d(TAG, "DEBUG adapter items count=" + shown.size());
+                for (int k = 0; k < shown.size(); k++) {
+                    Order.OrderItem oik = shown.get(k);
+                    Log.d(TAG, "DEBUG adapter[" + k + "] menuItemId='" + oik.getMenuItemId()
+                            + "' menuItemRaw='" + String.valueOf(oik.getMenuItemRaw())
+                            + "' name='" + oik.getMenuItemName() + "' status='" + oik.getStatus() + "'");
+                }
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "DEBUG print adapter items failed", e);
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        try {
+            if (socketManager == null) initSocket();
+            if (socketManager != null) socketManager.connect();
+        } catch (Exception e) {
+            Log.w(TAG, "socket connect error", e);
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        try {
+            if (socketManager != null) socketManager.disconnect();
+        } catch (Exception e) {
+            Log.w(TAG, "socket disconnect error", e);
+        }
     }
 
     private void loadMenuItems() {
@@ -164,6 +372,7 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         }
     }
 
+    // --- Cập nhật: tạo merged list sao chép imageUrl + status (và sanitize image) ---
     private void fetchOrdersForTable(final boolean tableIsOccupied) {
         orderRepository.getOrdersByTableNumber(tableNumber, null, new OrderRepository.RepositoryCallback<List<Order>>() {
             @Override
@@ -178,17 +387,10 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
                         }
                     }
 
-                    // Normalize items and log each item's name/image for debugging
                     for (Order o : filtered) {
                         if (o == null) continue;
                         try {
                             o.normalizeItems();
-                            if (o.getItems() != null) {
-                                for (Order.OrderItem it : o.getItems()) {
-                                    if (it == null) continue;
-                                    Log.d(TAG, "ORDER ITEM debug -> name=\"" + it.getMenuItemName() + "\" imageUrl=\"" + it.getImageUrl() + "\" qty=" + it.getQuantity());
-                                }
-                            }
                         } catch (Exception ignored) {}
                     }
 
@@ -204,7 +406,6 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
                         return;
                     }
 
-                    // Merge items
                     List<OrderItem> merged = new ArrayList<>();
                     for (Order o : filtered) {
                         if (o == null || o.getItems() == null) continue;
@@ -219,8 +420,52 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
                                 }
                             }
                             if (!found) {
-                                try { merged.add(new OrderItem(menuId, oi.getMenuItemName().isEmpty() ? oi.getName() : oi.getMenuItemName(), oi.getQuantity(), oi.getPrice())); }
-                                catch (Exception ex) { merged.add(oi); }
+                                // prepare display name
+                                String displayName = null;
+                                try {
+                                    displayName = (oi.getMenuItemName() == null || oi.getMenuItemName().trim().isEmpty()) ? oi.getName() : oi.getMenuItemName();
+                                } catch (Exception ignored) { displayName = oi.getName(); }
+
+                                // create new OrderItem for merged list
+                                OrderItem newItem;
+                                try {
+                                    newItem = new OrderItem(menuId, displayName != null ? displayName : "", oi.getQuantity(), oi.getPrice());
+                                } catch (Exception ex) {
+                                    newItem = new OrderItem();
+                                    newItem.setMenuItemId(menuId);
+                                    newItem.setName(displayName != null ? displayName : "");
+                                    newItem.setQuantity(oi.getQuantity());
+                                    newItem.setPrice(oi.getPrice());
+                                }
+
+                                // sanitize imageUrl (loại bỏ " nếu server trả kèm)
+                                try {
+                                    String rawImg = oi.getImageUrl();
+                                    if (rawImg != null) {
+                                        rawImg = rawImg.trim();
+                                        if (rawImg.startsWith("\"") && rawImg.endsWith("\"") && rawImg.length() > 1) {
+                                            rawImg = rawImg.substring(1, rawImg.length() - 1);
+                                        }
+                                    }
+                                    newItem.setImageUrl(rawImg != null ? rawImg : "");
+                                } catch (Exception ignored) {
+                                    newItem.setImageUrl(oi.getImageUrl() != null ? oi.getImageUrl() : "");
+                                }
+
+                                // copy other snapshot fields incl. menuItemRaw, menuItemName, status
+                                try { newItem.setMenuItemRaw(oi.getMenuItemRaw()); } catch (Exception ignored) {}
+                                try {
+                                    String menuItemName = oi.getMenuItemName() != null ? oi.getMenuItemName() : "";
+                                    newItem.setMenuItemName(menuItemName);
+                                } catch (Exception ignored) {}
+                                try {
+                                    String st = oi.getStatus() != null ? oi.getStatus() : "";
+                                    newItem.setStatus(st);
+                                } catch (Exception ignored) {
+                                    newItem.setStatus("");
+                                }
+
+                                merged.add(newItem);
                             }
                         }
                     }
@@ -243,7 +488,6 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         });
     }
 
-    // MenuAdapter.OnMenuClickListener
     @Override
     public void onAddMenuItem(MenuItem menu) {
         if (menu == null) return;
@@ -269,16 +513,14 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
     private void showMenuView() { findViewById(R.id.ordered_container).setVisibility(View.GONE); findViewById(R.id.order_summary).setVisibility(View.GONE); findViewById(R.id.menu_container).setVisibility(View.VISIBLE); }
     private void hideMenuView() { findViewById(R.id.menu_container).setVisibility(View.GONE); findViewById(R.id.ordered_container).setVisibility(View.VISIBLE); findViewById(R.id.order_summary).setVisibility(View.VISIBLE); }
 
-    // wrapper for XML onClick if used
-    public void confirmAddItems(View view) { confirmAddItems(); }
+    // XML / button wrapper: keep View param so XML onClick works
+    public void confirmAddItems(View view) {
+        confirmAddItems();
+    }
 
     /**
-     * Confirm thêm món: nếu bàn đã có order đang mở thì gộp vào order tồn tại (update),
-     * ngược lại tạo order mới (create).
-     *
-     * Important: when building OrderItem for sending we set:
-     *  - menuItemRaw = menuId (so server receives "menuItem": "<id>")
-     *  - menuItemId, name/menuItemName, imageUrl, price, quantity, status (snapshot)
+     * No-arg implementation that performs the actual confirm-add-items logic.
+     * Kept as a separate method so it can be called from code and from the XML wrapper.
      */
     private void confirmAddItems() {
         if (addQtyMap.isEmpty()) {
@@ -289,7 +531,6 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         progressBar.setVisibility(View.VISIBLE);
         btnConfirm.setEnabled(false);
 
-        // 1) Try to find an existing open order for this table
         orderRepository.getOrdersByTableNumber(tableNumber, null, new OrderRepository.RepositoryCallback<List<Order>>() {
             @Override
             public void onSuccess(List<Order> orders) {
@@ -336,6 +577,9 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         });
     }
 
+    /**
+     * Merge into existing order and update on server.
+     */
     private void mergeIntoExistingOrderAndUpdate(Order existing) {
         if (existing == null) {
             createNewOrderFromAddMap();
@@ -429,6 +673,9 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         });
     }
 
+    /**
+     * Create new order from addQtyMap and send to server.
+     */
     private void createNewOrderFromAddMap() {
         List<OrderItem> items = new ArrayList<>();
         double total = 0.0;
@@ -523,4 +770,6 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
 
         return null;
     }
+
+
 }

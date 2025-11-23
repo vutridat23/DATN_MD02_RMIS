@@ -26,9 +26,8 @@ import java.util.List;
 
 /**
  * OrderAdapter: hiển thị Order.OrderItem với ảnh, tên, số lượng, giá, trạng thái.
- * - Gọi oi.normalize() trước khi bind để lấy imageUrl/name/price từ menuItemRaw nếu cần.
- * - Normalize đường dẫn ảnh relative bằng FALLBACK_BASE (thay thế phù hợp).
- * - Log URL và lỗi Glide để debug.
+ * Phiên bản này CHỈ sử dụng oi.getImageUrl() (image đã được gán từ menuItem trong deserializer).
+ * Đã bổ sung public updateItemStatus(...) để OrderActivity có thể gọi.
  */
 public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.VH> {
 
@@ -38,7 +37,7 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.VH> {
     private OnItemClick listener;
     private final DecimalFormat priceFmt = new DecimalFormat("#,###");
 
-    // Use LAN IP as fallback to match your server
+    // Fallback base (nếu server trả đường dẫn relative)
     private static final String FALLBACK_BASE = "http://192.168.1.84:3000";
 
     public OrderAdapter(List<Order.OrderItem> items, OnItemClick listener) {
@@ -46,9 +45,134 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.VH> {
         this.listener = listener;
     }
 
-    public void setItems(List<Order.OrderItem> newItems) {
+    public synchronized void setItems(List<Order.OrderItem> newItems) {
         this.items = newItems != null ? newItems : new ArrayList<>();
         notifyDataSetChanged();
+    }
+
+    /**
+     * Trả về copy của danh sách items hiện tại (an toàn cho thread).
+     */
+    public synchronized List<Order.OrderItem> getItems() {
+        return new ArrayList<>(items);
+    }
+
+    /**
+     * Cập nhật trạng thái (status) của 1 item theo menuId.
+     * Trả về true nếu đã cập nhật được (item tồn tại trên UI).
+     */
+    public synchronized boolean updateItemStatus(String menuId, String status) {
+        if (menuId == null || menuId.isEmpty()) return false;
+        String st = status == null ? "" : status;
+
+        // 1) match theo menuItemId
+        for (int i = 0; i < items.size(); i++) {
+            Order.OrderItem oi = items.get(i);
+            if (oi == null) continue;
+            String mid = safeString(oi.getMenuItemId());
+            if (!mid.isEmpty() && mid.equals(menuId)) {
+                oi.setStatus(st);
+                notifyItemChanged(i);
+                Log.d(TAG, "updateItemStatus by menuItemId: menuId=" + menuId + " -> status=" + st + " at pos=" + i);
+                return true;
+            }
+        }
+
+        // 2) match theo menuItemRaw (Object -> String)
+        for (int i = 0; i < items.size(); i++) {
+            Order.OrderItem oi = items.get(i);
+            if (oi == null) continue;
+            String raw = safeString(oi.getMenuItemRaw());
+            if (!raw.isEmpty() && raw.equals(menuId)) {
+                oi.setStatus(st);
+                notifyItemChanged(i);
+                Log.d(TAG, "updateItemStatus by menuItemRaw: menuId=" + menuId + " -> status=" + st + " at pos=" + i);
+                return true;
+            }
+        }
+
+        // 3) match theo tên (fallback)
+        for (int i = 0; i < items.size(); i++) {
+            Order.OrderItem oi = items.get(i);
+            if (oi == null) continue;
+            String name = safeString(oi.getMenuItemName());
+            if (name.isEmpty()) name = safeString(oi.getName());
+            if (!name.isEmpty() && name.equalsIgnoreCase(menuId)) {
+                oi.setStatus(st);
+                notifyItemChanged(i);
+                Log.d(TAG, "updateItemStatus by name match (menuId used as name): menuId=" + menuId + " -> status=" + st + " at pos=" + i);
+                return true;
+            }
+        }
+
+        // 4) match theo imageUrl (fallback)
+        for (int i = 0; i < items.size(); i++) {
+            Order.OrderItem oi = items.get(i);
+            if (oi == null) continue;
+            String img = safeString(oi.getImageUrl());
+            if (!img.isEmpty() && img.equals(menuId)) {
+                oi.setStatus(st);
+                notifyItemChanged(i);
+                Log.d(TAG, "updateItemStatus by imageUrl: image=" + menuId + " -> status=" + st + " at pos=" + i);
+                return true;
+            }
+        }
+
+        Log.d(TAG, "updateItemStatus: no local item matched for menuId=" + menuId + " status=" + st);
+        return false;
+    }
+
+    /**
+     * Update / merge list items (dùng khi nhận payload toàn bộ items của order).
+     * Cố gắng cập nhật từng phần để có animation (notifyItemChanged/Inserted).
+     */
+    public synchronized void updateOrReplaceItems(List<Order.OrderItem> newItems) {
+        if (newItems == null) {
+            setItems(null);
+            return;
+        }
+
+        if (items.isEmpty()) {
+            setItems(newItems);
+            return;
+        }
+
+        List<Order.OrderItem> toAdd = new ArrayList<>();
+        for (Order.OrderItem newOi : newItems) {
+            if (newOi == null) continue;
+            String mid = safeString(newOi.getMenuItemId());
+            boolean found = false;
+            for (int i = 0; i < items.size(); i++) {
+                Order.OrderItem cur = items.get(i);
+                if (cur == null) continue;
+                String curMid = safeString(cur.getMenuItemId());
+                if (!curMid.isEmpty() && curMid.equals(mid)) {
+                    // update fields
+                    cur.setQuantity(newOi.getQuantity());
+                    cur.setPrice(newOi.getPrice());
+                    cur.setMenuItemName(safeString(newOi.getMenuItemName()));
+                    cur.setName(safeString(newOi.getName()));
+                    cur.setImageUrl(safeString(newOi.getImageUrl()));
+                    cur.setStatus(safeString(newOi.getStatus()));
+                    notifyItemChanged(i);
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) toAdd.add(newOi);
+        }
+
+        if (!toAdd.isEmpty()) {
+            int start = items.size();
+            items.addAll(toAdd);
+            notifyItemRangeInserted(start, toAdd.size());
+        }
+    }
+
+    private String safeString(Object o) {
+        if (o == null) return "";
+        if (o instanceof String) return ((String) o).trim();
+        try { return String.valueOf(o).trim(); } catch (Exception e) { return ""; }
     }
 
     @NonNull
@@ -63,31 +187,26 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.VH> {
         Order.OrderItem oi = items.get(position);
         if (oi == null) return;
 
-        // ensure normalize -> populate name/image/price from menuItemRaw if needed
         try { oi.normalize(); } catch (Exception e) { Log.w(TAG, "normalize failed: " + e.getMessage()); }
 
-        // DEBUG: log object so you know what API returned
         Log.d(TAG, "Binding item pos=" + position + " -> name=\"" + oi.getMenuItemName() + "\" imageUrl=\"" + oi.getImageUrl() + "\" price=" + oi.getPrice() + " qty=" + oi.getQuantity());
 
-        // Prefer menuItemName (snapshot) then name
         String displayName = oi.getMenuItemName();
         if (displayName == null || displayName.trim().isEmpty()) displayName = oi.getName();
         if (displayName == null || displayName.trim().isEmpty()) displayName = "(Không tên)";
         holder.tvName.setText(displayName);
 
-        // Quantity and total price for line
         int qty = oi.getQuantity() <= 0 ? 1 : oi.getQuantity();
         double unitPrice = oi.getPrice();
         double total = unitPrice * qty;
         holder.tvQty.setText("Số lượng: " + qty);
         holder.tvPrice.setText(priceFmt.format(total) + " VND");
 
-        // Prepare image URL: prefer imageUrl snapshot; normalize relative path
+        // CHỈ LẤY ẢNH TỪ oi.getImageUrl() (deserializer đã gán từ menuItem)
         String rawUrl = oi.getImageUrl();
         String imgUrl = normalizeImageUrl(rawUrl);
 
         if (imgUrl != null && !imgUrl.isEmpty()) {
-            // Load with Glide and log on failure
             Glide.with(holder.ivThumb.getContext())
                     .load(imgUrl)
                     .centerCrop()
@@ -97,7 +216,7 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.VH> {
                         @Override
                         public boolean onLoadFailed(@Nullable GlideException e, Object model, Target<Drawable> target, boolean isFirstResource) {
                             Log.w(TAG, "Glide load failed. model=" + model + ", err=" + (e != null ? e.getMessage() : "null"));
-                            return false; // allow Glide to set placeholder
+                            return false;
                         }
                         @Override
                         public boolean onResourceReady(Drawable resource, Object model, Target<Drawable> target, DataSource dataSource, boolean isFirstResource) {
@@ -106,13 +225,11 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.VH> {
                     })
                     .into(holder.ivThumb);
         } else {
-            // No URL -> placeholder
             holder.ivThumb.setImageResource(R.drawable.ic_menu_placeholder);
         }
 
-        // Status badge text
         String s = oi.getStatus() != null ? oi.getStatus().toLowerCase() : "preparing";
-        if (s.contains("done") || s.contains("xong") || s.contains("completed") || s.contains("served")) {
+        if (s.contains("done") || s.contains("xong") || s.contains("completed") || s.contains("served") || s.contains("ready")) {
             holder.tvStatus.setText("Đã xong");
             holder.tvStatus.setBackgroundResource(R.drawable.badge_green_bg);
         } else if (s.contains("out") || s.contains("het") || s.contains("sold") || s.contains("unavailable")) {
@@ -141,7 +258,6 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.VH> {
         imageUrl = imageUrl.trim();
         if (imageUrl.isEmpty()) return null;
         if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) return imageUrl;
-        // relative path -> prefix fallback base
         if (!imageUrl.startsWith("/")) imageUrl = "/" + imageUrl;
         return FALLBACK_BASE + imageUrl;
     }
