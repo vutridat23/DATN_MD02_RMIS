@@ -45,6 +45,7 @@ dependencies {
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
 
     // ✅ Retrofit + Gson (nếu sau này gọi API)
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
@@ -84,6 +85,9 @@ dependencies {
     implementation ("com.github.bumptech.glide:glide:4.15.1")
     annotationProcessor ("com.github.bumptech.glide:compiler:4.15.1")
     implementation("androidx.cardview:cardview:1.0.0")
+
+    //Sockets
+    implementation("io.socket:socket.io-client:2.0.1")
 
 
     // Test libs gốc

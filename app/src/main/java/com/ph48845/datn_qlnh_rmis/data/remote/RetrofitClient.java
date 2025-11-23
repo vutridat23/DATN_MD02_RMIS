@@ -1,5 +1,8 @@
 package com.ph48845.datn_qlnh_rmis.data.remote;
 
+
+
+
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
@@ -14,13 +17,10 @@ import retrofit2.converter.gson.GsonConverterFactory;
  */
 public class RetrofitClient {
 
-    // **THAY THẾ ĐỊA CHỈ NÀY BẰNG BASE URL THỰC TẾ CỦA BẠN**
-    private static final String BASE_URL = "http:// 192.168.25.2:3000/";
+    private static final String BASE_URL = "http://192.168.25.2:3000/";
 
     private static RetrofitClient instance = null;
     private final ApiService apiService;
-    // ==== THÊM: OrderApi để OrderRepository có thể dùng constructor rỗng ====
-    private final OrderApi orderApi;
 
     private RetrofitClient() {
         // 1. Cấu hình Logging Interceptor để xem request/response trong Logcat
@@ -46,8 +46,6 @@ public class RetrofitClient {
 
         // 5. Tạo đối tượng Service
         apiService = retrofit.create(ApiService.class);
-        // ==== THÊM: khởi tạo OrderApi ====
-        orderApi = retrofit.create(OrderApi.class);
     }
 
     /**
@@ -65,10 +63,5 @@ public class RetrofitClient {
      */
     public ApiService getApiService() {
         return apiService;
-    }
-
-    // ==== THÊM: Phương thức để lấy OrderApi ====
-    public OrderApi getOrderApi() {
-        return orderApi;
     }
 }

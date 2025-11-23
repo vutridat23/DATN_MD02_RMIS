@@ -11,28 +11,32 @@ import java.util.Map;
 
 public class Order implements Serializable {
 
-    public List<OrderItem> items;                // legacy direct access
-    public String _id;                           // Mongo ObjectId
-    public int tableNumber;
-    public String server;
-    public String cashier;
-    public double discount;
-    public double finalAmount;
-    public double paidAmount;
-    public double change;
-    public String paymentMethod;
-    public String orderStatus;
-    public List<String> mergedFrom;
-    public List<String> splitTo;
-    public String paidAt;
+    // SỬA LỖI GSON CONFLICT: Đánh dấu tất cả các trường "Legacy" hoặc không có chú thích
+    // tương ứng với trường @SerializedName là transient.
+    public transient String _id;
+    public transient int tableNumber;
+    public transient String serverLegacy;
+    public transient String cashierLegacy;
+    public transient List<OrderItem> items;
+    public transient double discountLegacy;
+    public transient double finalAmountLegacy;
+    public transient double paidAmountLegacy;
+    public transient double changeLegacy;
+    public transient String paymentMethodLegacy;
+    public transient String orderStatusLegacy;
+    public transient List<String> mergedFromLegacy;
+    public transient List<String> splitToLegacy;
+    public transient String paidAtLegacy;
 
+    // Các trường khác không liên quan trực tiếp đến JSON keys nhưng cần giữ lại
     private String orderId;
     private String tableId;
     private String waiterId;
-    private long createdAt;
+    private transient long createdAt; // Đã sửa thành transient ở lần trước do conflict
     private boolean paid;
-    private double totalAmount;
+    private transient double totalAmount; // <--- ĐÃ THÊM TRANSIENT VÀO ĐÂY ĐỂ GIẢI QUYẾT LỖI XUNG ĐỘT
 
+    // ================== Annotated Fields (Gson uses these) ==================
     @SerializedName("_id")
     private String idAnnotated;
 
@@ -83,10 +87,9 @@ public class Order implements Serializable {
 
     // ================== Constructors ==================
     public Order() {
-        // ensure lists are non-null
         if (items == null) items = new ArrayList<>();
-        if (mergedFrom == null) mergedFrom = new ArrayList<>();
-        if (splitTo == null) splitTo = new ArrayList<>();
+        if (mergedFromLegacy == null) mergedFromLegacy = new ArrayList<>();
+        if (splitToLegacy == null) splitToLegacy = new ArrayList<>();
     }
 
     public Order(int tableNumber, String serverId, List<OrderItem> items,
@@ -94,13 +97,23 @@ public class Order implements Serializable {
                  String paymentMethod, String orderStatus) {
         this();
         this.tableNumber = tableNumber;
-        this.server = serverId;
+        this.serverLegacy = serverId;
         this.items = items != null ? items : new ArrayList<>();
-        this.totalAmount = totalAmount;
-        this.discount = discount;
-        this.finalAmount = finalAmount;
-        this.paymentMethod = paymentMethod;
-        this.orderStatus = orderStatus;
+        this.totalAmount = totalAmount; // Giá trị này chỉ dùng cho constructor và sẽ không được Gson parse
+        this.discountLegacy = discount;
+        this.finalAmountLegacy = finalAmount;
+        this.paymentMethodLegacy = paymentMethod;
+        this.orderStatusLegacy = orderStatus;
+
+        // Cập nhật các trường Annotated trong constructor để đồng bộ (nếu cần)
+        this.tableNumberAnnotated = tableNumber;
+        this.serverIdAnnotated = serverId;
+        this.itemsAnnotated = items;
+        this.totalAmountAnnotated = totalAmount;
+        this.discountAnnotated = discount;
+        this.finalAmountAnnotated = finalAmount;
+        this.paymentMethodAnnotated = paymentMethod;
+        this.orderStatusAnnotated = orderStatus;
     }
 
     // ================== Normalization ==================
@@ -128,6 +141,7 @@ public class Order implements Serializable {
     public void setPaid(boolean paid) { this.paid = paid; }
 
     public double getTotalAmount() {
+        // Trả về trường Annotated, nếu null thì dùng trường transient (chỉ có giá trị nếu được set thủ công)
         return totalAmountAnnotated != null ? totalAmountAnnotated : totalAmount;
     }
     public void setTotalAmount(double totalAmount) {
@@ -136,7 +150,6 @@ public class Order implements Serializable {
     }
 
     public List<OrderItem> getItems() {
-        // prefer annotated list if present
         if (itemsAnnotated != null && !itemsAnnotated.isEmpty()) return itemsAnnotated;
         if (items == null) items = new ArrayList<>();
         return items;
@@ -147,7 +160,7 @@ public class Order implements Serializable {
     }
 
     public String getId() {
-        return _id != null ? _id : idAnnotated;
+        return idAnnotated != null ? idAnnotated : _id;
     }
     public void setId(String id) {
         this._id = id;
@@ -163,86 +176,86 @@ public class Order implements Serializable {
     }
 
     public String getServerId() {
-        return serverIdAnnotated != null ? serverIdAnnotated : server;
+        return serverIdAnnotated != null ? serverIdAnnotated : serverLegacy;
     }
     public void setServerId(String serverId) {
-        this.server = serverId;
+        this.serverLegacy = serverId;
         this.serverIdAnnotated = serverId;
     }
 
     public String getCashierId() {
-        return cashierIdAnnotated != null ? cashierIdAnnotated : cashier;
+        return cashierIdAnnotated != null ? cashierIdAnnotated : cashierLegacy;
     }
     public void setCashierId(String cashierId) {
-        this.cashier = cashierId;
+        this.cashierLegacy = cashierId;
         this.cashierIdAnnotated = cashierId;
     }
 
     public double getDiscount() {
-        return discountAnnotated != null ? discountAnnotated : discount;
+        return discountAnnotated != null ? discountAnnotated : discountLegacy;
     }
     public void setDiscount(double discount) {
-        this.discount = discount;
+        this.discountLegacy = discount;
         this.discountAnnotated = discount;
     }
 
     public double getFinalAmount() {
-        return finalAmountAnnotated != null ? finalAmountAnnotated : finalAmount;
+        return finalAmountAnnotated != null ? finalAmountAnnotated : finalAmountLegacy;
     }
     public void setFinalAmount(double finalAmount) {
-        this.finalAmount = finalAmount;
+        this.finalAmountLegacy = finalAmount;
         this.finalAmountAnnotated = finalAmount;
     }
 
     public double getPaidAmount() {
-        return paidAmountAnnotated != null ? paidAmountAnnotated : paidAmount;
+        return paidAmountAnnotated != null ? paidAmountAnnotated : paidAmountLegacy;
     }
     public void setPaidAmount(double paidAmount) {
-        this.paidAmount = paidAmount;
+        this.paidAmountLegacy = paidAmount;
         this.paidAmountAnnotated = paidAmount;
     }
 
     public double getChange() {
-        return changeAnnotated != null ? changeAnnotated : change;
+        return changeAnnotated != null ? changeAnnotated : changeLegacy;
     }
     public void setChange(double change) {
-        this.change = change;
+        this.changeLegacy = change;
         this.changeAnnotated = change;
     }
 
     public String getPaymentMethod() {
-        return paymentMethodAnnotated != null ? paymentMethodAnnotated : paymentMethod;
+        return paymentMethodAnnotated != null ? paymentMethodAnnotated : paymentMethodLegacy;
     }
     public void setPaymentMethod(String paymentMethod) {
-        this.paymentMethod = paymentMethod;
+        this.paymentMethodLegacy = paymentMethod;
         this.paymentMethodAnnotated = paymentMethod;
     }
 
     public String getOrderStatus() {
-        return orderStatusAnnotated != null ? orderStatusAnnotated : orderStatus;
+        return orderStatusAnnotated != null ? orderStatusAnnotated : orderStatusLegacy;
     }
     public void setOrderStatus(String orderStatus) {
-        this.orderStatus = orderStatus;
+        this.orderStatusLegacy = orderStatus;
         this.orderStatusAnnotated = orderStatus;
     }
 
     public List<String> getMergedFrom() {
         if (mergedFromAnnotated != null && !mergedFromAnnotated.isEmpty()) return mergedFromAnnotated;
-        if (mergedFrom == null) mergedFrom = new ArrayList<>();
-        return mergedFrom;
+        if (mergedFromLegacy == null) mergedFromLegacy = new ArrayList<>();
+        return mergedFromLegacy;
     }
     public void setMergedFrom(List<String> mergedFrom) {
-        this.mergedFrom = mergedFrom;
+        this.mergedFromLegacy = mergedFrom;
         this.mergedFromAnnotated = mergedFrom;
     }
 
     public List<String> getSplitTo() {
         if (splitToAnnotated != null && !splitToAnnotated.isEmpty()) return splitToAnnotated;
-        if (splitTo == null) splitTo = new ArrayList<>();
-        return splitTo;
+        if (splitToLegacy == null) splitToLegacy = new ArrayList<>();
+        return splitToLegacy;
     }
     public void setSplitTo(List<String> splitTo) {
-        this.splitTo = splitTo;
+        this.splitToLegacy = splitTo;
         this.splitToAnnotated = splitTo;
     }
 
@@ -255,15 +268,14 @@ public class Order implements Serializable {
     }
 
     public String getPaidAt() {
-        return paidAtAnnotated != null ? paidAtAnnotated : paidAt;
+        return paidAtAnnotated != null ? paidAtAnnotated : paidAtLegacy;
     }
     public void setPaidAt(String paidAt) {
-        this.paidAt = paidAt;
+        this.paidAtLegacy = paidAt;
         this.paidAtAnnotated = paidAt;
     }
 
     private String createdAtEpochToString() {
-        // Nếu bạn muốn convert epoch thành ISO string, thực hiện tại đây (placeholder)
         return createdAtAnnotated != null ? createdAtAnnotated : (createdAt > 0 ? String.valueOf(createdAt) : null);
     }
 
@@ -292,18 +304,19 @@ public class Order implements Serializable {
     // ================== Inner OrderItem ==================
     public static class OrderItem implements Serializable {
 
-        // Raw menuItem from backend (String id or Map object)
         @SerializedName("menuItem")
         private Object menuItemRaw;
 
-        // Legacy fields (public) kept for backward compatibility
-        public String menuItem;         // direct id (legacy)
-        public String status;           // pending / preparing / ready / soldout / etc
-        public String note;             // optional note
-        public String menuItemName;     // legacy name field (may mirror 'name')
-
-        // Unified canonical fields
+        @SerializedName("menuItemId") // Đặt tên JSON rõ ràng để gửi đi
         private String menuItemId;
+
+        @SerializedName("status")
+        private String status;
+        @SerializedName("note")
+        private String note;
+        @SerializedName("menuItemName")
+        private String menuItemName;
+
         @SerializedName("name")
         private String name;
         @SerializedName("quantity")
@@ -322,7 +335,6 @@ public class Order implements Serializable {
             this.quantity = quantity;
             this.price = price;
             this.status = status;
-            this.menuItem = menuItemId;
         }
 
         public OrderItem(String menuItemId, String name, int quantity, double price) {
@@ -336,7 +348,6 @@ public class Order implements Serializable {
                     if (menuItemRaw instanceof String) {
                         String rawId = (String) menuItemRaw;
                         if (menuItemId == null || menuItemId.isEmpty()) menuItemId = rawId;
-                        if (menuItem == null || menuItem.isEmpty()) menuItem = rawId;
                     } else if (menuItemRaw instanceof Map) {
                         Map<?, ?> map = (Map<?, ?>) menuItemRaw;
                         Object idObj = map.get("_id");
@@ -344,7 +355,6 @@ public class Order implements Serializable {
                         if (idObj != null) {
                             String idStr = String.valueOf(idObj);
                             if (menuItemId == null || menuItemId.isEmpty()) menuItemId = idStr;
-                            if (menuItem == null || menuItem.isEmpty()) menuItem = idStr;
                         }
                         Object nObj = map.get("name");
                         if (nObj != null && (name == null || name.isEmpty())) {
@@ -365,17 +375,12 @@ public class Order implements Serializable {
                             imageUrl = String.valueOf(imgObj);
                         }
                     } else {
-                        // Fallback: toString
                         String rawStr = String.valueOf(menuItemRaw);
                         if (menuItemId == null || menuItemId.isEmpty()) menuItemId = rawStr;
-                        if (menuItem == null || menuItem.isEmpty()) menuItem = rawStr;
                     }
                 }
             } catch (Exception ignored) {}
 
-            // Defensive defaults
-            if (menuItemId == null) menuItemId = menuItem != null ? menuItem : "";
-            if (menuItem == null) menuItem = menuItemId != null ? menuItemId : "";
             if (name == null) name = "";
             if (menuItemName == null || menuItemName.isEmpty()) menuItemName = name;
             if (imageUrl == null) imageUrl = "";
@@ -384,20 +389,24 @@ public class Order implements Serializable {
         }
 
         // ---------- Getters / Setters ----------
+
+
+
         public Object getMenuItemRaw() { return menuItemRaw; }
         public void setMenuItemRaw(Object menuItemRaw) { this.menuItemRaw = menuItemRaw; }
 
-        public String getMenuItemId() { return menuItemId == null ? "" : menuItemId; }
-        public void setMenuItemId(String menuItemId) {
-            this.menuItemId = menuItemId;
-            if (this.menuItem == null || this.menuItem.isEmpty()) this.menuItem = menuItemId;
+        public String getMenuItemId() {
+            return menuItemId == null ? "" : menuItemId;
         }
 
-        public String getMenuItem() { return menuItem == null ? "" : menuItem; }
-        public void setMenuItem(String menuItem) {
-            this.menuItem = menuItem;
-            if (this.menuItemId == null || this.menuItemId.isEmpty()) this.menuItemId = menuItem;
+        public void setMenuItemId(String menuItemId) {
+            this.menuItemId = menuItemId;
         }
+
+        public String getMenuItem() {
+            return menuItemId == null ? "" : menuItemId;
+        }
+
 
         public String getName() { return name == null ? "" : name; }
         public void setName(String name) {
@@ -427,7 +436,6 @@ public class Order implements Serializable {
         public String toString() {
             return "OrderItem{" +
                     "menuItemId='" + menuItemId + '\'' +
-                    ", menuItem='" + menuItem + '\'' +
                     ", name='" + name + '\'' +
                     ", quantity=" + quantity +
                     ", price=" + price +

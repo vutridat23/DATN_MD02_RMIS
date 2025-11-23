@@ -4,6 +4,7 @@ import android.util.Log;
 
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
 import com.ph48845.datn_qlnh_rmis.data.remote.ApiResponse;
+import com.ph48845.datn_qlnh_rmis.data.remote.ApiService;
 import com.ph48845.datn_qlnh_rmis.data.remote.OrderApi;
 import com.ph48845.datn_qlnh_rmis.data.remote.RetrofitClient;
 
@@ -21,16 +22,16 @@ public class OrderRepository {
 
     private static final String TAG = "OrderRepository";
 
-    private final OrderApi api;
+    private final ApiService api;
 
     // Constructor inject cho ViewModel tự tạo Retrofit
-    public OrderRepository(OrderApi api) {
+    public OrderRepository(ApiService api) {
         this.api = api;
     }
 
     // Constructor cũ: dùng singleton RetrofitClient
     public OrderRepository() {
-        this.api = RetrofitClient.getInstance().getOrderApi();
+        this.api = RetrofitClient.getInstance().getApiService();
     }
 
     // ===== Callback interface giữ nguyên =====
@@ -40,12 +41,13 @@ public class OrderRepository {
     }
 
     // ===== Các method dạng Call cho BepViewModel =====
-    public Call<List<Order>> getAllOrders() {
+    // Sửa: trả về Call<ApiResponse<List<Order>>> để khớp với ApiService.getAllOrders()
+    public Call<ApiResponse<List<Order>>> getAllOrders() {
         return api.getAllOrders();
     }
 
     public Call<Void> updateOrderItemStatus(String orderId, String itemId, String newStatus) {
-        return api.updateOrderItemStatus(orderId, itemId, new OrderApi.StatusUpdate(newStatus));
+        return api.updateOrderItemStatus(orderId, itemId, new ApiService.StatusUpdate(newStatus));
     }
 
     // ===== Các wrapper callback nguyên gốc =====
@@ -54,17 +56,24 @@ public class OrderRepository {
             callback.onError("Order is null");
             return;
         }
-        api.createOrder(order).enqueue(new Callback<Order>() {
+        // ApiService.createOrder returns Call<ApiResponse<Order>> (wrapper)
+        api.createOrder(order).enqueue(new Callback<ApiResponse<Order>>() {
             @Override
-            public void onResponse(Call<Order> call, Response<Order> response) {
+            public void onResponse(Call<ApiResponse<Order>> call, Response<ApiResponse<Order>> response) {
                 if (response.isSuccessful() && response.body() != null) {
-                    callback.onSuccess(response.body());
+                    ApiResponse<Order> apiResp = response.body();
+                    if (apiResp.getData() != null) {
+                        callback.onSuccess(apiResp.getData());
+                    } else {
+                        callback.onError("Server returned no order data: " + apiResp.getMessage());
+                    }
                 } else {
                     callback.onError(buildHttpError("createOrder", response));
                 }
             }
+
             @Override
-            public void onFailure(Call<Order> call, Throwable t) {
+            public void onFailure(Call<ApiResponse<Order>> call, Throwable t) {
                 callback.onError(logFailure("createOrder onFailure", t));
             }
         });
@@ -128,17 +137,24 @@ public class OrderRepository {
             callback.onError("Invalid order id");
             return;
         }
-        api.updateOrder(orderId, updates).enqueue(new Callback<Order>() {
+        // ApiService.updateOrder returns Call<ApiResponse<Order>> (wrapper)
+        api.updateOrder(orderId, updates).enqueue(new Callback<ApiResponse<Order>>() {
             @Override
-            public void onResponse(Call<Order> call, Response<Order> response) {
+            public void onResponse(Call<ApiResponse<Order>> call, Response<ApiResponse<Order>> response) {
                 if (response.isSuccessful() && response.body() != null) {
-                    callback.onSuccess(response.body());
+                    ApiResponse<Order> apiResp = response.body();
+                    if (apiResp.getData() != null) {
+                        callback.onSuccess(apiResp.getData());
+                    } else {
+                        callback.onError("Server returned no order data: " + apiResp.getMessage());
+                    }
                 } else {
                     callback.onError(buildHttpError("updateOrder", response));
                 }
             }
+
             @Override
-            public void onFailure(Call<Order> call, Throwable t) {
+            public void onFailure(Call<ApiResponse<Order>> call, Throwable t) {
                 callback.onError(logFailure("updateOrder onFailure", t));
             }
         });
