@@ -8,10 +8,11 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
 import androidx.recyclerview.widget.RecyclerView;
+
 import com.bumptech.glide.Glide;
 import com.ph48845.datn_qlnh_rmis.R;
-
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
 import com.ph48845.datn_qlnh_rmis.ui.bep.ItemWithOrder;
 
@@ -21,7 +22,7 @@ import java.util.List;
 
 /**
  * Adapter that receives List<ItemWithOrder> so each item has parent Order context.
- * Changed: do NOT disable buttons on click to avoid "dimmed" UX.
+ * Changed: show confirmation dialog before calling listener.onChangeStatus(...)
  */
 public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> {
 
@@ -77,23 +78,47 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
         // Ensure buttons are enabled when binding
         holder.setButtonsEnabled(true);
 
-        // Buttons: call listener with wrapper and desired new status
-        // Note: removed disabling lines to avoid dim/blocked state
+        // Buttons: show confirm dialog then call listener with wrapper and desired new status
         holder.btnDanNhan.setOnClickListener(v -> {
-            if (listener != null) listener.onChangeStatus(wrapper, "pending"); // <-- GỬI "pending" thay vì "received"
+            showConfirmDialog(holder, name, "pending", wrapper);
         });
         holder.btnDangLam.setOnClickListener(v -> {
-            if (listener != null) listener.onChangeStatus(wrapper, "preparing");
+            showConfirmDialog(holder, name, "preparing", wrapper);
         });
         holder.btnXongMon.setOnClickListener(v -> {
-            if (listener != null) listener.onChangeStatus(wrapper, "ready");
+            showConfirmDialog(holder, name, "ready", wrapper);
         });
         holder.btnHetMon.setOnClickListener(v -> {
-            if (listener != null) listener.onChangeStatus(wrapper, "soldout");
+            showConfirmDialog(holder, name, "soldout", wrapper);
         });
     }
 
+    private void showConfirmDialog(@NonNull VH holder, String itemName, String newStatus, ItemWithOrder wrapper) {
+        String title = "Xác nhận";
+        String displayStatus = humanizeStatus(newStatus);
+        String message = "Bạn có chắc chắn muốn chuyển trạng thái món \"" + itemName + "\" sang \"" + displayStatus + "\"?";
 
+        AlertDialog.Builder b = new AlertDialog.Builder(holder.itemView.getContext());
+        b.setTitle(title);
+        b.setMessage(message);
+        b.setNegativeButton("Hủy", (dialog, which) -> dialog.dismiss());
+        b.setPositiveButton("Xác nhận", (dialog, which) -> {
+            if (listener != null) listener.onChangeStatus(wrapper, newStatus);
+            dialog.dismiss();
+        });
+        b.show();
+    }
+
+    private String humanizeStatus(String status) {
+        if (status == null) return "";
+        switch (status) {
+            case "pending": return "Đã nhận";
+            case "preparing": return "Đang làm";
+            case "ready": return "Xong";
+            case "soldout": return "Hết";
+            default: return status;
+        }
+    }
 
     @Override
     public int getItemCount() { return items.size(); }
