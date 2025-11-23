@@ -37,6 +37,7 @@ public class OrderRepository {
     // ===== Callback interface giữ nguyên =====
     public interface RepositoryCallback<T> {
         void onSuccess(T result);
+
         void onError(String message);
     }
 
@@ -94,7 +95,8 @@ public class OrderRepository {
                             callback.onSuccess(list);
                         } else {
                             String msg = "Server returned empty order list";
-                            if (apiResponse.getMessage() != null) msg += ": " + apiResponse.getMessage();
+                            if (apiResponse.getMessage() != null)
+                                msg += ": " + apiResponse.getMessage();
                             callback.onError(msg);
                         }
                     } else {
@@ -104,6 +106,7 @@ public class OrderRepository {
                     callback.onError(buildHttpError("getOrdersByTableNumber", response));
                 }
             }
+
             @Override
             public void onFailure(Call<ApiResponse<List<Order>>> call, Throwable t) {
                 callback.onError(logFailure("getOrdersByTableNumber onFailure", t));
@@ -125,6 +128,7 @@ public class OrderRepository {
                     callback.onError(buildHttpError("deleteOrder", response));
                 }
             }
+
             @Override
             public void onFailure(Call<Void> call, Throwable t) {
                 callback.onError(logFailure("deleteOrder onFailure", t));
@@ -188,7 +192,8 @@ public class OrderRepository {
                     if (o != null) {
                         try {
                             if (o.getTableNumber() == fromTableNumber) toMove.add(o);
-                        } catch (Exception ignored) {}
+                        } catch (Exception ignored) {
+                        }
                     }
                 }
 
@@ -254,7 +259,8 @@ public class OrderRepository {
         String msg = "HTTP " + response.code() + " - " + response.message();
         try {
             if (response.errorBody() != null) msg += " - " + response.errorBody().string();
-        } catch (IOException ignored) {}
+        } catch (IOException ignored) {
+        }
         Log.e(TAG, action + " error: " + msg);
         return msg;
     }
@@ -262,5 +268,27 @@ public class OrderRepository {
     private String logFailure(String logMsg, Throwable t) {
         Log.e(TAG, logMsg, t);
         return t.getMessage() != null ? t.getMessage() : "Network error";
+    }
+
+    public void payOrder(String orderId, double paidAmount, RepositoryCallback<Order> callback) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("orderId", orderId);
+        body.put("paidAmount", paidAmount);
+
+        api.payOrder(body).enqueue(new Callback<ApiResponse<Order>>() {
+            @Override
+            public void onResponse(Call<ApiResponse<Order>> call, Response<ApiResponse<Order>> response) {
+                if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
+                    callback.onSuccess(response.body().getData());
+                } else {
+                    callback.onError(response.body() != null ? response.body().getMessage() : "Thanh toán thất bại");
+                }
+            }
+
+            @Override
+            public void onFailure(Call<ApiResponse<Order>> call, Throwable t) {
+                callback.onError(t.getMessage());
+            }
+        });
     }
 }

@@ -93,6 +93,11 @@ public interface ApiService {
     @DELETE("orders/{id}")
     Call<Void> deleteOrder(@Path("id") String orderId);
 
+    // --- ORDER PAYMENT ENDPOINT ---
+    @POST("orders/pay")
+    Call<ApiResponse<Order>> payOrder(@Body Map<String, Object> body);
+
+
     // --- TABLE ENDPOINTS ---
     @GET("tables")
     Call<ApiResponse<List<TableItem>>> getAllTables();
