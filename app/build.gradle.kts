@@ -4,14 +4,12 @@ plugins {
 
 android {
     namespace = "com.ph48845.datn_qlnh_rmis"
-    compileSdk {
-        version = release(36)
-    }
+    compileSdk = 34
 
     defaultConfig {
         applicationId = "com.ph48845.datn_qlnh_rmis"
         minSdk = 24
-        targetSdk = 36
+        targetSdk = 34
         versionCode = 1
         versionName = "1.0"
 
