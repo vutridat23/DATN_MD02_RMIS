@@ -50,6 +50,9 @@
         <activity
             android:name=".ui.bep.BepActivity"
             android:exported="false" />
+        <activity
+            android:name=".ui.bep.BepOrderActivity"
+            android:exported="false" />
     </application>
 
 </manifest>

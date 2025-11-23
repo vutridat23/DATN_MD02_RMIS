@@ -6,7 +6,9 @@ import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.ViewModel;
 
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
+import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
 import com.ph48845.datn_qlnh_rmis.data.repository.OrderRepository;
+import com.ph48845.datn_qlnh_rmis.data.repository.TableRepository;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -19,6 +21,7 @@ import java.util.List;
 public class BepViewModel extends ViewModel {
 
     private final OrderRepository orderRepository;
+    private final TableRepository tableRepository;
     private final MutableLiveData<List<ItemWithOrder>> itemsLive = new MutableLiveData<>(new ArrayList<>());
     private final MutableLiveData<Boolean> loadingLive = new MutableLiveData<>(false);
     private final MutableLiveData<String> errorLive = new MutableLiveData<>(null);
@@ -28,6 +31,7 @@ public class BepViewModel extends ViewModel {
 
     public BepViewModel() {
         this.orderRepository = new OrderRepository();
+        this.tableRepository = new TableRepository();
     }
 
     public LiveData<List<ItemWithOrder>> getItemsLive() { return itemsLive; }
@@ -155,6 +159,54 @@ public class BepViewModel extends ViewModel {
                 // If optimistic was used, rollback:
                 // item.setStatus(oldStatus);
                 // flattenAndPost(allOrders);
+            }
+        });
+    }
+
+    /**
+     * Callback interface để trả về danh sách bàn đang hoạt động.
+     * Reuse logic từ ThuNganViewModel.
+     */
+    public interface ActiveTablesCallback {
+        void onTablesLoaded(List<TableItem> activeTables);
+        void onError(String message);
+    }
+
+    /**
+     * Load danh sách bàn đang hoạt động (có order đang mở).
+     * Reuse logic từ ThuNganViewModel: chỉ lấy bàn có status OCCUPIED, PENDING_PAYMENT, FINISH_SERVE.
+     */
+    public void loadActiveTables(ActiveTablesCallback callback) {
+        tableRepository.getAllTables(new TableRepository.RepositoryCallback<List<TableItem>>() {
+            @Override
+            public void onSuccess(List<TableItem> allTables) {
+                if (allTables == null || allTables.isEmpty()) {
+                    callback.onTablesLoaded(new ArrayList<>());
+                    return;
+                }
+
+                // Lọc chỉ bàn đang hoạt động (có order)
+                List<TableItem> activeTables = new ArrayList<>();
+                for (TableItem table : allTables) {
+                    if (table == null) continue;
+                    TableItem.Status status = table.getStatus();
+                    // Reuse logic từ ThuNganActivity
+                    if (status == TableItem.Status.OCCUPIED ||
+                        status == TableItem.Status.PENDING_PAYMENT ||
+                        status == TableItem.Status.FINISH_SERVE) {
+                        activeTables.add(table);
+                    }
+                }
+
+                // Sort by table number
+                activeTables.sort((a, b) -> Integer.compare(a.getTableNumber(), b.getTableNumber()));
+
+                callback.onTablesLoaded(activeTables);
+            }
+
+            @Override
+            public void onError(String message) {
+                callback.onError(message != null ? message : "Error loading tables");
             }
         });
     }

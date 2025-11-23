@@ -9,15 +9,15 @@
         android:id="@+id/tvTitleBep"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Danh sách order bếp"
-        android:textSize="20sp"
+        android:text="Bếp - Danh sách bàn đang hoạt động"
+        android:textSize="18sp"
         android:textStyle="bold"
         android:gravity="center"
         android:padding="16dp"
         android:background="#4CAF50"
         android:textColor="#FFF"/>
 
-    <!-- Controls row: Realtime toggle + refresh button + progress -->
+    <!-- Controls row: refresh button + progress -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="48dp"
@@ -27,21 +27,6 @@
         android:gravity="center_vertical"
         android:layout_marginTop="8dp"
         android:layout_marginBottom="8dp">
-
-        <Button
-            android:id="@+id/btn_bep_realtime"
-            android:layout_width="wrap_content"
-            android:layout_height="36dp"
-            android:text="Realtime OFF"
-            android:textAllCaps="false"
-            android:paddingLeft="12dp"
-            android:paddingRight="12dp"
-            android:backgroundTint="#2196F3"
-            android:textColor="#FFFFFF" />
-
-        <View
-            android:layout_width="12dp"
-            android:layout_height="match_parent" />
 
         <Button
             android:id="@+id/btn_bep_refresh"
@@ -66,8 +51,20 @@
             android:visibility="gone" />
     </LinearLayout>
 
+    <!-- Empty message -->
+    <TextView
+        android:id="@+id/tv_bep_empty_message"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Không có bàn nào đang hoạt động"
+        android:textSize="14sp"
+        android:gravity="center"
+        android:padding="24dp"
+        android:visibility="gone" />
+
+    <!-- RecyclerView for tables grid (3 columns like ThuNganActivity) -->
     <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/recyclerOrderBep"
+        android:id="@+id/recycler_bep_tables"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
