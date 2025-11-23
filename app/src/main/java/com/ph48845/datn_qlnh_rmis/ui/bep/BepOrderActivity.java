@@ -84,7 +84,6 @@ public class BepOrderActivity extends AppCompatActivity implements OrderItemAdap
     private void setupRecyclerView() {
         rvOrderItems.setLayoutManager(new LinearLayoutManager(this));
         adapter = new OrderItemAdapter(this);
-        adapter.setItems(new ArrayList<>());
         rvOrderItems.setAdapter(adapter);
     }
 
@@ -181,7 +180,7 @@ public class BepOrderActivity extends AppCompatActivity implements OrderItemAdap
                         item.setStatus(newStatus);
                         
                         // If status is "done", remove from list
-                        if ("done".equals(newStatus.toLowerCase())) {
+                        if ("done".equalsIgnoreCase(newStatus)) {
                             allItems.remove(wrapper);
                             adapter.setItems(allItems);
                             Toast.makeText(BepOrderActivity.this, "Đã hoàn thành món", Toast.LENGTH_SHORT).show();

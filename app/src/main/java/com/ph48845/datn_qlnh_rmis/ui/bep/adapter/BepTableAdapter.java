@@ -40,7 +40,7 @@ public class BepTableAdapter extends RecyclerView.Adapter<BepTableAdapter.TableV
     @NonNull
     @Override
     public TableViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        View view = LayoutInflater.from(context).inflate(R.layout.item_table_active, parent, false);
+        View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_table_active, parent, false);
         return new TableViewHolder(view);
     }
 
