@@ -27,7 +27,7 @@ import java.util.List;
 /**
  * OrderAdapter: hiển thị Order.OrderItem với ảnh, tên, số lượng, giá, trạng thái.
  * Phiên bản này CHỈ sử dụng oi.getImageUrl() (image đã được gán từ menuItem trong deserializer).
- * Đã bổ sung public updateItemStatus(...) để OrderActivity có thể gọi.
+ * Đã bổ sung phần rất nhẹ để hiển thị trường note (nếu tồn tại) trong tv_item_note.
  */
 public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.VH> {
 
@@ -228,6 +228,32 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.VH> {
             holder.ivThumb.setImageResource(R.drawable.ic_menu_placeholder);
         }
 
+        // ---- MINIMAL: read note and show it (if exists) ----
+        String note = "";
+        try {
+            java.lang.reflect.Method gm = oi.getClass().getMethod("getNote");
+            Object v = gm.invoke(oi);
+            if (v != null) note = String.valueOf(v).trim();
+        } catch (NoSuchMethodException nsme) {
+            // fallback to read field "note"
+            try {
+                java.lang.reflect.Field f = oi.getClass().getDeclaredField("note");
+                f.setAccessible(true);
+                Object v = f.get(oi);
+                if (v != null) note = String.valueOf(v).trim();
+            } catch (Exception ignored) {}
+        } catch (Exception ignored) {}
+
+        Log.d(TAG, "OrderAdapter: note for pos=" + position + " => \"" + note + "\"");
+
+        if (note != null && !note.isEmpty()) {
+            holder.tvNote.setVisibility(View.VISIBLE);
+            holder.tvNote.setText("Ghi chú: " + note);
+        } else {
+            holder.tvNote.setVisibility(View.GONE);
+        }
+        // ---- end note handling ----
+
         String s = oi.getStatus() != null ? oi.getStatus().toLowerCase() : "preparing";
         if (s.contains("done") || s.contains("xong") || s.contains("completed") || s.contains("served") || s.contains("ready")) {
             holder.tvStatus.setText("Đã xong");
@@ -264,7 +290,7 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.VH> {
 
     static class VH extends RecyclerView.ViewHolder {
         ImageView ivThumb;
-        TextView tvName, tvQty, tvPrice, tvStatus;
+        TextView tvName, tvQty, tvPrice, tvStatus, tvNote;
         VH(@NonNull View itemView) {
             super(itemView);
             ivThumb = itemView.findViewById(R.id.iv_item_thumb);
@@ -272,6 +298,7 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.VH> {
             tvQty = itemView.findViewById(R.id.tv_item_qty);
             tvPrice = itemView.findViewById(R.id.tv_item_price);
             tvStatus = itemView.findViewById(R.id.tv_item_status);
+            tvNote = itemView.findViewById(R.id.tv_item_note);
         }
     }
 }

@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="88dp"
+    android:layout_height="wrap_content"
     android:orientation="horizontal"
     android:padding="8dp"
     android:background="@drawable/card_background" >
 
     <ImageView
         android:id="@+id/iv_item_thumb"
-        android:layout_width="72dp"
-        android:layout_height="72dp"
+        android:layout_width="75dp"
+        android:layout_height="80dp"
         android:scaleType="centerCrop"
         android:src="@drawable/ic_menu_placeholder"
         android:layout_marginEnd="12dp"
@@ -41,6 +41,18 @@
             android:textStyle="bold"
             android:textColor="#555555"
             android:layout_marginTop="6dp"/>
+
+        <!-- DÒNG GHI CHÚ -->
+        <TextView
+            android:id="@+id/tv_item_note"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Ghi chú: Ít đá, không hành"
+            android:textSize="14sp"
+            android:textColor="#777777"
+            android:layout_marginTop="4dp"
+            android:maxLines="1"
+            android:ellipsize="end"/>
 
     </LinearLayout>
 

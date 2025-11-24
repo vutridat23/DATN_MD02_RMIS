@@ -8,7 +8,7 @@ import java.lang.reflect.Type;
 /**
  * Gson deserializer cho Order.OrderItem.
  * - Chỉ lấy ảnh từ menuItem (menuItem.image, menuItem.imageUrl, thumbnail) và gán vào OrderItem.imageUrl.
- * - Không dùng các fallback khác (ví dụ top-level image/imageUrl).
+ * - Bổ sung: đọc trường "note" (nếu server trả) từ level item và gán vào OrderItem.note.
  */
 public class OrderItemDeserializer implements JsonDeserializer<Order.OrderItem> {
 
@@ -82,6 +82,11 @@ public class OrderItemDeserializer implements JsonDeserializer<Order.OrderItem> 
             try { oi.setStatus(obj.get("status").getAsString()); } catch (Exception ignored) {}
         }
 
+        // NEW: read top-level "note" field on the item (if server returns it)
+        if (obj.has("note") && !obj.get("note").isJsonNull()) {
+            try { oi.setNote(obj.get("note").getAsString()); } catch (Exception ignored) {}
+        }
+
         // IMPORTANT: theo yêu cầu, KHÔNG gán image từ top-level item fields.
         // (Không đọc obj.get("image") / obj.get("imageUrl"))
 
@@ -90,6 +95,7 @@ public class OrderItemDeserializer implements JsonDeserializer<Order.OrderItem> 
         if (oi.getMenuItemName() == null) oi.setMenuItemName("");
         if (oi.getImageUrl() == null) oi.setImageUrl("");
         if (oi.getStatus() == null) oi.setStatus("");
+        if (oi.getNote() == null) oi.setNote("");
 
         return oi;
     }
