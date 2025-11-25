@@ -17,7 +17,8 @@ import retrofit2.converter.gson.GsonConverterFactory;
  */
 public class RetrofitClient {
 
-    private static final String BASE_URL = "http://192.168.25.2:3000/";
+    // **THAY THẾ ĐỊA CHỈ NÀY BẰNG BASE URL THỰC TẾ CỦA BẠN**
+    private static final String BASE_URL = "http://192.168.0.102:3000/";
 
     private static RetrofitClient instance = null;
     private final ApiService apiService;
