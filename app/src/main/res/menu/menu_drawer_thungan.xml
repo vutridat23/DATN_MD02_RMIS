@@ -1,0 +1,28 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item
+        android:id="@+id/nav_mood"
+        android:title="Tâm trạng hôm nay"
+        android:icon="@drawable/ic_mood" />
+
+    <item
+        android:id="@+id/nav_contact"
+        android:title="Liên hệ cho quản lý"
+        android:icon="@drawable/ic_contact" />
+
+    <item
+        android:id="@+id/nav_payment_history"
+        android:title="Lịch sử thanh toán"
+        android:icon="@drawable/ic_contact" />
+
+    <item
+        android:id="@+id/nav_recheck_table"
+        android:title="Y/c kiểm tra lại bàn"
+        android:icon="@drawable/ic_contact" />
+
+    <item
+        android:id="@+id/nav_logout"
+        android:title="Đăng xuất"
+        android:icon="@drawable/ic_logout" />
+
+</menu>
