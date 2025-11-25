@@ -4,27 +4,57 @@ import com.google.gson.annotations.SerializedName;
 
 public class RevenueItem {
 
-    @SerializedName("_id")
-    private String date; // Ngày doanh thu
-    private double totalRevenue; // Tổng doanh thu ngày đó
-    @SerializedName("countOrders")
-    private int invoiceCount; // Số lượng hóa đơn
+    @SerializedName("id")
+    private String id; // _id của order
 
-    public RevenueItem(String date, double totalRevenue, int invoiceCount) {
+    @SerializedName("date")
+    private String date; // yyyy-MM-dd
+
+    @SerializedName("totalAmount")
+    private double totalAmount;
+
+    @SerializedName("totalOrders")
+    private int totalOrders;
+
+    public RevenueItem() {
+    }
+
+    public RevenueItem(String id, String date, double totalAmount, int totalOrders) {
+        this.id = id;
         this.date = date;
-        this.totalRevenue = totalRevenue;
-        this.invoiceCount = invoiceCount;
+        this.totalAmount = totalAmount;
+        this.totalOrders = totalOrders;
+    }
+
+    public String getId() {
+        return id;
     }
 
     public String getDate() {
         return date;
     }
 
-    public double getTotalRevenue() {
-        return totalRevenue;
+    public double getTotalAmount() {
+        return totalAmount;
     }
 
-    public int getInvoiceCount() {
-        return invoiceCount;
+    public int getTotalOrders() {
+        return totalOrders;
+    }
+
+    public void setId(String id) {
+        this.id = id;
+    }
+
+    public void setDate(String date) {
+        this.date = date;
+    }
+
+    public void setTotalAmount(double totalAmount) {
+        this.totalAmount = totalAmount;
+    }
+
+    public void setTotalOrders(int totalOrders) {
+        this.totalOrders = totalOrders;
     }
 }

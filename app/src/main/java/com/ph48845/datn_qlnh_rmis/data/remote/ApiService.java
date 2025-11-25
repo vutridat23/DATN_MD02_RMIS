@@ -1,5 +1,6 @@
 package com.ph48845.datn_qlnh_rmis.data.remote;
 
+import com.ph48845.datn_qlnh_rmis.data.model.HistoryItem;
 import com.ph48845.datn_qlnh_rmis.data.model.LoginResponse;
 import com.ph48845.datn_qlnh_rmis.data.model.MenuItem;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
@@ -98,11 +99,21 @@ public interface ApiService {
     // --- ORDER PAYMENT ENDPOINT ---
     @POST("orders/pay")
     Call<ApiResponse<Order>> payOrder(@Body Map<String, Object> body);
-    @GET("orders/byDate")
-    Call<ApiResponse<List<Order>>> getOrdersByDate(@QueryMap Map<String, String> params);
 
+    @GET("orders/revenue")
+    Call<ApiResponse<List<RevenueItem>>> getRevenueFromOrders(@QueryMap Map<String, String> params);
+    // Lấy doanh thu theo ngày / khoảng ngày
+    @GET("orders/byDate")
+    Call<ApiResponse<List<RevenueItem>>> getRevenueByDate(@QueryMap Map<String, String> params);
 //    @GET("revenue/daily")
 //    Call<ApiResponse<List<RevenueItem>>> getRevenueByDay(@Query("date") String date);
+@POST("reports/daily")
+Call<ApiResponse<RevenueItem>> createDailyReport(@Body Map<String, String> body);
+
+    @GET("orders/historyod")
+    Call<ApiResponse<List<HistoryItem>>> getAllHistory();
+
+
     @GET("revenue/daily")
     Call<ApiResponse<List<RevenueItem>>> getRevenueByRange(
             @Query("fromDate") String fromDate,
@@ -116,6 +127,8 @@ public interface ApiService {
 
     @PUT("tables/{id}")
     Call<TableItem> updateTable(@Path("id") String tableId, @Body Map<String, Object> updates);
+
+
 
     @POST("tables/{id}/merge")
     Call<TableItem> mergeTable(@Path("id") String targetTableId, @Body Map<String, String> body);

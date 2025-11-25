@@ -3,6 +3,7 @@ package com.ph48845.datn_qlnh_rmis.data.repository;
 import android.util.Log;
 
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
+import com.ph48845.datn_qlnh_rmis.data.model.RevenueItem;
 import com.ph48845.datn_qlnh_rmis.data.remote.ApiResponse;
 import com.ph48845.datn_qlnh_rmis.data.remote.ApiService;
 import com.ph48845.datn_qlnh_rmis.data.remote.OrderApi;
@@ -270,39 +271,85 @@ public class OrderRepository {
         return t.getMessage() != null ? t.getMessage() : "Network error";
     }
 
-    public void payOrder(String orderId, double paidAmount, RepositoryCallback<Order> callback) {
+    public void payOrder(String orderId,
+                         String paymentMethod,
+                         double amountCustomerGiven,
+                         RepositoryCallback<Order> callback) {
+
+        if (orderId == null || orderId.trim().isEmpty()) {
+            callback.onError("Invalid orderId");
+            return;
+        }
+
         Map<String, Object> body = new HashMap<>();
-        body.put("orderId", orderId);
-        body.put("paidAmount", paidAmount);
+        body.put("orderId", orderId);                       // ID hóa đơn
+        body.put("paymentMethod", paymentMethod != null ? paymentMethod : "Tiền mặt");
+        // gửi cả 2 trường paidAmount & amountCustomerGiven để backend ko bị thiếu dữ liệu
+        body.put("paidAmount", amountCustomerGiven);        // backend cũ có thể gọi là paidAmount
+        body.put("amountCustomerGiven", amountCustomerGiven);// backend mới có thể dùng amountCustomerGiven
 
         api.payOrder(body).enqueue(new Callback<ApiResponse<Order>>() {
             @Override
             public void onResponse(Call<ApiResponse<Order>> call, Response<ApiResponse<Order>> response) {
-                if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
-                    callback.onSuccess(response.body().getData());
-                } else {
-                    callback.onError(response.body() != null ? response.body().getMessage() : "Thanh toán thất bại");
+                try {
+                    if (response.isSuccessful()) {
+                        ApiResponse<Order> apiResp = response.body();
+                        if (apiResp != null) {
+                            if (apiResp.isSuccess()) {
+                                callback.onSuccess(apiResp.getData());
+                            } else {
+                                // server trả success=false kèm message
+                                String msg = apiResp.getMessage() != null ? apiResp.getMessage() : "Thanh toán thất bại";
+                                callback.onError(msg);
+                            }
+                        } else {
+                            // response successful nhưng body null (lỗi server)
+                            String err = "Server trả về body rỗng (200).";
+                            // Try read errorBody (rare on 200)
+                            callback.onError(err);
+                        }
+                    } else {
+                        // Không phải 2xx -> đọc errorBody nếu có để debug
+                        String errBody = null;
+                        try {
+                            if (response.errorBody() != null) {
+                                errBody = response.errorBody().string();
+                            }
+                        } catch (IOException ioe) {
+                            errBody = "Không thể đọc errorBody: " + ioe.getMessage();
+                        }
+                        String msg = "HTTP " + response.code() + " - " + response.message();
+                        if (errBody != null && !errBody.isEmpty()) msg += " - " + errBody;
+                        Log.e(TAG, "payOrder failed: " + msg);
+                        callback.onError(msg);
+                    }
+                } catch (Exception ex) {
+                    Log.e(TAG, "payOrder onResponse exception", ex);
+                    callback.onError("Lỗi xử lý response: " + ex.getMessage());
                 }
             }
 
             @Override
             public void onFailure(Call<ApiResponse<Order>> call, Throwable t) {
-                callback.onError(t.getMessage());
+                String err = t != null && t.getMessage() != null ? t.getMessage() : "Lỗi kết nối";
+                Log.e(TAG, "payOrder onFailure", t);
+                callback.onError(err);
             }
         });
     }
-    public void getOrdersByDate(String fromDate, String toDate, RepositoryCallback<List<Order>> callback) {
+
+    public void getRevenueByDate(String fromDate, String toDate, RepositoryCallback<List<RevenueItem>> callback) {
         Map<String, String> params = new HashMap<>();
         if (fromDate != null) params.put("fromDate", fromDate);
         if (toDate != null) params.put("toDate", toDate);
 
-        api.getOrdersByDate(params).enqueue(new Callback<ApiResponse<List<Order>>>() {
+        api.getRevenueByDate(params).enqueue(new Callback<ApiResponse<List<RevenueItem>>>() {
             @Override
-            public void onResponse(Call<ApiResponse<List<Order>>> call, Response<ApiResponse<List<Order>>> response) {
+            public void onResponse(Call<ApiResponse<List<RevenueItem>>> call, Response<ApiResponse<List<RevenueItem>>> response) {
                 if (response.isSuccessful() && response.body() != null) {
-                    List<Order> orders = response.body().getData();
-                    if (orders != null) {
-                        callback.onSuccess(orders);
+                    List<RevenueItem> list = response.body().getData();
+                    if (list != null) {
+                        callback.onSuccess(list);
                     } else {
                         callback.onError("Server trả về danh sách rỗng");
                     }
@@ -312,10 +359,11 @@ public class OrderRepository {
             }
 
             @Override
-            public void onFailure(Call<ApiResponse<List<Order>>> call, Throwable t) {
+            public void onFailure(Call<ApiResponse<List<RevenueItem>>> call, Throwable t) {
                 callback.onError("Lỗi kết nối: " + t.getMessage());
             }
         });
     }
+
 
 }

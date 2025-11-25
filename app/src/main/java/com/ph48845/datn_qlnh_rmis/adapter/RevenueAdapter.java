@@ -11,56 +11,41 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.ph48845.datn_qlnh_rmis.R;
 import com.ph48845.datn_qlnh_rmis.data.model.RevenueItem;
 
-import java.util.ArrayList;
 import java.util.List;
 
-public class RevenueAdapter extends RecyclerView.Adapter<RevenueAdapter.ViewHolder> {
+public class RevenueAdapter extends RecyclerView.Adapter<RevenueAdapter.RevenueViewHolder> {
 
-    private List<RevenueItem> revenueList = new ArrayList<>();
-
-    public RevenueAdapter() { }
+    private List<RevenueItem> revenueList;
 
     public RevenueAdapter(List<RevenueItem> revenueList) {
-        if (revenueList != null) {
-            this.revenueList = revenueList;
-        }
-    }
-
-    // Cập nhật dữ liệu mới
-    public void setRevenueList(List<RevenueItem> revenueList) {
-        if (revenueList != null) {
-            this.revenueList = revenueList;
-            notifyDataSetChanged();
-        }
+        this.revenueList = revenueList;
     }
 
     @NonNull
     @Override
-    public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+    public RevenueViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         View view = LayoutInflater.from(parent.getContext())
                 .inflate(R.layout.item_revenue, parent, false);
-        return new ViewHolder(view);
+        return new RevenueViewHolder(view);
     }
 
     @Override
-    public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
+    public void onBindViewHolder(@NonNull RevenueViewHolder holder, int position) {
         RevenueItem item = revenueList.get(position);
-        if (item != null) {
-            holder.tvDate.setText("Ngày: " + (item.getDate() != null ? item.getDate() : "-"));
-            holder.tvTotalRevenue.setText("Doanh thu: " + String.format("%,.0f₫", item.getTotalRevenue()));
-            holder.tvInvoiceCount.setText("Số hóa đơn: " + item.getInvoiceCount());
-        }
+        holder.tvDate.setText(item.getDate());
+        holder.tvTotalRevenue.setText(String.format("%.0f VND", item.getTotalAmount()));
+        holder.tvInvoiceCount.setText("Hóa đơn: " + item.getTotalOrders());
     }
 
     @Override
     public int getItemCount() {
-        return revenueList != null ? revenueList.size() : 0;
+        return revenueList.size();
     }
 
-    public static class ViewHolder extends RecyclerView.ViewHolder {
+    static class RevenueViewHolder extends RecyclerView.ViewHolder {
         TextView tvDate, tvTotalRevenue, tvInvoiceCount;
 
-        public ViewHolder(@NonNull View itemView) {
+        public RevenueViewHolder(@NonNull View itemView) {
             super(itemView);
             tvDate = itemView.findViewById(R.id.tvDate);
             tvTotalRevenue = itemView.findViewById(R.id.tvTotalRevenue);
