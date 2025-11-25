@@ -1,39 +1,65 @@
 package com.ph48845.datn_qlnh_rmis.ui;
 
+import android.Manifest;
 import android.app.AlertDialog;
 import android.app.DatePickerDialog;
 import android.app.TimePickerDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
+import android.graphics.Color;
+import android.graphics.Typeface;
+import android.net.Uri;
 import android.os.Bundle;
+import android.text.SpannableString;
+import android.text.style.RelativeSizeSpan;
 import android.util.Log;
+import android.util.TypedValue;
+import android.view.Gravity;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.ArrayAdapter;
+import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.PopupMenu;
 import android.widget.ProgressBar;
+import android.widget.TextView;
 import android.widget.Toast;
 import android.view.ViewGroup;
 import android.view.inputmethod.InputMethodManager;
 import android.content.Context;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+import androidx.core.graphics.Insets;
+import androidx.core.view.GravityCompat;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.google.android.material.navigation.NavigationView;
 import com.ph48845.datn_qlnh_rmis.R;
 import com.ph48845.datn_qlnh_rmis.adapter.TableAdapter;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
 import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
 import com.ph48845.datn_qlnh_rmis.data.repository.OrderRepository;
 import com.ph48845.datn_qlnh_rmis.data.repository.TableRepository;
+import com.ph48845.datn_qlnh_rmis.ui.auth.LoginActivity;
 import com.ph48845.datn_qlnh_rmis.ui.phucvu.OrderActivity;
 import com.ph48845.datn_qlnh_rmis.ui.thungan.ThuNganActivity;
 //import com.ph48845.datn_qlnh_rmis.ui.revenue.RevenueActivity;
 import android.widget.ImageView;
 import android.widget.PopupMenu;
+import com.ph48845.datn_qlnh_rmis.core.base.BaseMenuActivity;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -59,7 +85,7 @@ import java.util.regex.Pattern;
  *
  * Ghi chú: TableAdapter phải có updateList(List<TableItem>) như trước.
  */
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends BaseMenuActivity {
 
     private static final String TAG = "MainActivityHome";
     private ProgressBar progressBar;
@@ -70,6 +96,8 @@ public class MainActivity extends AppCompatActivity {
     private TableAdapter adapterFloor2;
     private TableRepository tableRepository;
     private OrderRepository orderRepository;
+    DrawerLayout drawerLayout;
+    NavigationView navigationView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -90,6 +118,49 @@ public class MainActivity extends AppCompatActivity {
 
         tableRepository = new TableRepository();
         orderRepository = new OrderRepository();
+
+        drawerLayout = findViewById(R.id.drawerLayout_order);
+        Toolbar toolbar = findViewById(R.id.toolbar);
+        navigationView = findViewById(R.id.navigationView_order);
+
+        toolbar.setNavigationOnClickListener(v -> {
+            drawerLayout.openDrawer(GravityCompat.START);
+        });
+
+        for (int i = 0; i < navigationView.getMenu().size(); i++) {
+            MenuItem menuItem = navigationView.getMenu().getItem(i);
+            SpannableString spanString = new SpannableString(menuItem.getTitle().toString());
+            spanString.setSpan(new RelativeSizeSpan(1.1f), 0, spanString.length(), 0);
+            menuItem.setTitle(spanString);
+        }
+
+        navigationView.setNavigationItemSelectedListener(item -> {
+            int id = item.getItemId();
+
+            if (id == R.id.nav_mood) {
+                showMoodDialog();
+            } else if (id == R.id.nav_contact) {
+                showContactDialog();
+            } else if (id == R.id.nav_logout) {
+                logout();
+            }
+
+            drawerLayout.closeDrawer(GravityCompat.START);
+            return true;
+        });
+
+        updateNavHeaderInfo();
+
+        //padding camera nếu cần
+
+//        View navView = findViewById(R.id.navigationView_order);
+//        ViewCompat.setOnApplyWindowInsetsListener(navView, (v, insets) -> {
+//            Insets systemBarsInsets = insets.getInsets(WindowInsetsCompat.Type.systemBars());
+//            v.setPadding(v.getPaddingLeft(), systemBarsInsets.top, v.getPaddingRight(), v.getPaddingBottom());
+//            return WindowInsetsCompat.CONSUMED;
+//        });
+
+
 
         // create adapter with listener
         TableAdapter.OnTableClickListener listener = new TableAdapter.OnTableClickListener() {
@@ -115,41 +186,55 @@ public class MainActivity extends AppCompatActivity {
         rvFloor2.setAdapter(adapterFloor2);
 
         // Setup menu/avatar click to open ThuNganActivity
-        ImageView avatar = findViewById(R.id.avatar);
-        if (avatar != null) {
-            avatar.setOnClickListener(v -> showMenu(v));
-        }
 
         // initial load
         fetchTablesFromServer();
     }
 
+    private void updateNavHeaderInfo() {
+        // 1. Lấy tham chiếu đến NavigationView
+        NavigationView navigationView = findViewById(R.id.navigationView_order);
+
+        // Kiểm tra null để tránh lỗi crash nếu chưa setup layout đúng
+        if (navigationView != null) {
+            // 2. Lấy Header View (cái layout XML bạn gửi lúc đầu nằm ở đây)
+            View headerView = navigationView.getHeaderView(0);
+
+            // 3. Ánh xạ các TextView trong Header
+            TextView tvName = headerView.findViewById(R.id.textViewName);
+            TextView tvRole = headerView.findViewById(R.id.textViewRole);
+
+            // 4. Lấy dữ liệu từ SharedPreferences (dùng đúng tên file và key bạn đã lưu)
+            SharedPreferences prefs = getSharedPreferences("RestaurantPrefs", MODE_PRIVATE);
+
+            String savedName = prefs.getString("fullName", "Người dùng"); // "Người dùng" là giá trị mặc định
+            String savedRole = prefs.getString("userRole", "");
+
+            // 5. Set text lên giao diện
+            tvName.setText(savedName);
+            tvRole.setText(getVietnameseRole(savedRole)); // Hàm chuyển đổi role sang tiếng Việt
+        }
+    }
+
+    // Hàm phụ trợ chuyển đổi Role (giữ nguyên logic cũ cho đồng bộ)
+    private String getVietnameseRole(String roleKey) {
+        if (roleKey == null) return "";
+        switch (roleKey.toLowerCase()) {
+            case "cashier":
+                return "Thu ngân";
+            case "manager":
+            case "order":
+                return "Phục vụ";
+            case "kitchen":
+                return "Bếp";
+            default:
+                return roleKey;
+        }
+    }
+
     /**
      * Hiển thị menu khi click vào avatar
      */
-    private void showMenu(View anchor) {
-        PopupMenu popup = new PopupMenu(this, anchor);
-        popup.getMenu().add(0, 1, 0, "Thu Ngân");
-        popup.getMenu().add(0, 2, 1, "Thống kê doanh thu");
-        
-        popup.setOnMenuItemClickListener(item -> {
-            int id = item.getItemId();
-            if (id == 1) {
-                // Mở màn hình Thu Ngân
-                Intent intent = new Intent(MainActivity.this, ThuNganActivity.class);
-                startActivity(intent);
-                return true;
-            } else if (id == 2) {
-                // Mở màn hình Thống kê doanh thu
-                Intent intent = new Intent(MainActivity.this,MainActivity.class);
-                startActivity(intent);
-                return true;
-            }
-            return false;
-        });
-        
-        popup.show();
-    }
 
     @Override
     protected void onResume() {
