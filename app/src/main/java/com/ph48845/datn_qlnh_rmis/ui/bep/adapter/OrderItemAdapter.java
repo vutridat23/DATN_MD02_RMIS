@@ -40,7 +40,8 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
     private static final String PREFS_NAME = "cook_timers_prefs";
     private static final String PREF_KEY_PREFIX = "cook_start_";
     // Change here to test quickly:
-    private static final long MAX_COOK_MS = 15L * 60L * 1000L; // default 15 minutes
+
+    private static final long MAX_COOK_MS = 1L * 60L * 1000L; //1l là 1 phút, thay đổi thời gianở đay
     private static final String TIMER_PAYLOAD = "payload_timer";
 
     public interface OnActionListener {
