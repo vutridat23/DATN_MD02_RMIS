@@ -84,7 +84,7 @@ public class MainActivity extends BaseMenuActivity {
 
     private static final String TAG = "MainActivityHome";
     private ProgressBar progressBar;
-
+    private View redDot;
     private RecyclerView rvFloor1;
     private RecyclerView rvFloor2;
     private TableAdapter adapterFloor1;
@@ -117,6 +117,15 @@ public class MainActivity extends BaseMenuActivity {
         drawerLayout = findViewById(R.id.drawerLayout_order);
         Toolbar toolbar = findViewById(R.id.toolbar);
         navigationView = findViewById(R.id.navigationView_order);
+
+        redDot = findViewById(R.id.redDot);   // lấy view từ layout
+
+        //thay đổi trạng thái thông báo đặt điều kiện và chuyển View.GONE sang View.VISIBLE)
+        redDot.setVisibility(View.GONE);   // hiển thị khi cần
+
+        ImageView navIcon = findViewById(R.id.nav_icon);
+        navIcon.setOnClickListener(v -> drawerLayout.openDrawer(GravityCompat.START));
+
 
         toolbar.setNavigationOnClickListener(v -> {
             drawerLayout.openDrawer(GravityCompat.START);
@@ -185,6 +194,7 @@ public class MainActivity extends BaseMenuActivity {
         // initial load
         fetchTablesFromServer();
     }
+
 
     private void updateNavHeaderInfo() {
         // 1. Lấy tham chiếu đến NavigationView

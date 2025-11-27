@@ -6,8 +6,10 @@ import android.os.Bundle;
 import android.text.SpannableString;
 import android.text.style.RelativeSizeSpan;
 import android.util.Log;
+import android.view.Gravity;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -47,6 +49,8 @@ public class ThuNganActivity extends BaseMenuActivity {
     private RecyclerView rvFloor1;
     private RecyclerView rvFloor2;
     private TextView headerFloor1;
+    private View redDot;
+
     private TextView headerFloor2;
     
     private ThuNganAdapter adapterFloor1;
@@ -71,6 +75,14 @@ public class ThuNganActivity extends BaseMenuActivity {
         drawerLayout = findViewById(R.id.drawerLayout_thungan);
         Toolbar toolbar = findViewById(R.id.toolbar);
         navigationView = findViewById(R.id.navigationView_thungan);
+
+        redDot = findViewById(R.id.redDot);   // lấy view từ layout
+
+        //thay đổi trạng thái thông báo đặt điều kiện và chuyển View.GONE sang View.VISIBLE)
+        redDot.setVisibility(View.VISIBLE);   // hiển thị khi cần
+
+        ImageView navIcon = findViewById(R.id.nav_icon);
+        navIcon.setOnClickListener(v -> drawerLayout.openDrawer(GravityCompat.START));
 
         toolbar.setNavigationOnClickListener(v -> {
             drawerLayout.openDrawer(GravityCompat.START);
