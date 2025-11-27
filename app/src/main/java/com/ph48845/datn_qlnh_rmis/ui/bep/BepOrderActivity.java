@@ -1,7 +1,6 @@
 package com.ph48845.datn_qlnh_rmis.ui.bep;
 
 import android.app.AlertDialog;
-import android.content.DialogInterface;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.MenuItem;
@@ -24,14 +23,6 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * BepOrderActivity - realtime updates for a specific table
- *
- * - When opened, it subscribes to socket events and will automatically reload the
- *   current table's items when an order is created/updated on that table.
- * - When the kitchen user taps a status button, a confirmation dialog is shown
- *   before the API call is executed (keeps the confirmation dialog requirement).
- */
 public class BepOrderActivity extends AppCompatActivity implements OrderItemAdapter.OnActionListener {
 
     private static final String TAG = "BepOrderActivityRealtime";
@@ -68,7 +59,8 @@ public class BepOrderActivity extends AppCompatActivity implements OrderItemAdap
         tvTableLabel.setText("Bàn " + tableNumber);
 
         rvItems.setLayoutManager(new LinearLayoutManager(this));
-        adapter = new OrderItemAdapter(this);
+        // PASS context and listener
+        adapter = new OrderItemAdapter(this, this);
         adapter.setItems(new ArrayList<>());
         rvItems.setAdapter(adapter);
 
@@ -81,12 +73,14 @@ public class BepOrderActivity extends AppCompatActivity implements OrderItemAdap
     protected void onStart() {
         super.onStart();
         startRealtimeForTable();
+        if (adapter != null) adapter.startTimer();
     }
 
     @Override
     protected void onStop() {
         super.onStop();
         stopRealtimeForTable();
+        if (adapter != null) adapter.stopTimer();
     }
 
     private void loadTableOrders() {
@@ -130,31 +124,22 @@ public class BepOrderActivity extends AppCompatActivity implements OrderItemAdap
         });
     }
 
-    /**
-     * Start listening to socket events and reload this table's orders automatically
-     * when any order change happens. We reload unconditionally because payload formats
-     * from server can vary; this is simplest and reliable.
-     */
     private void startRealtimeForTable() {
         try {
             socketManager.init(SOCKET_URL);
             socketManager.setOnEventListener(new SocketManager.OnEventListener() {
                 @Override
                 public void onOrderCreated(JSONObject payload) {
-                    Log.d(TAG, "onOrderCreated: " + (payload != null ? payload.toString() : "null"));
-                    // If payload contains tableNumber we could filter, but to be robust simply reload
                     runOnUiThread(() -> loadTableOrders());
                 }
 
                 @Override
                 public void onOrderUpdated(JSONObject payload) {
-                    Log.d(TAG, "onOrderUpdated: " + (payload != null ? payload.toString() : "null"));
                     runOnUiThread(() -> loadTableOrders());
                 }
 
                 @Override
                 public void onConnect() {
-                    Log.d(TAG, "Socket connected (BepOrderActivity). Joining bep room.");
                     try {
                         socketManager.emitJoinRoom("bep");
                         socketManager.emitJoinRoom("phucvu");
@@ -162,9 +147,7 @@ public class BepOrderActivity extends AppCompatActivity implements OrderItemAdap
                 }
 
                 @Override
-                public void onDisconnect() {
-                    Log.d(TAG, "Socket disconnected (BepOrderActivity)");
-                }
+                public void onDisconnect() { }
 
                 @Override
                 public void onError(Exception e) {
@@ -183,10 +166,6 @@ public class BepOrderActivity extends AppCompatActivity implements OrderItemAdap
         } catch (Exception ignored) {}
     }
 
-    /**
-     * Keep confirmation dialog when changing item status.
-     * This method shows a dialog with old/new status and executes the update only if user confirms.
-     */
     @Override
     public void onChangeStatus(ItemWithOrder wrapper, String newStatus) {
         if (wrapper == null || newStatus == null) return;
@@ -204,11 +183,8 @@ public class BepOrderActivity extends AppCompatActivity implements OrderItemAdap
         new AlertDialog.Builder(this)
                 .setTitle("Xác nhận")
                 .setMessage(message)
-                .setNegativeButton("Hủy", (dialog, which) -> {
-                    // nothing to do, keep current UI
-                })
+                .setNegativeButton("Hủy", (dialog, which) -> { })
                 .setPositiveButton("Xác nhận", (dialog, which) -> {
-                    // perform update
                     String orderId = order.getId();
                     String itemId = item.getMenuItemId();
                     if (orderId == null || orderId.trim().isEmpty() || itemId == null || itemId.trim().isEmpty()) {
@@ -216,17 +192,14 @@ public class BepOrderActivity extends AppCompatActivity implements OrderItemAdap
                         return;
                     }
 
-                    // show progress while updating
                     progressBar.setVisibility(android.view.View.VISIBLE);
 
-                    // Call repository to update status
                     orderRepository.updateOrderItemStatus(orderId, itemId, newStatus).enqueue(new retrofit2.Callback<Void>() {
                         @Override
                         public void onResponse(retrofit2.Call<Void> call, retrofit2.Response<Void> response) {
                             runOnUiThread(() -> progressBar.setVisibility(android.view.View.GONE));
                             if (response.isSuccessful()) {
-                                // update local model & reload to reflect latest data from server
-                                item.setStatus(newStatus); // optimistic local update
+                                item.setStatus(newStatus);
                                 runOnUiThread(() -> {
                                     Toast.makeText(BepOrderActivity.this, "Cập nhật trạng thái thành công", Toast.LENGTH_SHORT).show();
                                     loadTableOrders();
