@@ -41,6 +41,7 @@ import java.util.Set;
  * - Giữ nguyên logic gốc của bạn (refreshActiveTables, polling fallback, socket realtime, btnRefresh, tvTitleBep).
  * - Bổ sung Toolbar + Drawer/NavigationView + nav_icon theo layout mới (nếu các view này tồn tại trong layout).
  * - An toàn: mọi findViewById có null-check để không gây crash nếu layout dùng phiên bản cũ hoặc mới.
+ * - Thêm xử lý mở màn "Nguyên liệu" khi chọn menu nav_nguyen_lieu.
  */
 public class BepActivity extends AppCompatActivity {
 
@@ -94,8 +95,7 @@ public class BepActivity extends AppCompatActivity {
         rvTables = findViewById(R.id.recyclerOrderBep);
         progressBar = findViewById(R.id.progress_bep); // nhỏ trong header/card
         progressOverlay = findViewById(R.id.progress_bar_loading); // overlay toàn màn hình (có thể null)
-        btnRefresh = findViewById(R.id.btn_bep_refresh); // có thể null nếu layout mới loại bỏ
-        tvTitle = findViewById(R.id.tvTitleBep); // có thể null nếu dùng toolbar mới
+
 
         // Toolbar & Drawer (nếu có trong layout)
         toolbar = findViewById(R.id.toolbar);
@@ -133,10 +133,23 @@ public class BepActivity extends AppCompatActivity {
         // NavigationView item listener (nếu có)
         if (navigationView != null) {
             navigationView.setNavigationItemSelectedListener(menuItem -> {
-                // đóng drawer sau khi chọn
+                int id = menuItem.getItemId();
+
+                // Đóng drawer (nếu có)
                 if (drawerLayout != null) drawerLayout.closeDrawer(GravityCompat.START);
-                // TODO: xử lý menuItem.getItemId() nếu cần
-                return true;
+
+                // Mở màn Nguyên liệu khi chọn mục tương ứng
+                if (id == R.id.nav_pantry) {
+                    try {
+                        startActivity(new Intent(BepActivity.this, NguyenLieuActivity.class));
+                    } catch (Exception e) {
+                        Log.w(TAG, "Không thể mở NguyenLieuActivity: " + e.getMessage());
+                        Toast.makeText(BepActivity.this, "Không thể mở Nguyên liệu", Toast.LENGTH_SHORT).show();
+                    }
+                    return true;
+                }
+
+                return false;
             });
         }
 
