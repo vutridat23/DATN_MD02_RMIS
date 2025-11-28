@@ -1,0 +1,18 @@
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="#FFFFFF" />
+
+    <!-- Bo góc mềm và rộng -->
+    <corners android:radius="24dp" />
+
+    <!-- Viền nhẹ tạo cảm giác tinh tế -->
+    <stroke
+        android:width="1dp"
+        android:color="#E0E0E0" />
+
+    <!-- Khoảng cách nội dung -->
+    <padding
+        android:left="24dp"
+        android:right="24dp"
+        android:top="28dp"
+        android:bottom="28dp" />
+</shape>

@@ -6,15 +6,20 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 import android.view.View;
-import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.ProgressBar;
+import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
+import androidx.core.view.GravityCompat;
+import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.google.android.material.navigation.NavigationView;
 import com.ph48845.datn_qlnh_rmis.R;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
 import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
@@ -32,10 +37,10 @@ import java.util.Set;
 /**
  * BepActivity (kitchen)
  *
- * - Derive active tables from orders (server source-of-truth for "active").
- * - Realtime: refreshActiveTables() when socket order events arrive.
- * - Fallback: small periodic polling while activity visible to catch deletes/updates
- *   when server doesn't emit a matching realtime event.
+ * Merged:
+ * - Giữ nguyên logic gốc của bạn (refreshActiveTables, polling fallback, socket realtime, btnRefresh, tvTitleBep).
+ * - Bổ sung Toolbar + Drawer/NavigationView + nav_icon theo layout mới (nếu các view này tồn tại trong layout).
+ * - An toàn: mọi findViewById có null-check để không gây crash nếu layout dùng phiên bản cũ hoặc mới.
  */
 public class BepActivity extends AppCompatActivity {
 
@@ -44,12 +49,19 @@ public class BepActivity extends AppCompatActivity {
 
     private RecyclerView rvTables;
     private ProgressBar progressBar;
+    private ProgressBar progressOverlay;
     private Button btnRefresh;
     private TextView tvTitle;
 
     private TableRepository tableRepository;
     private OrderRepository orderRepository;
     private ThuNganAdapter adapter;
+
+    private DrawerLayout drawerLayout;
+    private NavigationView navigationView;
+    private ImageView navIcon;
+    private Toolbar toolbar;
+    private TextView toolbarTitle;
 
     private final SocketManager socketManager = SocketManager.getInstance();
 
@@ -76,29 +88,81 @@ public class BepActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_bep);
+        setContentView(R.layout.activity_bep); // layout có thể là phiên bản cũ hoặc mới
 
+        // Find views (với null-check để tương thích cả 2 layout)
         rvTables = findViewById(R.id.recyclerOrderBep);
-        progressBar = findViewById(R.id.progress_bep);
-        btnRefresh = findViewById(R.id.btn_bep_refresh);
-        tvTitle = findViewById(R.id.tvTitleBep);
+        progressBar = findViewById(R.id.progress_bep); // nhỏ trong header/card
+        progressOverlay = findViewById(R.id.progress_bar_loading); // overlay toàn màn hình (có thể null)
+        btnRefresh = findViewById(R.id.btn_bep_refresh); // có thể null nếu layout mới loại bỏ
+        tvTitle = findViewById(R.id.tvTitleBep); // có thể null nếu dùng toolbar mới
 
-        tvTitle.setText("Danh sách bàn (Bếp)");
+        // Toolbar & Drawer (nếu có trong layout)
+        toolbar = findViewById(R.id.toolbar);
+        toolbarTitle = findViewById(R.id.toolbar_title);
+        drawerLayout = findViewById(R.id.drawerLayout_bep);
+        navigationView = findViewById(R.id.navigationView_bep);
+        navIcon = findViewById(R.id.nav_icon);
 
+        // Thiết lập toolbar nếu tồn tại
+        if (toolbar != null) {
+            setSupportActionBar(toolbar);
+            if (getSupportActionBar() != null) {
+                getSupportActionBar().setDisplayShowTitleEnabled(false); // sử dụng toolbar_title TextView
+            }
+        }
+
+        // Nếu cả toolbar_title và tvTitle tồn tại, ưu tiên toolbar_title; nếu không thì dùng tvTitle
+        if (toolbarTitle != null) {
+            toolbarTitle.setText("Danh sách bàn (Bếp)");
+        } else if (tvTitle != null) {
+            tvTitle.setText("Danh sách bàn (Bếp)");
+        }
+
+        // Nav icon mở drawer nếu cả 2 view tồn tại
+        if (navIcon != null && drawerLayout != null) {
+            navIcon.setOnClickListener(v -> {
+                try {
+                    drawerLayout.openDrawer(GravityCompat.START);
+                } catch (Exception e) {
+                    Log.w(TAG, "Không mở được drawer: " + e.getMessage());
+                }
+            });
+        }
+
+        // NavigationView item listener (nếu có)
+        if (navigationView != null) {
+            navigationView.setNavigationItemSelectedListener(menuItem -> {
+                // đóng drawer sau khi chọn
+                if (drawerLayout != null) drawerLayout.closeDrawer(GravityCompat.START);
+                // TODO: xử lý menuItem.getItemId() nếu cần
+                return true;
+            });
+        }
+
+        // Repositories và adapter
         tableRepository = new TableRepository();
         orderRepository = new OrderRepository();
 
-        rvTables.setLayoutManager(new GridLayoutManager(this, 3));
-        adapter = new ThuNganAdapter(this, new ArrayList<>(), table -> {
-            if (table == null) return;
-            Intent it = new Intent(BepActivity.this, BepOrderActivity.class);
-            it.putExtra("tableId", table.getId());
-            it.putExtra("tableNumber", table.getTableNumber());
-            startActivity(it);
-        });
-        rvTables.setAdapter(adapter);
+        if (rvTables != null) {
+            rvTables.setLayoutManager(new GridLayoutManager(this, 3));
+            adapter = new ThuNganAdapter(this, new ArrayList<>(), table -> {
+                if (table == null) return;
+                Intent it = new Intent(BepActivity.this, BepOrderActivity.class);
+                it.putExtra("tableId", table.getId());
+                it.putExtra("tableNumber", table.getTableNumber());
+                startActivity(it);
+            });
+            rvTables.setAdapter(adapter);
+        } else {
+            // rvTables null là trường hợp layout khác; log để debug
+            Log.w(TAG, "RecyclerView recyclerOrderBep không tìm thấy trong layout.");
+        }
 
-        btnRefresh.setOnClickListener(v -> refreshActiveTables());
+        // Giữ hành vi refresh thủ công nếu nút tồn tại
+        if (btnRefresh != null) {
+            btnRefresh.setOnClickListener(v -> refreshActiveTables());
+        }
 
         // initial load
         refreshActiveTables();
@@ -124,7 +188,8 @@ public class BepActivity extends AppCompatActivity {
      * Refresh UI: derive active tables from orders on server and display those tables only.
      */
     private void refreshActiveTables() {
-        progressBar.setVisibility(View.VISIBLE);
+        if (progressBar != null) progressBar.setVisibility(View.VISIBLE);
+        if (progressOverlay != null) progressOverlay.setVisibility(View.GONE); // overlay không bật mặc định
 
         // 1) Get all orders (server is source-of-truth for active tables)
         orderRepository.getOrdersByTableNumber(null, null, new OrderRepository.RepositoryCallback<List<Order>>() {
@@ -145,8 +210,8 @@ public class BepActivity extends AppCompatActivity {
                 // If no active tables found, update UI and finish
                 if (activeTableNumbers.isEmpty()) {
                     runOnUiThread(() -> {
-                        progressBar.setVisibility(View.GONE);
-                        adapter.updateList(new ArrayList<>());
+                        if (progressBar != null) progressBar.setVisibility(View.GONE);
+                        if (adapter != null) adapter.updateList(new ArrayList<>());
                     });
                     return;
                 }
@@ -156,7 +221,7 @@ public class BepActivity extends AppCompatActivity {
                     @Override
                     public void onSuccess(List<TableItem> allTables) {
                         runOnUiThread(() -> {
-                            progressBar.setVisibility(View.GONE);
+                            if (progressBar != null) progressBar.setVisibility(View.GONE);
                             List<TableItem> activeTables = new ArrayList<>();
 
                             // Map returned tables by tableNumber for quick lookup
@@ -191,7 +256,7 @@ public class BepActivity extends AppCompatActivity {
                             // Optional: sort by tableNumber for stable UI order
                             activeTables.sort((a, b) -> Integer.compare(a.getTableNumber(), b.getTableNumber()));
 
-                            adapter.updateList(activeTables);
+                            if (adapter != null) adapter.updateList(activeTables);
                         });
                     }
 
@@ -199,7 +264,7 @@ public class BepActivity extends AppCompatActivity {
                     public void onError(String message) {
                         // If fetching tables failed, fall back to showing minimal placeholders derived from orders
                         runOnUiThread(() -> {
-                            progressBar.setVisibility(View.GONE);
+                            if (progressBar != null) progressBar.setVisibility(View.GONE);
                             List<TableItem> placeholders = new ArrayList<>();
                             for (Integer tn : activeTableNumbers) {
                                 TableItem p = new TableItem();
@@ -209,7 +274,7 @@ public class BepActivity extends AppCompatActivity {
                                 placeholders.add(p);
                             }
                             placeholders.sort((a, b) -> Integer.compare(a.getTableNumber(), b.getTableNumber()));
-                            adapter.updateList(placeholders);
+                            if (adapter != null) adapter.updateList(placeholders);
                         });
                     }
                 });
@@ -219,9 +284,9 @@ public class BepActivity extends AppCompatActivity {
             public void onError(String message) {
                 // If order fetch failed, show nothing (or optionally fall back to tableRepository)
                 runOnUiThread(() -> {
-                    progressBar.setVisibility(View.GONE);
+                    if (progressBar != null) progressBar.setVisibility(View.GONE);
                     Log.w(TAG, "Cannot fetch orders to determine active tables: " + message);
-                    adapter.updateList(new ArrayList<>());
+                    if (adapter != null) adapter.updateList(new ArrayList<>());
                     Toast.makeText(BepActivity.this, "Không thể tải thông tin đơn hàng: " + message, Toast.LENGTH_LONG).show();
                 });
             }

@@ -1,11 +1,11 @@
 package com.ph48845.datn_qlnh_rmis.data.remote;
 
+
 import com.ph48845.datn_qlnh_rmis.data.model.LoginResponse;
 import com.ph48845.datn_qlnh_rmis.data.model.MenuItem;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
 import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
 import com.ph48845.datn_qlnh_rmis.data.model.User;
-import com.ph48845.datn_qlnh_rmis.data.model.Ingredient;
 
 import java.util.List;
 import java.util.Map;
@@ -16,15 +16,11 @@ import retrofit2.http.DELETE;
 import retrofit2.http.GET;
 import retrofit2.http.POST;
 import retrofit2.http.PUT;
-import retrofit2.http.PATCH;
 import retrofit2.http.Path;
 import retrofit2.http.Query;
 
 /**
  * Retrofit API definitions.
- *
- * NOTE:
- * - Endpoints that return the wrapper { "success", "data", "message" } use ApiResponse<T>.
  */
 public interface ApiService {
 
@@ -56,6 +52,7 @@ public interface ApiService {
     Call<ApiResponse<List<Order>>> getAllOrders();
 
     @GET("orders")
+        // use wrapper to be consistent with other endpoints (menu / tables)
     Call<ApiResponse<List<Order>>> getOrdersByTable(
             @Query("tableNumber") Integer tableNumber,
             @Query("status") String status
@@ -105,7 +102,7 @@ public interface ApiService {
 
     /**
      * Helper class for sending status updates to the server.
-     * Kept here once only to avoid duplicate class definition.
+     * This replaces OrderApi.StatusUpdate previously used.
      */
     class StatusUpdate {
         // public field so Gson serializes it as {"status": "..."}

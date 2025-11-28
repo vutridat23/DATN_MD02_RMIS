@@ -1,76 +1,160 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:orientation="vertical"
+<androidx.drawerlayout.widget.DrawerLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/drawerLayout_bep"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@android:color/white">
+    android:layout_height="match_parent">
 
-    <TextView
-        android:id="@+id/tvTitleBep"
+    <!-- MAIN SCREEN -->
+    <androidx.coordinatorlayout.widget.CoordinatorLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Danh sách order bếp"
-        android:textSize="20sp"
-        android:textStyle="bold"
-        android:gravity="center"
-        android:padding="16dp"
-        android:background="#4CAF50"
-        android:textColor="#FFF"/>
+        android:layout_height="match_parent"
+        android:background="#f5f5f5">
 
-    <!-- Controls row: Realtime toggle + refresh button + progress -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="48dp"
-        android:orientation="horizontal"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp"
-        android:gravity="center_vertical"
-        android:layout_marginTop="8dp"
-        android:layout_marginBottom="8dp">
+        <!-- Top AppBar / Toolbar -->
+        <com.google.android.material.appbar.AppBarLayout
+            android:id="@+id/appBarLayout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fitsSystemWindows="true"
+            android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar">
 
-        <Button
-            android:id="@+id/btn_bep_realtime"
-            android:layout_width="wrap_content"
-            android:layout_height="36dp"
-            android:text="Realtime OFF"
-            android:textAllCaps="false"
-            android:paddingLeft="12dp"
-            android:paddingRight="12dp"
-            android:backgroundTint="#2196F3"
-            android:textColor="#FFFFFF" />
+            <androidx.appcompat.widget.Toolbar
+                android:id="@+id/toolbar"
+                android:layout_width="match_parent"
+                android:layout_height="?attr/actionBarSize"
+                android:background="#32B768">
 
-        <View
-            android:layout_width="12dp"
-            android:layout_height="match_parent" />
+                <FrameLayout
+                    android:id="@+id/nav_icon_container"
+                    android:layout_width="wrap_content"
+                    android:layout_height="match_parent"
+                    android:layout_gravity="start|center_vertical">
 
-        <Button
-            android:id="@+id/btn_bep_refresh"
-            android:layout_width="wrap_content"
-            android:layout_height="36dp"
-            android:text="Làm mới"
-            android:textAllCaps="false"
-            android:backgroundTint="#4CAF50"
-            android:textColor="#FFFFFF" />
+                    <ImageView
+                        android:id="@+id/nav_icon"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:layout_gravity="center"
+                        android:padding="8dp"
+                        android:src="@drawable/baseline_menu_24" />
 
-        <View
-            android:layout_width="0dp"
+                    <View
+                        android:id="@+id/redDot"
+                        android:layout_width="10dp"
+                        android:layout_height="10dp"
+                        android:layout_gravity="top|end"
+                        android:layout_marginTop="9dp"
+                        android:background="@drawable/red_dot"
+                        android:visibility="gone" />
+                </FrameLayout>
+
+                <TextView
+                    android:id="@+id/toolbar_title"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_vertical"
+                    android:gravity="center"
+                    android:text="DANH SÁCH CHẾ BIẾN"
+                    android:textColor="#FFFFFF"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+
+            </androidx.appcompat.widget.Toolbar>
+
+        </com.google.android.material.appbar.AppBarLayout>
+
+
+        <!-- Scrollable content -->
+        <androidx.core.widget.NestedScrollView
+            android:id="@+id/nested_scroll"
+            android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:layout_weight="1" />
+            android:fillViewport="true"
+            app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
+            <androidx.cardview.widget.CardView
+                android:id="@+id/card_container"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_margin="12dp"
+                app:cardUseCompatPadding="true"
+                app:cardCornerRadius="8dp"
+                app:cardElevation="2dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="14dp">
+
+
+                    <!-- Controls: (Realtime + Refresh) đã bị loại bỏ theo yêu cầu.
+                         Chỉ giữ ProgressBar nhỏ bên phải nếu cần hiển thị loading. -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:layout_marginBottom="8dp">
+
+                        <!-- Khoảng trống giữ layout cân bằng (bạn có thể để nút hoặc trạng thái ở đây) -->
+                        <View
+                            android:layout_width="0dp"
+                            android:layout_height="match_parent"
+                            android:layout_weight="1" />
+
+                        <ProgressBar
+                            android:id="@+id/progress_bep"
+                            style="?android:attr/progressBarStyleLarge"
+                            android:layout_width="36dp"
+                            android:layout_height="36dp"
+                            android:visibility="gone" />
+                    </LinearLayout>
+
+
+                    <!-- RecyclerView hiển thị món cần làm -->
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/recyclerOrderBep"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:nestedScrollingEnabled="false"
+                        android:padding="12dp"
+                        android:clipToPadding="false" />
+
+                    <!-- Spacer -->
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="40dp" />
+
+                </LinearLayout>
+
+            </androidx.cardview.widget.CardView>
+
+        </androidx.core.widget.NestedScrollView>
+
+
+        <!-- Loading overlay (toàn màn hình) -->
         <ProgressBar
-            android:id="@+id/progress_bep"
-            style="?android:attr/progressBarStyleLarge"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:indeterminate="true"
+            android:id="@+id/progress_bar_loading"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_gravity="center"
             android:visibility="gone" />
-    </LinearLayout>
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/recyclerOrderBep"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:padding="12dp"
-        android:clipToPadding="false"/>
-</LinearLayout>
+    </androidx.coordinatorlayout.widget.CoordinatorLayout>
+
+
+    <!-- Drawer Menu -->
+    <com.google.android.material.navigation.NavigationView
+        android:id="@+id/navigationView_bep"
+        android:layout_width="250dp"
+        android:layout_height="match_parent"
+        android:layout_gravity="start"
+        android:background="@android:color/white"
+        app:headerLayout="@layout/nav_header"
+        app:menu="@menu/menu_drawer_bep" />
+
+</androidx.drawerlayout.widget.DrawerLayout>

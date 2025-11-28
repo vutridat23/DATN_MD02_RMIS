@@ -15,12 +15,12 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
-
 import com.bumptech.glide.Glide;
 import com.ph48845.datn_qlnh_rmis.R;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
 import com.ph48845.datn_qlnh_rmis.ui.bep.ItemWithOrder;
 
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -29,19 +29,20 @@ import java.util.HashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * OrderItemAdapter (client-only timer) — updated to ensure each item has a clear boxed area
- * by programmatically setting inner background drawable (rounded rect + stroke) and margins/padding.
- *
- * This keeps your XML unchanged but guarantees a consistent "vùng bao gói" visual at runtime.
+ * Merged OrderItemAdapter
+ * - giữ client-side timer với persist startTimes (SharedPreferences)
+ * - áp dụng boxed/rounded inner background programmatically trong onCreateViewHolder
+ * - hỗ trợ cả 2 id: txtTableInfo hoặc txtTableNumber (không break layout)
+ * - giữ DecimalFormat, Glide image loading, và hành vi nút (không disable lúc click)
  */
 public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> {
 
     private static final String TAG = "OrderItemAdapter";
     private static final String PREFS_NAME = "cook_timers_prefs";
     private static final String PREF_KEY_PREFIX = "cook_start_";
-    // Change here to test quickly:
 
-    private static final long MAX_COOK_MS = 1L * 60L * 1000L; //1l là 1 phút, thay đổi thời gianở đay
+    // Thời gian tối đa (quick test = 1 phút). Thay đổi nếu cần.
+    private static final long MAX_COOK_MS = 1L * 60L * 1000L;
     private static final String TIMER_PAYLOAD = "payload_timer";
 
     public interface OnActionListener {
@@ -51,6 +52,7 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
     private final List<ItemWithOrder> items = new ArrayList<>();
     private final OnActionListener listener;
     private final Context context;
+    private final DecimalFormat priceFmt = new DecimalFormat("#,###");
 
     // in-memory start times
     private final Map<String, Long> startTimes = new HashMap<>();
@@ -86,7 +88,8 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
     };
 
     public OrderItemAdapter(Context ctx, OnActionListener listener) {
-        this.context = ctx;
+        if (ctx == null) throw new IllegalArgumentException("Context is required");
+        this.context = ctx.getApplicationContext();
         this.listener = listener;
     }
 
@@ -115,7 +118,7 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
     }
 
     /**
-     * Update list and initialize start times as needed (persist into SharedPreferences).
+     * Cập nhật danh sách và khởi tạo start times khi cần (lưu vào SharedPreferences).
      */
     public void setItems(List<ItemWithOrder> newItems) {
         items.clear();
@@ -131,7 +134,7 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
             String status = oi != null && oi.getStatus() != null ? oi.getStatus().trim().toLowerCase() : "";
             String key = buildItemKey(order, oi);
 
-            // try persisted value
+            // thử load persisted
             if (prefs.contains(PREF_KEY_PREFIX + key)) {
                 long persisted = prefs.getLong(PREF_KEY_PREFIX + key, -1L);
                 if (persisted > 0) {
@@ -140,14 +143,14 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
                 }
             }
 
-            // if cooking and no start -> set now and persist
+            // nếu đang chế biến và chưa có start -> set now và persist
             if ("pending".equals(status) || "preparing".equals(status) || "processing".equals(status)) {
                 if (!startTimes.containsKey(key)) {
                     startTimes.put(key, now);
                     prefs.edit().putLong(PREF_KEY_PREFIX + key, now).apply();
                 }
             } else {
-                // final state -> remove if present
+                // trạng thái hoàn tất -> remove nếu có
                 if (startTimes.containsKey(key)) startTimes.remove(key);
                 if (prefs.contains(PREF_KEY_PREFIX + key)) prefs.edit().remove(PREF_KEY_PREFIX + key).apply();
             }
@@ -161,27 +164,22 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
     public VH onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         View v = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_bep_order, parent, false);
 
-        // --- ensure a compact boxed visual region at runtime ---
-        // 1) set margin on the root view (CardView)
-        ViewGroup.MarginLayoutParams lp;
+        // --- đảm bảo boxed visual runtime ---
         if (v.getLayoutParams() instanceof ViewGroup.MarginLayoutParams) {
-            lp = (ViewGroup.MarginLayoutParams) v.getLayoutParams();
+            ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) v.getLayoutParams();
             int m = dpToPx(8);
-            lp.setMargins(m, m, m, m); // give spacing between items
+            lp.setMargins(m, m, m, m);
             v.setLayoutParams(lp);
         }
 
-        // 2) style the inner container (first child inside CardView) with rounded rect + stroke
         try {
             if (v instanceof ViewGroup && ((ViewGroup) v).getChildCount() > 0) {
-                View inner = ((ViewGroup) v).getChildAt(0); // typically the LinearLayout in your XML
-                // create rounded rect with stroke
+                View inner = ((ViewGroup) v).getChildAt(0);
                 GradientDrawable gd = new GradientDrawable();
-                gd.setColor(Color.WHITE); // inner background (keeps content readable)
+                gd.setColor(Color.WHITE);
                 gd.setCornerRadius(dpToPx(8));
-                gd.setStroke(dpToPx(1), Color.parseColor("#CCCCCC")); // subtle border
+                gd.setStroke(dpToPx(1), Color.parseColor("#CCCCCC"));
                 inner.setBackground(gd);
-                // ensure inner has padding (so content doesn't touch border)
                 int pad = dpToPx(10);
                 inner.setPadding(pad, pad, pad, pad);
             }
@@ -211,23 +209,31 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
         Order order = wrapper.getOrder();
         Order.OrderItem oi = wrapper.getItem();
 
-        String name = oi.getMenuItemName() != null && !oi.getMenuItemName().isEmpty() ? oi.getMenuItemName() : oi.getName();
+        String name = (oi.getMenuItemName() != null && !oi.getMenuItemName().isEmpty()) ? oi.getMenuItemName() : oi.getName();
         holder.txtTenMon.setText(name);
 
-        // KEEP table data in model but DO NOT display it on the item:
-        holder.txtTableNumber.setVisibility(View.GONE);
+        // Nếu TextView table tồn tại trong layout thì hiển thị, ngược lại bỏ qua
+        if (holder.txtTableInfo != null) {
+            String tableText = order != null && order.getTableNumber() != null ? "Bàn " + order.getTableNumber() : "";
+            holder.txtTableInfo.setVisibility(tableText.isEmpty() ? View.GONE : View.VISIBLE);
+            holder.txtTableInfo.setText(tableText);
+        }
 
         String note = oi.getNote() != null ? oi.getNote().trim() : "";
         if (!note.isEmpty()) {
-            holder.txtNote.setVisibility(View.VISIBLE);
-            holder.txtNote.setText(note);
+            if (holder.txtNote != null) {
+                holder.txtNote.setVisibility(View.VISIBLE);
+                holder.txtNote.setText(note);
+            }
         } else {
-            holder.txtNote.setVisibility(View.GONE);
-            holder.txtNote.setText("");
+            if (holder.txtNote != null) {
+                holder.txtNote.setVisibility(View.GONE);
+                holder.txtNote.setText("");
+            }
         }
 
-        holder.txtQty.setText("Số lượng: " + oi.getQuantity());
-        holder.txtTrangThai.setText("Trạng thái: " + (oi.getStatus() == null ? "" : oi.getStatus()));
+        if (holder.txtQty != null) holder.txtQty.setText("Số lượng: " + oi.getQuantity());
+        if (holder.txtTrangThai != null) holder.txtTrangThai.setText("Trạng thái: " + (oi.getStatus() == null ? "" : oi.getStatus()));
 
         String img = oi.getImageUrl();
         if (!TextUtils.isEmpty(img)) {
@@ -241,11 +247,13 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
             holder.imgThumb.setImageResource(R.drawable.ic_menu_placeholder);
         }
 
-        // initial timer UI update
+        // cập nhật timer ban đầu
         updateTimerUI(holder, position);
 
+        // đảm bảo nút luôn enabled khi bind
         holder.setButtonsEnabled(true);
 
+        // hành vi các nút: gọi listener, KHÔNG disable để tránh UX bị mờ
         holder.btnDanNhan.setOnClickListener(v -> {
             if (listener != null) listener.onChangeStatus(wrapper, "pending");
         });
@@ -300,9 +308,9 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
             if (prefs.contains(PREF_KEY_PREFIX + key)) prefs.edit().remove(PREF_KEY_PREFIX + key).apply();
         }
 
-        holder.txtTrangThai.setText("Trạng thái: " + statusBase + timerText);
+        if (holder.txtTrangThai != null) holder.txtTrangThai.setText("Trạng thái: " + statusBase + timerText);
 
-        // change item background when overdue (keeps boxed look)
+        // đổi background khi overdue, vẫn giữ boxed look nếu inner tồn tại
         View rootInner = null;
         try {
             if (holder.itemView instanceof ViewGroup && ((ViewGroup) holder.itemView).getChildCount() > 0) {
@@ -360,14 +368,17 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
 
     static class VH extends RecyclerView.ViewHolder {
         ImageView imgThumb;
-        TextView txtTenMon, txtTableNumber, txtNote, txtQty, txtPrice, txtTrangThai;
+        TextView txtTenMon, txtTableInfo, txtNote, txtQty, txtPrice, txtTrangThai;
         Button btnDanNhan, btnDangLam, btnXongMon, btnHetMon;
 
         VH(@NonNull View itemView) {
             super(itemView);
             imgThumb = itemView.findViewById(R.id.imgThumb);
             txtTenMon = itemView.findViewById(R.id.txtTenMon);
-            txtTableNumber = itemView.findViewById(R.id.txtTableNumber);
+            // hỗ trợ cả 2 id: txtTableInfo hoặc txtTableNumber (fallback)
+            TextView t1 = itemView.findViewById(R.id.txtTableInfo);
+            TextView t2 = itemView.findViewById(R.id.txtTableNumber);
+            txtTableInfo = t1 != null ? t1 : t2;
             txtNote = itemView.findViewById(R.id.txtNote);
             txtQty = itemView.findViewById(R.id.txtQty);
             txtPrice = itemView.findViewById(R.id.txtPrice);
