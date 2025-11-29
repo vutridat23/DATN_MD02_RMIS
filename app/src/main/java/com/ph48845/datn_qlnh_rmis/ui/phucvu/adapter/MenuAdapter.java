@@ -1,4 +1,4 @@
-package com.ph48845.datn_qlnh_rmis.adapter;
+package com.ph48845.datn_qlnh_rmis.ui.phucvu.adapter;
 
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -26,6 +26,9 @@ import java.util.List;
 
 /**
  * MenuAdapter with Glide, URL normalization and debug logs.
+ *
+ * Added:
+ *  - getItems() and findById(String) helpers so activities can lookup menu info without reflection.
  */
 public class MenuAdapter extends RecyclerView.Adapter<MenuAdapter.MenuViewHolder> {
 
@@ -51,6 +54,19 @@ public class MenuAdapter extends RecyclerView.Adapter<MenuAdapter.MenuViewHolder
             }
         }
         this.listener = listener;
+    }
+
+    public List<MenuItem> getItems() {
+        return items;
+    }
+
+    public MenuItem findById(String id) {
+        if (id == null) return null;
+        for (MenuItem m : items) {
+            if (m == null) continue;
+            if (id.equals(m.getId())) return m;
+        }
+        return null;
     }
 
     public void setItems(List<MenuItem> newItems) {
@@ -163,7 +179,7 @@ public class MenuAdapter extends RecyclerView.Adapter<MenuAdapter.MenuViewHolder
     static class MenuViewHolder extends RecyclerView.ViewHolder {
         ImageView ivThumb;
         TextView tvName, tvPrice, tvBadge, tvQty;
-        Button btnAdd, btnMinus;
+        ImageView btnAdd, btnMinus;
 
         public MenuViewHolder(@NonNull View itemView) {
             super(itemView);
