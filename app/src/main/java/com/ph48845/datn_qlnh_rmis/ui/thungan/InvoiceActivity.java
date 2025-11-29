@@ -107,13 +107,13 @@ public class InvoiceActivity extends AppCompatActivity {
     }
 
     /**
-     * Load dữ liệu hóa đơn từ API
+     * Load dữ liệu hóa đơn từ API - Chỉ lấy các đơn chưa thanh toán
      */
     private void loadInvoiceData() {
         progressBar.setVisibility(View.VISIBLE);
         llOrderCards.removeAllViews();
 
-        // Lấy orders của bàn này
+        // Lấy orders của bàn này (lấy tất cả, sau đó filter các đơn chưa thanh toán)
         orderRepository.getOrdersByTableNumber(tableNumber, null, new OrderRepository.RepositoryCallback<List<Order>>() {
             @Override
             public void onSuccess(List<Order> orderList) {
@@ -125,7 +125,14 @@ public class InvoiceActivity extends AppCompatActivity {
                         return;
                     }
 
-                    orders = orderList;
+                    // Lọc bỏ các đơn đã thanh toán
+                    orders = filterUnpaidOrders(orderList);
+                    
+                    if (orders == null || orders.isEmpty()) {
+                        Toast.makeText(InvoiceActivity.this, "Không có đơn hàng chưa thanh toán cho bàn này", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+
                     displayInvoice();
                 });
             }
@@ -139,6 +146,49 @@ public class InvoiceActivity extends AppCompatActivity {
                 });
             }
         });
+    }
+
+    /**
+     * Lọc bỏ các đơn đã thanh toán, chỉ giữ lại các đơn chưa thanh toán
+     */
+    private List<Order> filterUnpaidOrders(List<Order> allOrders) {
+        List<Order> unpaidOrders = new ArrayList<>();
+        
+        for (Order order : allOrders) {
+            if (order == null) continue;
+            
+            // Kiểm tra nếu đã thanh toán
+            boolean isPaid = false;
+            
+            // Kiểm tra trường paid
+            if (order.isPaid()) {
+                isPaid = true;
+            }
+            
+            // Kiểm tra paidAt
+            String paidAt = order.getPaidAt();
+            if (paidAt != null && !paidAt.trim().isEmpty()) {
+                isPaid = true;
+            }
+            
+            // Kiểm tra orderStatus
+            String orderStatus = order.getOrderStatus();
+            if (orderStatus != null) {
+                String status = orderStatus.toLowerCase().trim();
+                if (status.equals("paid") || status.contains("paid") || 
+                    status.equals("completed") || status.contains("completed") ||
+                    status.contains("đã thanh toán") || status.contains("hoàn thành")) {
+                    isPaid = true;
+                }
+            }
+            
+            // Nếu không có dấu hiệu thanh toán, thêm vào danh sách chưa thanh toán
+            if (!isPaid) {
+                unpaidOrders.add(order);
+            }
+        }
+        
+        return unpaidOrders;
     }
 
     /**
