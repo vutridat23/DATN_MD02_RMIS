@@ -3,13 +3,14 @@
     xmlns:card_view="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    card_view:cardBackgroundColor="#F0FFF0"
     android:layout_marginBottom="10dp"
     card_view:cardCornerRadius="10dp"
     card_view:cardElevation="3dp">
 
     <LinearLayout
         android:orientation="vertical"
-        android:background="#FFFFFF"
+        android:background="@android:color/transparent"
         android:padding="12dp"
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
@@ -37,24 +38,49 @@
                 android:orientation="vertical"
                 android:paddingStart="12dp">
 
-                <TextView
-                    android:id="@+id/txtTenMon"
-                    android:layout_width="wrap_content"
+                <!-- Top row: name left, table number right -->
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Tên món"
-                    android:textStyle="bold"
-                    android:textSize="16sp"
-                    android:textColor="#333333" />
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
 
+                    <TextView
+                        android:id="@+id/txtTenMon"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="wrap_content"
+                        android:text="Tên món"
+                        android:textStyle="bold"
+                        android:textSize="16sp"
+                        android:textColor="#333333"
+                        android:maxLines="2"
+                        android:ellipsize="end" />
+
+                    <!-- Table number (top-right) -->
+                    <TextView
+                        android:id="@+id/txtTableNumber"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+
+                        android:textSize="13sp"
+                        android:textColor="#666666"
+                        android:layout_marginStart="8dp"
+                        android:paddingStart="6dp"
+                        android:paddingEnd="6dp" />
+                </LinearLayout>
+
+                <!-- NOTE AREA: show order item note (under name). Hidden if empty. -->
                 <TextView
-                    android:id="@+id/txtTableInfo"
-                    android:layout_width="wrap_content"
+                    android:id="@+id/txtNote"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Bàn 1"
+                    android:text="Ghi chú: Không hành"
                     android:textSize="13sp"
-                    android:textColor="#666666"
-                    android:layout_marginTop="2dp" />
+                    android:textColor="#FF5722"
+                    android:layout_marginTop="4dp" />
 
+                <!-- Qty / price row -->
                 <LinearLayout
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -74,12 +100,13 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:textSize="13sp"
-                        android:textColor="#666666" />
+                        android:textColor="#666666"
+                        android:layout_marginStart="8dp" />
                 </LinearLayout>
             </LinearLayout>
         </LinearLayout>
 
-        <!-- Status text (kept, styled) -->
+        <!-- Status text -->
         <TextView
             android:id="@+id/txtTrangThai"
             android:layout_width="wrap_content"
@@ -90,7 +117,7 @@
             android:textStyle="bold"
             android:textSize="13sp" />
 
-        <!-- Buttons row (KEEP the four buttons and IDs unchanged) -->
+        <!-- Buttons row (unchanged IDs) -->
         <LinearLayout
             android:orientation="horizontal"
             android:layout_width="match_parent"
@@ -104,7 +131,7 @@
                 android:layout_height="40dp"
                 android:layout_weight="1"
                 android:text="Đã nhận"
-                android:textSize="11sp"
+                android:textSize="10sp"
                 android:textColor="#FFFFFF"
                 android:textAllCaps="false"
                 android:backgroundTint="#FFB300" />
@@ -115,18 +142,20 @@
                 android:layout_height="40dp"
                 android:layout_weight="1"
                 android:text="Đang làm"
-                android:textSize="11sp"
+                android:textSize="10sp"
                 android:textColor="#FFFFFF"
                 android:textAllCaps="false"
+                android:paddingLeft="0dp"
+                android:paddingRight="0dp"
                 android:backgroundTint="#03A9F4" />
 
             <Button
                 android:id="@+id/btnXongMon"
                 android:layout_width="0dp"
-                android:layout_height="40dp"
+                android:layout_height="42dp"
                 android:layout_weight="1"
                 android:text="Xong món"
-                android:textSize="11sp"
+                android:textSize="10sp"
                 android:textColor="#FFFFFF"
                 android:textAllCaps="false"
                 android:backgroundTint="#4CAF50" />
@@ -137,9 +166,11 @@
                 android:layout_height="40dp"
                 android:layout_weight="1"
                 android:text="Hết món"
-                android:textSize="11sp"
+                android:textSize="10sp"
                 android:textColor="#FFFFFF"
                 android:textAllCaps="false"
+                android:paddingLeft="0dp"
+                android:paddingRight="0dp"
                 android:backgroundTint="#F44336" />
         </LinearLayout>
     </LinearLayout>

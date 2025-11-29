@@ -1,6 +1,5 @@
 package com.ph48845.datn_qlnh_rmis.ui.bep;
 
-
 import androidx.annotation.NonNull;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
@@ -9,14 +8,13 @@ import androidx.lifecycle.ViewModel;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
 import com.ph48845.datn_qlnh_rmis.data.repository.OrderRepository;
 
-
-import org.json.JSONObject;
-
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * BepViewModel with socket support and ItemWithOrder list for adapter.
+ * BepViewModel: fetchOrders(), flattenAndPost(), start/stop realtime và changeItemStatus.
+ * LƯU Ý: changeItemStatus gọi API để server cập nhật DB; khi server cập nhật xong server sẽ broadcast.
+ * Mình cập nhật local model sau khi API trả success (không emit từ client).
  */
 public class BepViewModel extends ViewModel {
 
@@ -48,7 +46,6 @@ public class BepViewModel extends ViewModel {
                 allOrders = result != null ? result : new ArrayList<>();
                 flattenAndPost(allOrders);
             }
-
             @Override
             public void onError(String message) {
                 loadingLive.postValue(false);
@@ -80,20 +77,18 @@ public class BepViewModel extends ViewModel {
     }
 
     /**
-     * Start realtime socket connection.
-     * socketBaseUrl example: "http://192.168.1.84:3000"
+     * Start realtime socket connection (kept as-is).
      */
     public void startRealtime(@NonNull String socketBaseUrl) {
         socketManager.init(socketBaseUrl);
         socketManager.setOnEventListener(new SocketManager.OnEventListener() {
             @Override
-            public void onOrderCreated(JSONObject payload) {
-                // refresh when server signals a new order
+            public void onOrderCreated(org.json.JSONObject payload) {
                 fetchOrders();
             }
 
             @Override
-            public void onOrderUpdated(JSONObject payload) {
+            public void onOrderUpdated(org.json.JSONObject payload) {
                 fetchOrders();
             }
 
@@ -114,8 +109,9 @@ public class BepViewModel extends ViewModel {
     }
 
     /**
-     * Request to change item status (call update API on repository).
-     * After success, update local list and repost.
+     * changeItemStatus: gọi API PATCH /orders/{orderId}/items/{itemId}/status
+     * - Sau khi server trả success: cập nhật local model và post lại itemsLive.
+     * - Nếu muốn optimistic update, bạn có thể set item.setStatus(newStatus) trước (commented).
      */
     public void changeItemStatus(ItemWithOrder wrapper, String newStatus) {
         if (wrapper == null || newStatus == null || newStatus.trim().isEmpty()) return;
@@ -129,22 +125,36 @@ public class BepViewModel extends ViewModel {
             return;
         }
 
-        // call repo endpoint that returns Call<Void>
+        final String oldStatus = item.getStatus() == null ? "" : item.getStatus();
+
+        // Optional optimistic UI (uncomment if you want instant feedback)
+        // item.setStatus(newStatus);
+        // flattenAndPost(allOrders);
+
+        // Call API to persist change on server (server will broadcast to 'phucvu')
         orderRepository.updateOrderItemStatus(orderId, itemId, newStatus).enqueue(new retrofit2.Callback<Void>() {
             @Override
             public void onResponse(retrofit2.Call<Void> call, retrofit2.Response<Void> response) {
                 if (response.isSuccessful()) {
-                    // update local in-memory object and repost
+                    // Update local model now (keep logic minimal)
                     item.setStatus(newStatus);
                     flattenAndPost(allOrders);
+                    // Server will broadcast to other clients; but updating local keeps UI consistent immediately.
                 } else {
+                    // API failed -> report error and (if optimistic used) rollback
                     errorLive.postValue("Update failed: HTTP " + response.code());
+                    // If optimistic was used, rollback:
+                    // item.setStatus(oldStatus);
+                    // flattenAndPost(allOrders);
                 }
             }
 
             @Override
             public void onFailure(retrofit2.Call<Void> call, Throwable t) {
                 errorLive.postValue("Update error: " + (t.getMessage() != null ? t.getMessage() : "Network"));
+                // If optimistic was used, rollback:
+                // item.setStatus(oldStatus);
+                // flattenAndPost(allOrders);
             }
         });
     }

@@ -44,7 +44,11 @@ public class LoginActivity extends AppCompatActivity {
     //    checkExistingLogin();
         initViews();
 
+        checkExistingLogin();
+
         btnLogin.setOnClickListener(v -> handleLogin());
+
+
     }
 
     private void initViews() {
@@ -66,19 +70,14 @@ public class LoginActivity extends AppCompatActivity {
             return;
         }
 
-        // --- SỬ DỤNG REPOSITORY ---
-        // Code cũ: RetrofitClient.getInstance().getApiService().login(user)...
-        // Code mới: Gọi qua Repository
+
         authRepository.login(usernameInput, passwordInput).enqueue(new Callback<>() {
             @Override
             public void onResponse(@NonNull Call<LoginResponse> call, @NonNull Response<LoginResponse> response) {
-                // Code xử lý kết quả ở đây
                 if (response.isSuccessful() && response.body() != null) {
 
-                    // Hứng kết quả là LoginResponse
                     LoginResponse loginData = response.body();
 
-                    // Tiếp tục logic điều hướng...
                     User currentUser = loginData.getUser();
 
                     if (currentUser != null && currentUser.getRole() != null) {
@@ -99,17 +98,6 @@ public class LoginActivity extends AppCompatActivity {
         });
     }
 
-    // ... Các hàm saveLoginState, navigateBasedOnRole, checkExistingLogin giữ nguyên như cũ ...
-    private void saveLoginState(User user) {
-        SharedPreferences prefs = getSharedPreferences("RestaurantPrefs", MODE_PRIVATE);
-        SharedPreferences.Editor editor = prefs.edit();
-        editor.putBoolean("isLoggedIn", true);
-        editor.putString("userId", user.getId());
-        editor.putString("userRole", user.getRole());
-        editor.putString("fullName", user.getFullName());
-        editor.apply();
-    }
-
     private void navigateBasedOnRole(String role) {
         Intent intent = null;
         if (role == null) role = "";
@@ -127,10 +115,32 @@ public class LoginActivity extends AppCompatActivity {
             finish();
     }
 
-//    private void checkExistingLogin() {
- //       SharedPreferences prefs = getSharedPreferences("RestaurantPrefs", MODE_PRIVATE);
-//        if (prefs.getBoolean("isLoggedIn", false)) {
-//            navigateBasedOnRole(prefs.getString("userRole", ""));
- //       }
- //   }
+
+    private void checkExistingLogin() {
+        SharedPreferences prefs = getSharedPreferences("RestaurantPrefs", MODE_PRIVATE);
+        if (prefs.getBoolean("isLoggedIn", false)) {
+            // Nếu đã login → lấy role và chuyển thẳng sang Activity tương ứng
+            String role = prefs.getString("userRole", "");
+            navigateBasedOnRole(role);
+        } else {
+            // Chưa login → reset form
+            etUsername.setText("");
+            etPassword.setText("");
+        }
+    }
+
+
+    private void saveLoginState(User user) {
+        SharedPreferences prefs = getSharedPreferences("RestaurantPrefs", MODE_PRIVATE);
+        SharedPreferences.Editor editor = prefs.edit();
+        editor.putBoolean("isLoggedIn", true);
+        editor.putString("userId", user.getId());
+        editor.putString("userRole", user.getRole());
+        editor.putString("fullName", user.getFullName());
+        editor.apply();
+    }
+
+
+
+
 }

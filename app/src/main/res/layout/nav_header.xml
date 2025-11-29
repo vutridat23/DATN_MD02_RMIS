@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:fitsSystemWindows="true"
+
+    android:gravity="bottom"
+    android:background="#32B768">
+
+    <!-- Avatar -->
+    <ImageView
+        android:id="@+id/imageViewAvatar"
+        android:layout_width="72dp"
+        android:layout_height="72dp"
+        android:layout_gravity="center_horizontal"
+        android:scaleType="centerCrop"
+        android:padding="0dp"
+        android:src="@drawable/ic_avatar"
+        android:background="@drawable/ic_circle2"
+        android:contentDescription="Avatar"
+        android:clipToOutline="true"/>
+
+    <!-- Tên người dùng -->
+    <TextView
+        android:id="@+id/textViewName"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:text="Nguyễn Văn A"
+        android:textColor="@android:color/white"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:layout_marginTop="8dp" />
+
+    <!-- Chức vụ -->
+    <TextView
+        android:id="@+id/textViewRole"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:text="Quản lý"
+        android:textColor="@android:color/white"
+        android:textSize="14sp" />
+
+</LinearLayout>
