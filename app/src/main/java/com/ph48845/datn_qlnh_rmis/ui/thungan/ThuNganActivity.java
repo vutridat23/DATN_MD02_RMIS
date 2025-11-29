@@ -167,12 +167,32 @@ public class ThuNganActivity extends BaseMenuActivity {
     }
 
     private void setupToolbar() {
+        // Ẩn navigation icon trước khi set support action bar
+        toolbar.setNavigationIcon(null);
         setSupportActionBar(toolbar);
         if (getSupportActionBar() != null) {
-            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
-            getSupportActionBar().setDisplayShowHomeEnabled(true);
+            getSupportActionBar().setDisplayHomeAsUpEnabled(false);
+            getSupportActionBar().setDisplayShowHomeEnabled(false);
         }
-        toolbar.setNavigationOnClickListener(v -> finish());
+        // Đảm bảo navigation icon bị ẩn
+        toolbar.setNavigationIcon(null);
+        toolbar.setNavigationOnClickListener(null);
+        
+        // Đảm bảo navigation icon bị ẩn sau khi layout đã render
+        toolbar.post(() -> {
+            toolbar.setNavigationIcon(null);
+            if (getSupportActionBar() != null) {
+                getSupportActionBar().setDisplayHomeAsUpEnabled(false);
+                getSupportActionBar().setDisplayShowHomeEnabled(false);
+            }
+            // Tìm và ẩn navigation icon view nếu có
+            for (int i = 0; i < toolbar.getChildCount(); i++) {
+                View child = toolbar.getChildAt(i);
+                if (child != null && child instanceof android.widget.ImageButton) {
+                    child.setVisibility(View.GONE);
+                }
+            }
+        });
     }
 
     private void setupRecyclerViews() {
@@ -326,16 +346,21 @@ public class ThuNganActivity extends BaseMenuActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        // Đảm bảo navigation icon bị ẩn mỗi khi activity resume
+        if (toolbar != null) {
+            toolbar.setNavigationIcon(null);
+            if (getSupportActionBar() != null) {
+                getSupportActionBar().setDisplayHomeAsUpEnabled(false);
+                getSupportActionBar().setDisplayShowHomeEnabled(false);
+            }
+        }
         // Refresh khi quay lại màn hình
         loadActiveTables();
     }
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        if (item.getItemId() == android.R.id.home) {
-            finish();
-            return true;
-        }
+        // Không xử lý nút back nữa vì đã ẩn nó
         return super.onOptionsItemSelected(item);
     }
 }
