@@ -1,24 +1,33 @@
 package com.ph48845.datn_qlnh_rmis.ui.thungan;
 
 import android.content.Intent;
-import android.widget.ImageView;
+import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.text.SpannableString;
+import android.text.style.RelativeSizeSpan;
 import android.util.Log;
+import android.view.Gravity;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
+import androidx.core.view.GravityCompat;
+import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.google.android.material.navigation.NavigationView;
 import com.ph48845.datn_qlnh_rmis.R;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
 import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
 import com.ph48845.datn_qlnh_rmis.data.repository.OrderRepository;
+import com.ph48845.datn_qlnh_rmis.core.base.BaseMenuActivity;
+
 import com.ph48845.datn_qlnh_rmis.ui.thungan.adapter.ThuNganAdapter;
 
 import java.util.ArrayList;
@@ -31,7 +40,7 @@ import java.util.Map;
  * Chỉ hiển thị các bàn có status: OCCUPIED, PENDING_PAYMENT, FINISH_SERVE.
  * Hiển thị trạng thái phục vụ: "Đang phục vụ lên món" (xanh) hoặc "Đã phục vụ đủ món" (đỏ).
  */
-public class ThuNganActivity extends AppCompatActivity {
+public class ThuNganActivity extends BaseMenuActivity {
 
     private static final String TAG = "ThuNganActivity";
     
@@ -40,13 +49,16 @@ public class ThuNganActivity extends AppCompatActivity {
     private RecyclerView rvFloor1;
     private RecyclerView rvFloor2;
     private TextView headerFloor1;
+    private View redDot;
+
     private TextView headerFloor2;
     
     private ThuNganAdapter adapterFloor1;
     private ThuNganAdapter adapterFloor2;
     private ThuNganViewModel viewModel;
     private OrderRepository orderRepository;
-    private ImageView nav_profile;
+    DrawerLayout drawerLayout;
+    NavigationView navigationView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -60,15 +72,89 @@ public class ThuNganActivity extends AppCompatActivity {
         viewModel = new ThuNganViewModel();
         orderRepository = new OrderRepository();
 
-        nav_profile.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Intent intent = new Intent(ThuNganActivity.this, ProfileActivity.class);
-                startActivity(intent);
-            }
+        drawerLayout = findViewById(R.id.drawerLayout_thungan);
+        Toolbar toolbar = findViewById(R.id.toolbar);
+        navigationView = findViewById(R.id.navigationView_thungan);
+
+        redDot = findViewById(R.id.redDot);   // lấy view từ layout
+
+        //thay đổi trạng thái thông báo đặt điều kiện và chuyển View.GONE sang View.VISIBLE)
+        redDot.setVisibility(View.VISIBLE);   // hiển thị khi cần
+
+        ImageView navIcon = findViewById(R.id.nav_icon);
+        navIcon.setOnClickListener(v -> drawerLayout.openDrawer(GravityCompat.START));
+
+        toolbar.setNavigationOnClickListener(v -> {
+            drawerLayout.openDrawer(GravityCompat.START);
         });
+
+        for (int i = 0; i < navigationView.getMenu().size(); i++) {
+            MenuItem menuItem = navigationView.getMenu().getItem(i);
+            SpannableString spanString = new SpannableString(menuItem.getTitle().toString());
+            spanString.setSpan(new RelativeSizeSpan(1.1f), 0, spanString.length(), 0);
+            menuItem.setTitle(spanString);
+        }
+
+        navigationView.setNavigationItemSelectedListener(item -> {
+            int id = item.getItemId();
+
+            if (id == R.id.nav_mood) {
+                showMoodDialog();
+            } else if (id == R.id.nav_contact) {
+                showContactDialog();
+            } else if (id == R.id.nav_logout) {
+                logout();
+            }
+
+            drawerLayout.closeDrawer(GravityCompat.START);
+            return true;
+        });
+
+        updateNavHeaderInfo();
+
         // Load dữ liệu
         loadActiveTables();
+    }
+
+    private void updateNavHeaderInfo() {
+        // 1. Lấy tham chiếu đến NavigationView
+        NavigationView navigationView = findViewById(R.id.navigationView_thungan);
+
+        // Kiểm tra null để tránh lỗi crash nếu chưa setup layout đúng
+        if (navigationView != null) {
+            // 2. Lấy Header View (cái layout XML bạn gửi lúc đầu nằm ở đây)
+            View headerView = navigationView.getHeaderView(0);
+
+            // 3. Ánh xạ các TextView trong Header
+            TextView tvName = headerView.findViewById(R.id.textViewName);
+            TextView tvRole = headerView.findViewById(R.id.textViewRole);
+
+            // 4. Lấy dữ liệu từ SharedPreferences (dùng đúng tên file và key bạn đã lưu)
+            SharedPreferences prefs = getSharedPreferences("RestaurantPrefs", MODE_PRIVATE);
+
+            String savedName = prefs.getString("fullName", "Người dùng"); // "Người dùng" là giá trị mặc định
+            String savedRole = prefs.getString("userRole", "");
+
+            // 5. Set text lên giao diện
+            tvName.setText(savedName);
+            tvRole.setText(getVietnameseRole(savedRole)); // Hàm chuyển đổi role sang tiếng Việt
+        }
+    }
+
+    // Hàm phụ trợ chuyển đổi Role (giữ nguyên logic cũ cho đồng bộ)
+    private String getVietnameseRole(String roleKey) {
+        if (roleKey == null) return "";
+        switch (roleKey.toLowerCase()) {
+            case "cashier":
+                return "Thu ngân";
+            case "manager":
+            case "order":
+                return "Phục vụ";
+            case "kitchen":
+                return "Bếp";
+            default:
+                return roleKey;
+        }
     }
 
     private void initViews() {
@@ -78,17 +164,35 @@ public class ThuNganActivity extends AppCompatActivity {
         rvFloor2 = findViewById(R.id.recycler_floor2);
         headerFloor1 = findViewById(R.id.header_floor1);
         headerFloor2 = findViewById(R.id.header_floor2);
-        nav_profile = findViewById(R.id.nav_profile);
     }
 
-
     private void setupToolbar() {
+        // Ẩn navigation icon trước khi set support action bar
+        toolbar.setNavigationIcon(null);
         setSupportActionBar(toolbar);
         if (getSupportActionBar() != null) {
-            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
-            getSupportActionBar().setDisplayShowHomeEnabled(true);
+            getSupportActionBar().setDisplayHomeAsUpEnabled(false);
+            getSupportActionBar().setDisplayShowHomeEnabled(false);
         }
-        toolbar.setNavigationOnClickListener(v -> finish());
+        // Đảm bảo navigation icon bị ẩn
+        toolbar.setNavigationIcon(null);
+        toolbar.setNavigationOnClickListener(null);
+        
+        // Đảm bảo navigation icon bị ẩn sau khi layout đã render
+        toolbar.post(() -> {
+            toolbar.setNavigationIcon(null);
+            if (getSupportActionBar() != null) {
+                getSupportActionBar().setDisplayHomeAsUpEnabled(false);
+                getSupportActionBar().setDisplayShowHomeEnabled(false);
+            }
+            // Tìm và ẩn navigation icon view nếu có
+            for (int i = 0; i < toolbar.getChildCount(); i++) {
+                View child = toolbar.getChildAt(i);
+                if (child != null && child instanceof android.widget.ImageButton) {
+                    child.setVisibility(View.GONE);
+                }
+            }
+        });
     }
 
     private void setupRecyclerViews() {
@@ -242,17 +346,21 @@ public class ThuNganActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        // Đảm bảo navigation icon bị ẩn mỗi khi activity resume
+        if (toolbar != null) {
+            toolbar.setNavigationIcon(null);
+            if (getSupportActionBar() != null) {
+                getSupportActionBar().setDisplayHomeAsUpEnabled(false);
+                getSupportActionBar().setDisplayShowHomeEnabled(false);
+            }
+        }
         // Refresh khi quay lại màn hình
         loadActiveTables();
     }
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        if (item.getItemId() == android.R.id.home) {
-            finish();
-            return true;
-        }
+        // Không xử lý nút back nữa vì đã ẩn nó
         return super.onOptionsItemSelected(item);
     }
-
 }
