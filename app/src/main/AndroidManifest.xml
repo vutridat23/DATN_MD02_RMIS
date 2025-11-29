@@ -54,6 +54,7 @@
         <activity
             android:name=".ui.thungan.InvoiceActivity"
             android:exported="false" />
+
         <activity
             android:name=".ui.revenue.RevenueActivity"
             android:exported="false" />
