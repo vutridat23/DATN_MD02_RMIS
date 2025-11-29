@@ -7,8 +7,7 @@
 
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.CALL_PHONE" />
-
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:allowBackup="true"
@@ -21,10 +20,10 @@
         android:theme="@style/Theme.DATN_QLNH_RMIS"
         android:usesCleartextTraffic="true">
         <activity
-            android:name=".ui.thanhtoan.QRPaymentActivity"
+            android:name=".ui.bep.BepOrderActivity"
             android:exported="false" />
         <activity
-            android:name=".ui.thanhtoan.ThanhToanActivity"
+            android:name=".ui.bep.NguyenLieuActivity"
             android:exported="false" />
         <activity
             android:name=".ui.auth.OnboardingActivity"
@@ -35,12 +34,15 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
         <activity
             android:name=".ui.auth.LoginActivity"
             android:exported="false" />
+
         <activity
             android:name=".ui.MainActivity"
             android:exported="false" />
+
         <activity
             android:name=".ui.phucvu.OrderActivity"
             android:exported="false" />
@@ -56,6 +58,7 @@
         <activity
             android:name=".ui.bep.BepActivity"
             android:exported="false" />
+
     </application>
 
 </manifest>

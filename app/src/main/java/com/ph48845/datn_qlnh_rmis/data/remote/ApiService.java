@@ -1,5 +1,7 @@
 package com.ph48845.datn_qlnh_rmis.data.remote;
 
+
+import com.ph48845.datn_qlnh_rmis.data.model.Ingredient;
 import com.ph48845.datn_qlnh_rmis.data.model.LoginResponse;
 import com.ph48845.datn_qlnh_rmis.data.model.MenuItem;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
@@ -13,18 +15,14 @@ import retrofit2.Call;
 import retrofit2.http.Body;
 import retrofit2.http.DELETE;
 import retrofit2.http.GET;
+import retrofit2.http.PATCH;
 import retrofit2.http.POST;
 import retrofit2.http.PUT;
-import retrofit2.http.PATCH;
 import retrofit2.http.Path;
 import retrofit2.http.Query;
 
 /**
  * Retrofit API definitions.
- *
- * NOTE:
- * - Endpoints that return the wrapper { "success", "data", "message" } use ApiResponse<T>.
- * - Ensure server responses match this wrapper; otherwise adjust accordingly.
  */
 public interface ApiService {
 
@@ -52,20 +50,16 @@ public interface ApiService {
     Call<Void> deleteMenuItem(@Path("id") String itemId);
 
     // --- ORDER ENDPOINTS ---
-
-    // Get all orders (wrapped)
     @GET("orders")
     Call<ApiResponse<List<Order>>> getAllOrders();
 
-    // Get orders for a specific table (wrapped)
     @GET("orders")
+        // use wrapper to be consistent with other endpoints (menu / tables)
     Call<ApiResponse<List<Order>>> getOrdersByTable(
             @Query("tableNumber") Integer tableNumber,
             @Query("status") String status
     );
 
-    // Update a single order item status (no wrapper assumed)
-    // NOTE: Use PATCH and plural "items" to match server route: PATCH /orders/{orderId}/items/{itemId}/status
     @PATCH("orders/{orderId}/items/{itemId}/status")
     Call<Void> updateOrderItemStatus(
             @Path("orderId") String orderId,
@@ -73,23 +67,18 @@ public interface ApiService {
             @Body StatusUpdate statusUpdate
     );
 
-    // Create order (server returns wrapper { success, data: order })
     @POST("orders")
     Call<ApiResponse<Order>> createOrder(@Body Order order);
 
-    // Get order by id (wrapped)
     @GET("orders/{id}")
     Call<ApiResponse<Order>> getOrderById(@Path("id") String orderId);
 
-    // Update order status (wrapped)
     @PUT("orders/{id}/status")
     Call<ApiResponse<Order>> updateOrderStatus(@Path("id") String orderId, @Body Map<String, Object> newStatusBody);
 
-    // Update order (partial) - server returns wrapper
     @PUT("orders/{id}")
     Call<ApiResponse<Order>> updateOrder(@Path("id") String orderId, @Body Map<String, Object> updates);
 
-    // Delete order (no wrapper)
     @DELETE("orders/{id}")
     Call<Void> deleteOrder(@Path("id") String orderId);
 
@@ -104,9 +93,18 @@ public interface ApiService {
     Call<TableItem> mergeTable(@Path("id") String targetTableId, @Body Map<String, String> body);
 
 
+    // --- INGREDIENTS (nguyên liệu) ---
+    // Lấy tất cả nguyên liệu (API trả về wrapper { success, data: [ingredient] })
+    @GET("ingredients")
+    Call<ApiResponse<List<Ingredient>>> getAllIngredients(@Query("status") String status, @Query("tag") String tag);
+
+    // Bếp lấy nguyên liệu (POST /ingredients/{id}/take) body: { amount: number }
+    @POST("ingredients/{id}/take")
+    Call<ApiResponse<Ingredient>> takeIngredient(@Path("id") String ingredientId, @Body Map<String, Object> body);
+
     /**
      * Helper class for sending status updates to the server.
-     * Use field name "status" because server typically expects this key.
+     * This replaces OrderApi.StatusUpdate previously used.
      */
     class StatusUpdate {
         // public field so Gson serializes it as {"status": "..."}

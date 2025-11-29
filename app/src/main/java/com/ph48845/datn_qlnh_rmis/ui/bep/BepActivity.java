@@ -1,16 +1,14 @@
 package com.ph48845.datn_qlnh_rmis.ui.bep;
 
-import android.content.SharedPreferences;
+import android.content.Intent;
 import android.os.Bundle;
-import android.text.SpannableString;
-import android.text.style.RelativeSizeSpan;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
-import android.view.Gravity;
-import android.view.MenuItem;
 import android.view.View;
-import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
+import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -18,229 +16,358 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import androidx.core.view.GravityCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
-import androidx.lifecycle.ViewModelProvider;
-import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.navigation.NavigationView;
 import com.ph48845.datn_qlnh_rmis.R;
-import com.ph48845.datn_qlnh_rmis.ui.bep.adapter.OrderItemAdapter;
+import com.ph48845.datn_qlnh_rmis.data.model.Order;
+import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
+import com.ph48845.datn_qlnh_rmis.data.repository.OrderRepository;
+import com.ph48845.datn_qlnh_rmis.data.repository.TableRepository;
+import com.ph48845.datn_qlnh_rmis.ui.thungan.adapter.ThuNganAdapter;
+
+import org.json.JSONObject;
 
 import java.util.ArrayList;
-import com.ph48845.datn_qlnh_rmis.core.base.BaseMenuActivity;
-
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 /**
- * BepActivity - màn cho Bếp
+ * BepActivity (kitchen)
  *
- * Sửa để khớp với activity_bep.xml bạn gửi:
- * - recyclerOrderBep -> RecyclerView id
- * - progress_bep -> ProgressBar id
- * - btn_bep_realtime / btn_bep_refresh -> controls
- *
- * Giữ nguyên logic: dùng BepViewModel để fetchOrders(), start/stop realtime,
- * và changeItemStatus() khi bấm nút trong adapter.
+ * Merged:
+ * - Giữ nguyên logic gốc của bạn (refreshActiveTables, polling fallback, socket realtime, btnRefresh, tvTitleBep).
+ * - Bổ sung Toolbar + Drawer/NavigationView + nav_icon theo layout mới (nếu các view này tồn tại trong layout).
+ * - An toàn: mọi findViewById có null-check để không gây crash nếu layout dùng phiên bản cũ hoặc mới.
+ * - Thêm xử lý mở màn "Nguyên liệu" khi chọn menu nav_nguyen_lieu.
  */
-public class BepActivity extends BaseMenuActivity implements OrderItemAdapter.OnActionListener {
+public class BepActivity extends AppCompatActivity {
 
     private static final String TAG = "BepActivity";
-    private static final String SOCKET_URL = "http://192.168.1.229:3000"; // đổi theo server của bạn
+    private static final String SOCKET_URL = "http://192.168.1.84:3000"; // cập nhật nếu cần
 
-    private RecyclerView rvKitchen;
+    private RecyclerView rvTables;
     private ProgressBar progressBar;
-    private Button btnRealtime;
+    private ProgressBar progressOverlay;
     private Button btnRefresh;
+    private TextView tvTitle;
 
-    private BepViewModel viewModel;
-    private OrderItemAdapter adapter;
-    DrawerLayout drawerLayout;
-    NavigationView navigationView;
-    private View redDot;
+    private TableRepository tableRepository;
+    private OrderRepository orderRepository;
+    private ThuNganAdapter adapter;
 
+    private DrawerLayout drawerLayout;
+    private NavigationView navigationView;
+    private ImageView navIcon;
+    private Toolbar toolbar;
+    private TextView toolbarTitle;
+
+    private final SocketManager socketManager = SocketManager.getInstance();
+
+    // Polling handler: chạy fallback refresh mỗi POLL_INTERVAL_MS khi activity visible
+    private final Handler pollHandler = new Handler(Looper.getMainLooper());
+    private final long POLL_INTERVAL_MS = 5000L; // 5 giây (tùy chỉnh)
+    private boolean pollingActive = false;
+
+    private final Runnable pollRunnable = new Runnable() {
+        @Override
+        public void run() {
+            try {
+                // gọi refreshActiveTables để đảm bảo danh sách cập nhật
+                refreshActiveTables();
+            } finally {
+                // nếu còn active -> tiếp tục postDelayed
+                if (pollingActive) {
+                    pollHandler.postDelayed(this, POLL_INTERVAL_MS);
+                }
+            }
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_bep);
+        setContentView(R.layout.activity_bep); // layout có thể là phiên bản cũ hoặc mới
 
-        // Views (IDs must match activity_bep.xml)
-        rvKitchen = findViewById(R.id.recyclerOrderBep);
-        progressBar = findViewById(R.id.progress_bep);
-        btnRealtime = findViewById(R.id.btn_bep_realtime);
-        btnRefresh = findViewById(R.id.btn_bep_refresh);
+        // Find views (với null-check để tương thích cả 2 layout)
+        rvTables = findViewById(R.id.recyclerOrderBep);
+        progressBar = findViewById(R.id.progress_bep); // nhỏ trong header/card
+        progressOverlay = findViewById(R.id.progress_bar_loading); // overlay toàn màn hình (có thể null)
 
-        // RecyclerView setup
-        rvKitchen.setLayoutManager(new LinearLayoutManager(this));
-        adapter = new OrderItemAdapter(this);
-        adapter.setItems(new ArrayList<>());
-        rvKitchen.setAdapter(adapter);
 
+        // Toolbar & Drawer (nếu có trong layout)
+        toolbar = findViewById(R.id.toolbar);
+        toolbarTitle = findViewById(R.id.toolbar_title);
         drawerLayout = findViewById(R.id.drawerLayout_bep);
-        Toolbar toolbar = findViewById(R.id.toolbar);
         navigationView = findViewById(R.id.navigationView_bep);
+        navIcon = findViewById(R.id.nav_icon);
 
-        redDot = findViewById(R.id.redDot);   // lấy view từ layout
-
-        //thay đổi trạng thái thông báo đặt điều kiện và chuyển View.GONE sang View.VISIBLE)
-        redDot.setVisibility(View.VISIBLE);   // hiển thị khi cần
-
-        ImageView navIcon = findViewById(R.id.nav_icon);
-        navIcon.setOnClickListener(v -> drawerLayout.openDrawer(GravityCompat.START));
-
-
-        toolbar.setNavigationOnClickListener(v -> {
-            drawerLayout.openDrawer(GravityCompat.START);
-        });
-
-        for (int i = 0; i < navigationView.getMenu().size(); i++) {
-            MenuItem menuItem = navigationView.getMenu().getItem(i);
-            SpannableString spanString = new SpannableString(menuItem.getTitle().toString());
-            spanString.setSpan(new RelativeSizeSpan(1.1f), 0, spanString.length(), 0);
-            menuItem.setTitle(spanString);
+        // Thiết lập toolbar nếu tồn tại
+        if (toolbar != null) {
+            setSupportActionBar(toolbar);
+            if (getSupportActionBar() != null) {
+                getSupportActionBar().setDisplayShowTitleEnabled(false); // sử dụng toolbar_title TextView
+            }
         }
 
-        navigationView.setNavigationItemSelectedListener(item -> {
-            int id = item.getItemId();
+        // Nếu cả toolbar_title và tvTitle tồn tại, ưu tiên toolbar_title; nếu không thì dùng tvTitle
+        if (toolbarTitle != null) {
+            toolbarTitle.setText("Danh sách bàn (Bếp)");
+        } else if (tvTitle != null) {
+            tvTitle.setText("Danh sách bàn (Bếp)");
+        }
 
-            if (id == R.id.nav_mood) {
-                showMoodDialog();
-            } else if (id == R.id.nav_contact) {
-                showContactDialog();
-            } else if (id == R.id.nav_logout) {
-                logout();
-            }
-
-            drawerLayout.closeDrawer(GravityCompat.START);
-            return true;
-        });
-
-        updateNavHeaderInfo();
-
-        // ViewModel
-        viewModel = new ViewModelProvider(this).get(BepViewModel.class);
-
-        // Observe items
-        viewModel.getItemsLive().observe(this, items -> {
-            if (items == null || items.isEmpty()) {
-                adapter.setItems(new ArrayList<>());
-            } else {
-                adapter.setItems(items);
-            }
-        });
-
-        // Observe loading
-        viewModel.getLoadingLive().observe(this, loading -> {
-            if (progressBar != null) progressBar.setVisibility(Boolean.TRUE.equals(loading) ? View.VISIBLE : View.GONE);
-        });
-
-        // Observe errors
-        viewModel.getErrorLive().observe(this, err -> {
-            if (err != null && !err.trim().isEmpty()) {
-                Toast.makeText(BepActivity.this, err, Toast.LENGTH_LONG).show();
-                Log.w(TAG, "Error: " + err);
-            }
-        });
-
-        // Refresh button -> fetch orders
-        btnRefresh.setOnClickListener(v -> {
-            try {
-                viewModel.fetchOrders();
-            } catch (Exception e) {
-                Log.e(TAG, "refresh failed: " + e.getMessage(), e);
-                Toast.makeText(this, "Làm mới thất bại: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-            }
-        });
-
-        // Realtime toggle button
-        btnRealtime.setOnClickListener(v -> {
-            String txt = btnRealtime.getText() != null ? btnRealtime.getText().toString() : "";
-            if (txt.toLowerCase().contains("off")) {
-                // start realtime
+        // Nav icon mở drawer nếu cả 2 view tồn tại
+        if (navIcon != null && drawerLayout != null) {
+            navIcon.setOnClickListener(v -> {
                 try {
-                    viewModel.startRealtime(SOCKET_URL);
-                    btnRealtime.setText("Realtime ON");
+                    drawerLayout.openDrawer(GravityCompat.START);
                 } catch (Exception e) {
-                    Log.w(TAG, "startRealtime failed: " + e.getMessage(), e);
-                    Toast.makeText(this, "Không thể bật realtime: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    Log.w(TAG, "Không mở được drawer: " + e.getMessage());
                 }
-            } else {
-                // stop realtime
-                try {
-                    viewModel.stopRealtime();
-                    btnRealtime.setText("Realtime OFF");
-                } catch (Exception e) {
-                    Log.w(TAG, "stopRealtime failed: " + e.getMessage(), e);
-                    Toast.makeText(this, "Không thể tắt realtime: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                }
-            }
-        });
+            });
+        }
 
-        // Initial data load (do not forcibly start realtime)
-        viewModel.fetchOrders();
-    }
-
-    private void updateNavHeaderInfo() {
-        // 1. Lấy tham chiếu đến NavigationView
-        NavigationView navigationView = findViewById(R.id.navigationView_bep);
-
-        // Kiểm tra null để tránh lỗi crash nếu chưa setup layout đúng
+        // NavigationView item listener (nếu có)
         if (navigationView != null) {
-            // 2. Lấy Header View (cái layout XML bạn gửi lúc đầu nằm ở đây)
-            View headerView = navigationView.getHeaderView(0);
+            navigationView.setNavigationItemSelectedListener(menuItem -> {
+                int id = menuItem.getItemId();
 
-            // 3. Ánh xạ các TextView trong Header
-            TextView tvName = headerView.findViewById(R.id.textViewName);
-            TextView tvRole = headerView.findViewById(R.id.textViewRole);
+                // Đóng drawer (nếu có)
+                if (drawerLayout != null) drawerLayout.closeDrawer(GravityCompat.START);
 
-            // 4. Lấy dữ liệu từ SharedPreferences (dùng đúng tên file và key bạn đã lưu)
-            SharedPreferences prefs = getSharedPreferences("RestaurantPrefs", MODE_PRIVATE);
+                // Mở màn Nguyên liệu khi chọn mục tương ứng
+                if (id == R.id.nav_pantry) {
+                    try {
+                        startActivity(new Intent(BepActivity.this, NguyenLieuActivity.class));
+                    } catch (Exception e) {
+                        Log.w(TAG, "Không thể mở NguyenLieuActivity: " + e.getMessage());
+                        Toast.makeText(BepActivity.this, "Không thể mở Nguyên liệu", Toast.LENGTH_SHORT).show();
+                    }
+                    return true;
+                }
 
-            String savedName = prefs.getString("fullName", "Người dùng"); // "Người dùng" là giá trị mặc định
-            String savedRole = prefs.getString("userRole", "");
-
-            // 5. Set text lên giao diện
-            tvName.setText(savedName);
-            tvRole.setText(getVietnameseRole(savedRole)); // Hàm chuyển đổi role sang tiếng Việt
+                return false;
+            });
         }
-    }
 
-    // Hàm phụ trợ chuyển đổi Role (giữ nguyên logic cũ cho đồng bộ)
-    private String getVietnameseRole(String roleKey) {
-        if (roleKey == null) return "";
-        switch (roleKey.toLowerCase()) {
-            case "cashier":
-                return "Thu ngân";
-            case "manager":
-            case "order":
-                return "Phục vụ";
-            case "kitchen":
-                return "Bếp";
-            default:
-                return roleKey;
+        // Repositories và adapter
+        tableRepository = new TableRepository();
+        orderRepository = new OrderRepository();
+
+        if (rvTables != null) {
+            rvTables.setLayoutManager(new GridLayoutManager(this, 3));
+            adapter = new ThuNganAdapter(this, new ArrayList<>(), table -> {
+                if (table == null) return;
+                Intent it = new Intent(BepActivity.this, BepOrderActivity.class);
+                it.putExtra("tableId", table.getId());
+                it.putExtra("tableNumber", table.getTableNumber());
+                startActivity(it);
+            });
+            rvTables.setAdapter(adapter);
+        } else {
+            // rvTables null là trường hợp layout khác; log để debug
+            Log.w(TAG, "RecyclerView recyclerOrderBep không tìm thấy trong layout.");
         }
+
+        // Giữ hành vi refresh thủ công nếu nút tồn tại
+        if (btnRefresh != null) {
+            btnRefresh.setOnClickListener(v -> refreshActiveTables());
+        }
+
+        // initial load
+        refreshActiveTables();
     }
 
     @Override
-    protected void onDestroy() {
-        try {
-            viewModel.stopRealtime();
-        } catch (Exception ignored) {}
-        super.onDestroy();
+    protected void onStart() {
+        super.onStart();
+        // connect socket and start polling fallback
+        startRealtime();
+        startPolling();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        // disconnect socket and stop polling when not visible
+        stopRealtime();
+        stopPolling();
     }
 
     /**
-     * OrderItemAdapter.OnActionListener callback
-     * Called when Bếp bấm 1 trong 4 nút (received/preparing/ready/soldout).
-     * Gọi ViewModel để cập nhật trạng thái (ViewModel sẽ gọi API và cập nhật local).
+     * Refresh UI: derive active tables from orders on server and display those tables only.
      */
-    @Override
-    public void onChangeStatus(ItemWithOrder wrapper, String newStatus) {
-        if (wrapper == null || newStatus == null) return;
+    private void refreshActiveTables() {
+        if (progressBar != null) progressBar.setVisibility(View.VISIBLE);
+        if (progressOverlay != null) progressOverlay.setVisibility(View.GONE); // overlay không bật mặc định
+
+        // 1) Get all orders (server is source-of-truth for active tables)
+        orderRepository.getOrdersByTableNumber(null, null, new OrderRepository.RepositoryCallback<List<Order>>() {
+            @Override
+            public void onSuccess(List<Order> allOrders) {
+                // Build set of table numbers that have orders
+                final Set<Integer> activeTableNumbers = new HashSet<>();
+                if (allOrders != null) {
+                    for (Order o : allOrders) {
+                        if (o == null) continue;
+                        try {
+                            int tn = o.getTableNumber();
+                            if (tn > 0) activeTableNumbers.add(tn);
+                        } catch (Exception ignored) {}
+                    }
+                }
+
+                // If no active tables found, update UI and finish
+                if (activeTableNumbers.isEmpty()) {
+                    runOnUiThread(() -> {
+                        if (progressBar != null) progressBar.setVisibility(View.GONE);
+                        if (adapter != null) adapter.updateList(new ArrayList<>());
+                    });
+                    return;
+                }
+
+                // 2) Fetch all tables to get details and filter by activeTableNumbers
+                tableRepository.getAllTables(new TableRepository.RepositoryCallback<List<TableItem>>() {
+                    @Override
+                    public void onSuccess(List<TableItem> allTables) {
+                        runOnUiThread(() -> {
+                            if (progressBar != null) progressBar.setVisibility(View.GONE);
+                            List<TableItem> activeTables = new ArrayList<>();
+
+                            // Map returned tables by tableNumber for quick lookup
+                            if (allTables != null) {
+                                for (TableItem t : allTables) {
+                                    if (t == null) continue;
+                                    if (activeTableNumbers.contains(t.getTableNumber())) {
+                                        try { t.normalize(); } catch (Exception ignored) {}
+                                        activeTables.add(t);
+                                    }
+                                }
+                            }
+
+                            // For any tableNumber present in orders but not returned in allTables,
+                            // create a minimal placeholder TableItem so kitchen still sees the table.
+                            for (Integer tn : activeTableNumbers) {
+                                boolean found = false;
+                                for (TableItem tt : activeTables) {
+                                    if (tt != null && tt.getTableNumber() == tn) {
+                                        found = true; break;
+                                    }
+                                }
+                                if (!found) {
+                                    TableItem placeholder = new TableItem();
+                                    placeholder.setTableNumber(tn);
+                                    placeholder.setStatusRaw("occupied");
+                                    placeholder.normalize();
+                                    activeTables.add(placeholder);
+                                }
+                            }
+
+                            // Optional: sort by tableNumber for stable UI order
+                            activeTables.sort((a, b) -> Integer.compare(a.getTableNumber(), b.getTableNumber()));
+
+                            if (adapter != null) adapter.updateList(activeTables);
+                        });
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        // If fetching tables failed, fall back to showing minimal placeholders derived from orders
+                        runOnUiThread(() -> {
+                            if (progressBar != null) progressBar.setVisibility(View.GONE);
+                            List<TableItem> placeholders = new ArrayList<>();
+                            for (Integer tn : activeTableNumbers) {
+                                TableItem p = new TableItem();
+                                p.setTableNumber(tn);
+                                p.setStatusRaw("occupied");
+                                p.normalize();
+                                placeholders.add(p);
+                            }
+                            placeholders.sort((a, b) -> Integer.compare(a.getTableNumber(), b.getTableNumber()));
+                            if (adapter != null) adapter.updateList(placeholders);
+                        });
+                    }
+                });
+            }
+
+            @Override
+            public void onError(String message) {
+                // If order fetch failed, show nothing (or optionally fall back to tableRepository)
+                runOnUiThread(() -> {
+                    if (progressBar != null) progressBar.setVisibility(View.GONE);
+                    Log.w(TAG, "Cannot fetch orders to determine active tables: " + message);
+                    if (adapter != null) adapter.updateList(new ArrayList<>());
+                    Toast.makeText(BepActivity.this, "Không thể tải thông tin đơn hàng: " + message, Toast.LENGTH_LONG).show();
+                });
+            }
+        });
+    }
+
+    /**
+     * Start socket connection and set event listener to auto-refresh when orders or tables change.
+     */
+    private void startRealtime() {
         try {
-            viewModel.changeItemStatus(wrapper, newStatus);
+            socketManager.init(SOCKET_URL);
+            socketManager.setOnEventListener(new SocketManager.OnEventListener() {
+                @Override
+                public void onOrderCreated(JSONObject payload) {
+                    Log.d(TAG, "Socket onOrderCreated: " + (payload != null ? payload.toString() : "null"));
+                    runOnUiThread(() -> refreshActiveTables());
+                }
+
+                @Override
+                public void onOrderUpdated(JSONObject payload) {
+                    Log.d(TAG, "Socket onOrderUpdated: " + (payload != null ? payload.toString() : "null"));
+                    runOnUiThread(() -> refreshActiveTables());
+                }
+
+                @Override
+                public void onConnect() {
+                    Log.d(TAG, "Socket connected (BepActivity).");
+                    try {
+                        socketManager.emitJoinRoom("bep");
+                        socketManager.emitJoinRoom("phucvu");
+                    } catch (Exception ignored) {}
+                }
+
+                @Override
+                public void onDisconnect() {
+                    Log.d(TAG, "Socket disconnected (BepActivity).");
+                }
+
+                @Override
+                public void onError(Exception e) {
+                    Log.w(TAG, "Socket error (BepActivity): " + (e != null ? e.getMessage() : ""));
+                }
+            });
+            socketManager.connect();
         } catch (Exception e) {
-            Log.e(TAG, "changeItemStatus failed: " + e.getMessage(), e);
-            Toast.makeText(this, "Không thể thay đổi trạng thái: " + (e.getMessage() != null ? e.getMessage() : ""), Toast.LENGTH_LONG).show();
+            Log.w(TAG, "startRealtime failed: " + e.getMessage(), e);
         }
+    }
+
+    private void stopRealtime() {
+        try {
+            socketManager.disconnect();
+        } catch (Exception ignored) {}
+    }
+
+    /**
+     * Start/Stop simple polling fallback while activity visible.
+     */
+    private void startPolling() {
+        if (!pollingActive) {
+            pollingActive = true;
+            pollHandler.postDelayed(pollRunnable, POLL_INTERVAL_MS);
+        }
+    }
+
+    private void stopPolling() {
+        pollingActive = false;
+        pollHandler.removeCallbacksAndMessages(null);
     }
 }
