@@ -8,12 +8,14 @@ import android.print.PrintDocumentAdapter;
 import android.print.PrintJob;
 import android.print.PrintManager;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
+import android.widget.ListView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -27,6 +29,7 @@ import com.ph48845.datn_qlnh_rmis.data.model.MenuItem;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
 import com.ph48845.datn_qlnh_rmis.data.repository.MenuRepository;
 import com.ph48845.datn_qlnh_rmis.data.repository.OrderRepository;
+import com.ph48845.datn_qlnh_rmis.ui.thanhtoan.ThanhToanActivity;
 
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
@@ -104,13 +107,13 @@ public class InvoiceActivity extends AppCompatActivity {
     }
 
     /**
-     * Load dữ liệu hóa đơn từ API
+     * Load dữ liệu hóa đơn từ API - Chỉ lấy các đơn chưa thanh toán
      */
     private void loadInvoiceData() {
         progressBar.setVisibility(View.VISIBLE);
         llOrderCards.removeAllViews();
 
-        // Lấy orders của bàn này
+        // Lấy orders của bàn này (lấy tất cả, sau đó filter các đơn chưa thanh toán)
         orderRepository.getOrdersByTableNumber(tableNumber, null, new OrderRepository.RepositoryCallback<List<Order>>() {
             @Override
             public void onSuccess(List<Order> orderList) {
@@ -122,7 +125,14 @@ public class InvoiceActivity extends AppCompatActivity {
                         return;
                     }
 
-                    orders = orderList;
+                    // Lọc bỏ các đơn đã thanh toán
+                    orders = filterUnpaidOrders(orderList);
+                    
+                    if (orders == null || orders.isEmpty()) {
+                        Toast.makeText(InvoiceActivity.this, "Không có đơn hàng chưa thanh toán cho bàn này", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+
                     displayInvoice();
                 });
             }
@@ -136,6 +146,49 @@ public class InvoiceActivity extends AppCompatActivity {
                 });
             }
         });
+    }
+
+    /**
+     * Lọc bỏ các đơn đã thanh toán, chỉ giữ lại các đơn chưa thanh toán
+     */
+    private List<Order> filterUnpaidOrders(List<Order> allOrders) {
+        List<Order> unpaidOrders = new ArrayList<>();
+        
+        for (Order order : allOrders) {
+            if (order == null) continue;
+            
+            // Kiểm tra nếu đã thanh toán
+            boolean isPaid = false;
+            
+            // Kiểm tra trường paid
+            if (order.isPaid()) {
+                isPaid = true;
+            }
+            
+            // Kiểm tra paidAt
+            String paidAt = order.getPaidAt();
+            if (paidAt != null && !paidAt.trim().isEmpty()) {
+                isPaid = true;
+            }
+            
+            // Kiểm tra orderStatus
+            String orderStatus = order.getOrderStatus();
+            if (orderStatus != null) {
+                String status = orderStatus.toLowerCase().trim();
+                if (status.equals("paid") || status.contains("paid") || 
+                    status.equals("completed") || status.contains("completed") ||
+                    status.contains("đã thanh toán") || status.contains("hoàn thành")) {
+                    isPaid = true;
+                }
+            }
+            
+            // Nếu không có dấu hiệu thanh toán, thêm vào danh sách chưa thanh toán
+            if (!isPaid) {
+                unpaidOrders.add(order);
+            }
+        }
+        
+        return unpaidOrders;
     }
 
     /**
@@ -562,14 +615,18 @@ public class InvoiceActivity extends AppCompatActivity {
     }
 
     /**
-     * Thanh toán cho một order cụ thể
+     * Thanh toán cho một order cụ thể - chuyển sang màn hình thanh toán
      */
     private void processPaymentForOrder(Order order) {
-        if (order == null) {
+        if (order == null || order.getId() == null) {
             Toast.makeText(this, "Hóa đơn không hợp lệ", Toast.LENGTH_SHORT).show();
             return;
         }
-        processPaymentForSpecificOrder(order);
+        // Chuyển sang màn hình thanh toán
+        Intent intent = new Intent(InvoiceActivity.this, ThanhToanActivity.class);
+        intent.putExtra("orderId", order.getId());
+        intent.putExtra("tableNumber", tableNumber);
+        startActivity(intent);
     }
 
     /**
@@ -743,14 +800,12 @@ public class InvoiceActivity extends AppCompatActivity {
      * Hiển thị dialog hủy hóa đơn
      */
     private void showCancelInvoiceDialog() {
-        EditText etReason = new EditText(this);
-        etReason.setHint("Nhập lý do hủy hóa đơn");
-        etReason.setMinLines(3);
+        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_cancel_invoice, null);
+        EditText etReason = dialogView.findViewById(R.id.etReason);
 
         new AlertDialog.Builder(this)
             .setTitle("Hủy hóa đơn")
-            .setMessage("Vui lòng nhập lý do hủy:")
-            .setView(etReason)
+            .setView(dialogView)
             .setPositiveButton("Hủy đơn", (dialog, which) -> {
                 String reason = etReason.getText().toString().trim();
                 if (reason.isEmpty()) {
@@ -1054,85 +1109,27 @@ public class InvoiceActivity extends AppCompatActivity {
     }
 
     /**
-     * In tạm tính
+     * In tạm tính - Mở Activity hiển thị hóa đơn từ XML layout
      */
     private void printTemporaryBill() {
-        // Tạo HTML cho hóa đơn tạm tính
-        String htmlContent = generateTemporaryBillHTML();
-        
-        // Sử dụng WebView để in
-        android.webkit.WebView webView = new android.webkit.WebView(this);
-        webView.setWebViewClient(new android.webkit.WebViewClient() {
-            @Override
-            public void onPageFinished(android.webkit.WebView view, String url) {
-                createPrintJob(webView);
-            }
-        });
-        webView.loadDataWithBaseURL(null, htmlContent, "text/html", "UTF-8", null);
-    }
-
-    /**
-     * Tạo PrintJob
-     */
-    private void createPrintJob(android.webkit.WebView webView) {
-        PrintManager printManager = (PrintManager) getSystemService(PRINT_SERVICE);
-        String jobName = "Hóa đơn tạm tính - Bàn " + tableNumber;
-        PrintDocumentAdapter printAdapter = webView.createPrintDocumentAdapter(jobName);
-        PrintAttributes.Builder builder = new PrintAttributes.Builder();
-        builder.setMediaSize(PrintAttributes.MediaSize.ISO_A4);
-        PrintJob printJob = printManager.print(jobName, printAdapter, builder.build());
-        
-        if (printJob.isCompleted()) {
-            Toast.makeText(this, "Đã in hóa đơn tạm tính", Toast.LENGTH_SHORT).show();
-        } else if (printJob.isFailed()) {
-            Toast.makeText(this, "Lỗi in hóa đơn", Toast.LENGTH_SHORT).show();
-        }
-    }
-
-    /**
-     * Tạo HTML cho hóa đơn tạm tính
-     */
-    private String generateTemporaryBillHTML() {
-        StringBuilder html = new StringBuilder();
-        html.append("<html><head><meta charset='UTF-8'><style>");
-        html.append("body { font-family: Arial; padding: 20px; }");
-        html.append("h1 { text-align: center; }");
-        html.append("table { width: 100%; border-collapse: collapse; }");
-        html.append("th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }");
-        html.append("th { background-color: #f2f2f2; }");
-        html.append(".total { font-weight: bold; }");
-        html.append("</style></head><body>");
-        
-        html.append("<h1>HÓA ĐƠN TẠM TÍNH</h1>");
-        html.append("<p><strong>Bàn:</strong> ").append(tableNumber).append("</p>");
-        html.append("<p><strong>Mã đơn:</strong> ").append(generateOrderCode()).append("</p>");
-        html.append("<p><strong>Ngày:</strong> ").append(new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(new Date())).append("</p>");
-        
-        html.append("<table>");
-        html.append("<tr><th>Món ăn</th><th>SL</th><th>Giá</th><th>Thành tiền</th></tr>");
-        
-        for (Order.OrderItem item : allItems) {
-            double itemTotal = item.getPrice() * item.getQuantity();
-            html.append("<tr>");
-            html.append("<td>").append(item.getName()).append("</td>");
-            html.append("<td>").append(item.getQuantity()).append("</td>");
-            html.append("<td>").append(formatCurrency(item.getPrice())).append("</td>");
-            html.append("<td>").append(formatCurrency(itemTotal)).append("</td>");
-            html.append("</tr>");
+        if (orders == null || orders.isEmpty()) {
+            Toast.makeText(this, "Không có hóa đơn để in", Toast.LENGTH_SHORT).show();
+            return;
         }
         
-        html.append("</table>");
-        
-        double total = 0;
-        for (Order.OrderItem item : allItems) {
-            total += item.getPrice() * item.getQuantity();
+        // Lấy order đầu tiên để in
+        Order firstOrder = orders.get(0);
+        if (firstOrder == null) {
+            Toast.makeText(this, "Hóa đơn không hợp lệ", Toast.LENGTH_SHORT).show();
+            return;
         }
         
-        html.append("<p class='total'>Tổng cộng: ").append(formatCurrency(total)).append("</p>");
-        html.append("<p><em>Hóa đơn tạm tính - Chưa thanh toán</em></p>");
-        html.append("</body></html>");
-        
-        return html.toString();
+        // Mở Activity hiển thị hóa đơn từ XML layout
+        Intent intent = new Intent(this, PrintBillActivity.class);
+        intent.putExtra("order", firstOrder);
+        intent.putExtra("tableNumber", tableNumber);
+        intent.putExtra("orderCode", generateOrderCode());
+        startActivity(intent);
     }
 
     /**
@@ -1257,7 +1254,11 @@ public class InvoiceActivity extends AppCompatActivity {
                             printTemporaryBillForOrder(order);
                             break;
                         case 3:
-                            processPaymentForSpecificOrder(order);
+                            // Chuyển sang màn hình thanh toán
+                            Intent intent = new Intent(InvoiceActivity.this, ThanhToanActivity.class);
+                            intent.putExtra("orderId", order.getId());
+                            intent.putExtra("tableNumber", tableNumber);
+                            startActivity(intent);
                             break;
                         case 4:
                             requestCheckItemsForOrder(order);
@@ -1282,24 +1283,10 @@ public class InvoiceActivity extends AppCompatActivity {
 
         List<Order.OrderItem> items = order.getItems();
         
-        // Tạo ScrollView chứa các EditText để nhập số lượng tách
-        LinearLayout dialogLayout = new LinearLayout(this);
-        dialogLayout.setOrientation(LinearLayout.VERTICAL);
-        dialogLayout.setPadding(
-            (int) (24 * getResources().getDisplayMetrics().density),
-            (int) (16 * getResources().getDisplayMetrics().density),
-            (int) (24 * getResources().getDisplayMetrics().density),
-            (int) (16 * getResources().getDisplayMetrics().density)
-        );
-
-        // TextView hướng dẫn
-        TextView tvInstruction = new TextView(this);
-        tvInstruction.setText("Nhập số lượng muốn tách cho mỗi món (0 = không tách):");
-        tvInstruction.setTextColor(0xFF000000);
-        tvInstruction.setTextSize(14);
-        tvInstruction.setPadding(0, 0, 0, (int) (16 * getResources().getDisplayMetrics().density));
-        dialogLayout.addView(tvInstruction);
-
+        // Inflate XML layout
+        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_split_invoice, null);
+        LinearLayout llItemsContainer = dialogView.findViewById(R.id.llItemsContainer);
+        
         // Map để lưu EditText cho mỗi item
         Map<Integer, EditText> qtyEditTextMap = new HashMap<>();
         
@@ -1307,43 +1294,23 @@ public class InvoiceActivity extends AppCompatActivity {
             Order.OrderItem item = items.get(i);
             if (item == null) continue;
 
-            // Container cho mỗi món
-            LinearLayout itemLayout = new LinearLayout(this);
-            itemLayout.setOrientation(LinearLayout.HORIZONTAL);
-            itemLayout.setPadding(0, 0, 0, (int) (12 * getResources().getDisplayMetrics().density));
-
+            // Inflate item layout
+            View itemView = LayoutInflater.from(this).inflate(R.layout.dialog_split_invoice_item, llItemsContainer, false);
+            
             // Tên món và số lượng hiện tại
-            TextView tvItemInfo = new TextView(this);
-            tvItemInfo.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+            TextView tvItemInfo = itemView.findViewById(R.id.tvItemInfo);
             tvItemInfo.setText(item.getName() + " (hiện có: x" + item.getQuantity() + ")");
-            tvItemInfo.setTextColor(0xFF000000);
-            tvItemInfo.setTextSize(14);
-            itemLayout.addView(tvItemInfo);
 
             // EditText để nhập số lượng tách
-            EditText etQty = new EditText(this);
-            etQty.setLayoutParams(new LinearLayout.LayoutParams(
-                (int) (80 * getResources().getDisplayMetrics().density),
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ));
-            etQty.setHint("0");
-            etQty.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
-            etQty.setText("0");
-            etQty.setGravity(android.view.Gravity.CENTER);
-            itemLayout.addView(etQty);
-            
+            EditText etQty = itemView.findViewById(R.id.etQty);
             qtyEditTextMap.put(i, etQty);
 
-            dialogLayout.addView(itemLayout);
+            llItemsContainer.addView(itemView);
         }
-
-        // Tạo ScrollView để cuộn nếu có nhiều món
-        android.widget.ScrollView scrollView = new android.widget.ScrollView(this);
-        scrollView.addView(dialogLayout);
 
         new AlertDialog.Builder(this)
                 .setTitle("Tách hóa đơn - Nhập số lượng")
-                .setView(scrollView)
+                .setView(dialogView)
                 .setPositiveButton("Tách", (dialog, which) -> {
                     // Lấy số lượng từ các EditText
                     Map<Integer, Integer> splitQuantities = new HashMap<>();
@@ -1546,51 +1513,23 @@ public class InvoiceActivity extends AppCompatActivity {
     }
 
     /**
-     * In tạm tính cho một order cụ thể
+     * In tạm tính cho một order cụ thể - Mở Activity hiển thị hóa đơn từ XML layout
      */
     private void printTemporaryBillForOrder(Order order) {
-        // Tạo HTML cho hóa đơn tạm tính
-        String htmlContent = generateTemporaryBillHTMLForOrder(order);
-        
-        // Sử dụng WebView để in
-        android.webkit.WebView webView = new android.webkit.WebView(this);
-        webView.setWebViewClient(new android.webkit.WebViewClient() {
-            @Override
-            public void onPageFinished(android.webkit.WebView view, String url) {
-                createPrintJob(webView);
-            }
-        });
-        webView.loadDataWithBaseURL(null, htmlContent, "text/html", "UTF-8", null);
-    }
-
-    /**
-     * Tạo HTML cho hóa đơn tạm tính của một order cụ thể
-     */
-    private String generateTemporaryBillHTMLForOrder(Order order) {
-        StringBuilder html = new StringBuilder();
-        html.append("<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Hóa đơn tạm tính</title></head><body>");
-        html.append("<h2>HÓA ĐƠN TẠM TÍNH</h2>");
-        html.append("<p>Bàn: ").append(String.format("%02d", tableNumber)).append("</p>");
-        html.append("<p>Mã đơn: ").append(order.getId() != null ? order.getId() : "N/A").append("</p>");
-        html.append("<table border='1' style='width:100%; border-collapse: collapse;'>");
-        html.append("<tr><th>Món ăn</th><th>SL</th><th>Giá</th></tr>");
-        
-        if (order.getItems() != null) {
-            for (Order.OrderItem item : order.getItems()) {
-                html.append("<tr>");
-                html.append("<td>").append(item.getName() != null ? item.getName() : "").append("</td>");
-                html.append("<td>").append(item.getQuantity()).append("</td>");
-                html.append("<td>").append(formatCurrency(item.getPrice() * item.getQuantity())).append("</td>");
-                html.append("</tr>");
-            }
+        if (order == null) {
+            Toast.makeText(this, "Hóa đơn không hợp lệ", Toast.LENGTH_SHORT).show();
+            return;
         }
         
-        html.append("</table>");
-        html.append("<p><strong>Tổng cộng: ").append(formatCurrency(order.getTotalAmount())).append("</strong></p>");
-        html.append("<p><strong>Giảm giá: ").append(formatCurrency(order.getDiscount())).append("</strong></p>");
-        html.append("<p><strong>Thành tiền: ").append(formatCurrency(order.getFinalAmount())).append("</strong></p>");
-        html.append("</body></html>");
-        return html.toString();
+        // Mở Activity hiển thị hóa đơn từ XML layout
+        Intent intent = new Intent(this, PrintBillActivity.class);
+        intent.putExtra("order", order);
+        intent.putExtra("tableNumber", tableNumber);
+        String orderCode = order.getId() != null 
+            ? (order.getId().length() > 12 ? "HD" + order.getId().substring(0, 12) : "HD" + order.getId())
+            : generateOrderCode();
+        intent.putExtra("orderCode", orderCode);
+        startActivity(intent);
     }
 
     /**
@@ -1609,14 +1548,12 @@ public class InvoiceActivity extends AppCompatActivity {
      * Hủy hóa đơn cho một order cụ thể
      */
     private void showCancelInvoiceDialogForOrder(Order order) {
-        EditText etReason = new EditText(this);
-        etReason.setHint("Nhập lý do hủy hóa đơn");
-        etReason.setMinLines(3);
+        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_cancel_invoice, null);
+        EditText etReason = dialogView.findViewById(R.id.etReason);
 
         new AlertDialog.Builder(this)
             .setTitle("Hủy hóa đơn")
-            .setMessage("Vui lòng nhập lý do hủy:")
-            .setView(etReason)
+            .setView(dialogView)
             .setPositiveButton("Hủy đơn", (dialog, which) -> {
                 String reason = etReason.getText().toString().trim();
                 if (reason.isEmpty()) {
@@ -1775,18 +1712,37 @@ public class InvoiceActivity extends AppCompatActivity {
                         Toast.makeText(InvoiceActivity.this, "Không có món ăn nào", Toast.LENGTH_SHORT).show();
                         return;
                     }
+                    
+                    // Inflate XML layout
+                    View dialogView = LayoutInflater.from(InvoiceActivity.this).inflate(R.layout.dialog_add_item, null);
+                    ListView lvMenuItems = dialogView.findViewById(R.id.lvMenuItems);
+                    
+                    // Tạo adapter cho ListView
                     String[] itemNames = new String[menuItems.size()];
                     for (int i = 0; i < menuItems.size(); i++) {
                         itemNames[i] = menuItems.get(i).getName() + " - " + formatCurrency(menuItems.get(i).getPrice());
                     }
-                    new AlertDialog.Builder(InvoiceActivity.this)
-                            .setTitle("Chọn món để thêm")
-                            .setItems(itemNames, (dialog, which) -> {
-                                MenuItem selectedMenu = menuItems.get(which);
-                                addItemToOrder(order, selectedMenu);
-                            })
+                    
+                    android.widget.ArrayAdapter<String> adapter = new android.widget.ArrayAdapter<>(
+                        InvoiceActivity.this,
+                        R.layout.item_menu_dialog,
+                        R.id.tvMenuItem,
+                        itemNames
+                    );
+                    lvMenuItems.setAdapter(adapter);
+                    
+                    AlertDialog dialog = new AlertDialog.Builder(InvoiceActivity.this)
+                            .setView(dialogView)
                             .setNegativeButton("Hủy", null)
-                            .show();
+                            .create();
+                    
+                    lvMenuItems.setOnItemClickListener((parent, view, position, id) -> {
+                        MenuItem selectedMenu = menuItems.get(position);
+                        addItemToOrder(order, selectedMenu);
+                        dialog.dismiss();
+                    });
+                    
+                    dialog.show();
                 });
             }
 
