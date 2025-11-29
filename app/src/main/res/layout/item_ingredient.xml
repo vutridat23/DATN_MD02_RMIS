@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_margin="8dp"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:elevation="4dp"
+    app:cardCornerRadius="8dp"
+    android:foreground="?android:attr/selectableItemBackground">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="8dp">
+
+        <ImageView
+            android:id="@+id/ivIngredient"
+            android:layout_width="72dp"
+            android:layout_height="72dp"
+            android:scaleType="centerCrop"
+            android:contentDescription="@string/ingredient_image"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"
+            android:src="@android:drawable/ic_menu_report_image"/>
+
+        <TextView
+            android:id="@+id/tvIngredientName"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:text="Tên nguyên liệu"
+            android:textStyle="bold"
+            android:textSize="16sp"
+            app:layout_constraintStart_toEndOf="@id/ivIngredient"
+            app:layout_constraintTop_toTopOf="@id/ivIngredient"
+            app:layout_constraintEnd_toStartOf="@id/btnTake"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="8dp"/>
+
+        <TextView
+            android:id="@+id/tvIngredientQty"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:text="Số lượng: 0"
+            android:textSize="14sp"
+            android:textColor="#4CAF50"
+        app:layout_constraintStart_toStartOf="@id/tvIngredientName"
+        app:layout_constraintTop_toBottomOf="@id/tvIngredientName"
+        app:layout_constraintEnd_toStartOf="@id/etAmount"
+        android:layout_marginTop="4dp"/>
+
+        <TextView
+            android:id="@+id/tvIngredientStatus"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:text="TRẠNG THÁI: CÒN HÀNG"
+            android:textSize="12sp"
+            app:layout_constraintStart_toStartOf="@id/tvIngredientName"
+            app:layout_constraintTop_toBottomOf="@id/tvIngredientQty"
+            app:layout_constraintEnd_toStartOf="@id/etAmount"
+            android:layout_marginTop="2dp"/>
+
+        <EditText
+            android:id="@+id/etAmount"
+            android:layout_width="43dp"
+            android:layout_height="45dp"
+            android:layout_marginEnd="8dp"
+            android:gravity="center"
+            android:inputType="numberDecimal"
+            android:text="0"
+            app:layout_constraintEnd_toStartOf="@id/btnTake"
+            app:layout_constraintTop_toTopOf="@id/tvIngredientQty" />
+
+        <Button
+            android:id="@+id/btnTake"
+            android:layout_width="71dp"
+            android:layout_height="42dp"
+            android:backgroundTint="#2196F3"
+            android:text="Lấy"
+            android:textAllCaps="false"
+            android:textColor="#FFFFFF"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="@id/etAmount" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</androidx.cardview.widget.CardView>

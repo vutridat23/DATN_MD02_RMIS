@@ -23,7 +23,9 @@
                 android:id="@+id/toolbar"
                 android:layout_width="match_parent"
                 android:layout_height="?attr/actionBarSize"
-                android:background="#32B768">
+                android:background="#32B768"
+                android:navigationIcon="@null"
+                app:navigationIcon="@null">
 
                 <FrameLayout
                     android:id="@+id/nav_icon_container"
