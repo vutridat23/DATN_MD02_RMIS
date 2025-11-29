@@ -1,11 +1,18 @@
 package com.ph48845.datn_qlnh_rmis.ui.phucvu.adapter;
 
+
+import android.app.AlertDialog;
+import android.content.Context;
 import android.graphics.drawable.Drawable;
+import android.text.InputType;
 import android.util.Log;
-import android.view.LayoutInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.LayoutInflater;
+import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.PopupMenu;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -19,15 +26,27 @@ import com.bumptech.glide.request.RequestListener;
 import com.bumptech.glide.request.target.Target;
 import com.ph48845.datn_qlnh_rmis.R;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
+import com.ph48845.datn_qlnh_rmis.data.remote.ApiService;
+import com.ph48845.datn_qlnh_rmis.data.remote.RetrofitClient;
+import com.ph48845.datn_qlnh_rmis.ui.phucvu.MenuLongPressHandler;
 
 import java.text.DecimalFormat;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
 
 /**
  * OrderAdapter: hiển thị Order.OrderItem với ảnh, tên, số lượng, giá, trạng thái.
- * Phiên bản này CHỈ sử dụng oi.getImageUrl() (image đã được gán từ menuItem trong deserializer).
- * Đã bổ sung phần rất nhẹ để hiển thị trường note (nếu tồn tại) trong tv_item_note.
+ *
+ * Những thay đổi:
+ * - Hiển thị "Lí do hủy" (tv_item_huy) tương tự phần ghi chú.
+ * - Thêm method applyServerOrder(...) để áp dụng cập nhật item trả về từ server.
+ * - Bổ sung hỗ trợ MenuLongPressHandler.NoteStore để prefill và lưu lý do hủy theo key "cancel:<menuId>".
  */
 public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.VH> {
 
@@ -37,12 +56,17 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.VH> {
     private OnItemClick listener;
     private final DecimalFormat priceFmt = new DecimalFormat("#,###");
 
+    // Note store (optional) — dùng để prefill và lưu lại lý do hủy theo menuId
+    private final MenuLongPressHandler.NoteStore noteStore;
+
     // Fallback base (nếu server trả đường dẫn relative)
     private static final String FALLBACK_BASE = "http://192.168.1.84:3000";
 
-    public OrderAdapter(List<Order.OrderItem> items, OnItemClick listener) {
+    // Constructor updated: thêm noteStore (có thể truyền null nếu không cần)
+    public OrderAdapter(List<Order.OrderItem> items, OnItemClick listener, MenuLongPressHandler.NoteStore noteStore) {
         this.items = items != null ? items : new ArrayList<>();
         this.listener = listener;
+        this.noteStore = noteStore;
     }
 
     public synchronized void setItems(List<Order.OrderItem> newItems) {
@@ -50,122 +74,72 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.VH> {
         notifyDataSetChanged();
     }
 
-    /**
-     * Trả về copy của danh sách items hiện tại (an toàn cho thread).
-     */
     public synchronized List<Order.OrderItem> getItems() {
         return new ArrayList<>(items);
     }
 
     /**
-     * Cập nhật trạng thái (status) của 1 item theo menuId.
-     * Trả về true nếu đã cập nhật được (item tồn tại trên UI).
+     * Cập nhật trạng thái item theo menuId hoặc itemSubId.
      */
     public synchronized boolean updateItemStatus(String menuId, String status) {
         if (menuId == null || menuId.isEmpty()) return false;
         String st = status == null ? "" : status;
-
-        // 1) match theo menuItemId
         for (int i = 0; i < items.size(); i++) {
             Order.OrderItem oi = items.get(i);
             if (oi == null) continue;
             String mid = safeString(oi.getMenuItemId());
-            if (!mid.isEmpty() && mid.equals(menuId)) {
+            String sid = safeString(oi.getId());
+            if ((!mid.isEmpty() && mid.equals(menuId)) || (!sid.isEmpty() && sid.equals(menuId))) {
                 oi.setStatus(st);
                 notifyItemChanged(i);
-                Log.d(TAG, "updateItemStatus by menuItemId: menuId=" + menuId + " -> status=" + st + " at pos=" + i);
+                Log.d(TAG, "updateItemStatus matched: " + menuId + " -> " + st + " at pos=" + i);
                 return true;
             }
         }
-
-        // 2) match theo menuItemRaw (Object -> String)
-        for (int i = 0; i < items.size(); i++) {
-            Order.OrderItem oi = items.get(i);
-            if (oi == null) continue;
-            String raw = safeString(oi.getMenuItemRaw());
-            if (!raw.isEmpty() && raw.equals(menuId)) {
-                oi.setStatus(st);
-                notifyItemChanged(i);
-                Log.d(TAG, "updateItemStatus by menuItemRaw: menuId=" + menuId + " -> status=" + st + " at pos=" + i);
-                return true;
-            }
-        }
-
-        // 3) match theo tên (fallback)
-        for (int i = 0; i < items.size(); i++) {
-            Order.OrderItem oi = items.get(i);
-            if (oi == null) continue;
-            String name = safeString(oi.getMenuItemName());
-            if (name.isEmpty()) name = safeString(oi.getName());
-            if (!name.isEmpty() && name.equalsIgnoreCase(menuId)) {
-                oi.setStatus(st);
-                notifyItemChanged(i);
-                Log.d(TAG, "updateItemStatus by name match (menuId used as name): menuId=" + menuId + " -> status=" + st + " at pos=" + i);
-                return true;
-            }
-        }
-
-        // 4) match theo imageUrl (fallback)
-        for (int i = 0; i < items.size(); i++) {
-            Order.OrderItem oi = items.get(i);
-            if (oi == null) continue;
-            String img = safeString(oi.getImageUrl());
-            if (!img.isEmpty() && img.equals(menuId)) {
-                oi.setStatus(st);
-                notifyItemChanged(i);
-                Log.d(TAG, "updateItemStatus by imageUrl: image=" + menuId + " -> status=" + st + " at pos=" + i);
-                return true;
-            }
-        }
-
-        Log.d(TAG, "updateItemStatus: no local item matched for menuId=" + menuId + " status=" + st);
         return false;
     }
 
     /**
-     * Update / merge list items (dùng khi nhận payload toàn bộ items của order).
-     * Cố gắng cập nhật từng phần để có animation (notifyItemChanged/Inserted).
+     * Áp dụng dữ liệu order trả về từ server. Hàm này sẽ tìm item tương ứng trong adapter và cập nhật
+     * cancelReason, note, status (nếu server trả). Gọi phương thức này khi bạn tải lại order từ server
+     * (ví dụ khi mở chi tiết order).
      */
-    public synchronized void updateOrReplaceItems(List<Order.OrderItem> newItems) {
-        if (newItems == null) {
-            setItems(null);
-            return;
-        }
-
-        if (items.isEmpty()) {
-            setItems(newItems);
-            return;
-        }
-
-        List<Order.OrderItem> toAdd = new ArrayList<>();
-        for (Order.OrderItem newOi : newItems) {
-            if (newOi == null) continue;
-            String mid = safeString(newOi.getMenuItemId());
-            boolean found = false;
+    public synchronized void applyServerOrder(Order updatedOrder) {
+        if (updatedOrder == null || updatedOrder.getItems() == null) return;
+        for (Order.OrderItem serverItem : updatedOrder.getItems()) {
+            if (serverItem == null) continue;
+            String srvId = safeString(serverItem.getId());
+            String srvMenuId = safeString(serverItem.getMenuItemId());
             for (int i = 0; i < items.size(); i++) {
-                Order.OrderItem cur = items.get(i);
-                if (cur == null) continue;
-                String curMid = safeString(cur.getMenuItemId());
-                if (!curMid.isEmpty() && curMid.equals(mid)) {
-                    // update fields
-                    cur.setQuantity(newOi.getQuantity());
-                    cur.setPrice(newOi.getPrice());
-                    cur.setMenuItemName(safeString(newOi.getMenuItemName()));
-                    cur.setName(safeString(newOi.getName()));
-                    cur.setImageUrl(safeString(newOi.getImageUrl()));
-                    cur.setStatus(safeString(newOi.getStatus()));
-                    notifyItemChanged(i);
-                    found = true;
+                Order.OrderItem local = items.get(i);
+                if (local == null) continue;
+                String locId = safeString(local.getId());
+                String locMenuId = safeString(local.getMenuItemId());
+                boolean match = (!srvId.isEmpty() && srvId.equals(locId)) || (!srvMenuId.isEmpty() && srvMenuId.equals(locMenuId));
+                if (match) {
+                    boolean changed = false;
+                    try {
+                        if (serverItem.getCancelReason() != null && !serverItem.getCancelReason().trim().isEmpty()) {
+                            local.setCancelReason(serverItem.getCancelReason().trim());
+                            changed = true;
+                        }
+                    } catch (Exception ignored) {}
+                    try {
+                        if (serverItem.getNote() != null && !serverItem.getNote().trim().isEmpty()) {
+                            local.setNote(serverItem.getNote().trim());
+                            changed = true;
+                        }
+                    } catch (Exception ignored) {}
+                    try {
+                        if (serverItem.getStatus() != null && !serverItem.getStatus().trim().isEmpty()) {
+                            local.setStatus(serverItem.getStatus().trim());
+                            changed = true;
+                        }
+                    } catch (Exception ignored) {}
+                    if (changed) notifyItemChanged(i);
                     break;
                 }
             }
-            if (!found) toAdd.add(newOi);
-        }
-
-        if (!toAdd.isEmpty()) {
-            int start = items.size();
-            items.addAll(toAdd);
-            notifyItemRangeInserted(start, toAdd.size());
         }
     }
 
@@ -178,34 +152,32 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.VH> {
     @NonNull
     @Override
     public VH onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        // restore inflation with parent,false to keep layout params
         View v = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_order, parent, false);
         return new VH(v);
     }
 
     @Override
-    public void onBindViewHolder(@NonNull VH holder, int position) {
-        Order.OrderItem oi = items.get(position);
+    public void onBindViewHolder(@NonNull final VH holder, int position) {
+        final Order.OrderItem oi = items.get(position);
         if (oi == null) return;
 
         try { oi.normalize(); } catch (Exception e) { Log.w(TAG, "normalize failed: " + e.getMessage()); }
 
-        Log.d(TAG, "Binding item pos=" + position + " -> name=\"" + oi.getMenuItemName() + "\" imageUrl=\"" + oi.getImageUrl() + "\" price=" + oi.getPrice() + " qty=" + oi.getQuantity());
+        final String displayName;
+        {
+            String dn = oi.getMenuItemName();
+            if (dn == null || dn.trim().isEmpty()) dn = oi.getName();
+            if (dn == null || dn.trim().isEmpty()) dn = "(Không tên)";
+            displayName = dn;
+        }
 
-        String displayName = oi.getMenuItemName();
-        if (displayName == null || displayName.trim().isEmpty()) displayName = oi.getName();
-        if (displayName == null || displayName.trim().isEmpty()) displayName = "(Không tên)";
         holder.tvName.setText(displayName);
-
         int qty = oi.getQuantity() <= 0 ? 1 : oi.getQuantity();
-        double unitPrice = oi.getPrice();
-        double total = unitPrice * qty;
         holder.tvQty.setText("Số lượng: " + qty);
-        holder.tvPrice.setText(priceFmt.format(total) + " VND");
+        holder.tvPrice.setText(priceFmt.format(oi.getPrice() * qty) + " VND");
 
-        // CHỈ LẤY ẢNH TỪ oi.getImageUrl() (deserializer đã gán từ menuItem)
-        String rawUrl = oi.getImageUrl();
-        String imgUrl = normalizeImageUrl(rawUrl);
-
+        String imgUrl = normalizeImageUrl(oi.getImageUrl());
         if (imgUrl != null && !imgUrl.isEmpty()) {
             Glide.with(holder.ivThumb.getContext())
                     .load(imgUrl)
@@ -215,7 +187,7 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.VH> {
                     .listener(new RequestListener<Drawable>() {
                         @Override
                         public boolean onLoadFailed(@Nullable GlideException e, Object model, Target<Drawable> target, boolean isFirstResource) {
-                            Log.w(TAG, "Glide load failed. model=" + model + ", err=" + (e != null ? e.getMessage() : "null"));
+                            Log.w(TAG, "Glide load failed: " + (e != null ? e.getMessage() : "null"));
                             return false;
                         }
                         @Override
@@ -228,23 +200,12 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.VH> {
             holder.ivThumb.setImageResource(R.drawable.ic_menu_placeholder);
         }
 
-        // ---- MINIMAL: read note and show it (if exists) ----
-        String note = "";
+        // Show note (original) and cancelReason (from API) separately
+        String cancelReason = "";
         try {
-            java.lang.reflect.Method gm = oi.getClass().getMethod("getNote");
-            Object v = gm.invoke(oi);
-            if (v != null) note = String.valueOf(v).trim();
-        } catch (NoSuchMethodException nsme) {
-            // fallback to read field "note"
-            try {
-                java.lang.reflect.Field f = oi.getClass().getDeclaredField("note");
-                f.setAccessible(true);
-                Object v = f.get(oi);
-                if (v != null) note = String.valueOf(v).trim();
-            } catch (Exception ignored) {}
+            cancelReason = oi.getCancelReason() != null ? oi.getCancelReason().trim() : "";
         } catch (Exception ignored) {}
-
-        Log.d(TAG, "OrderAdapter: note for pos=" + position + " => \"" + note + "\"");
+        String note = oi.getNote() != null ? oi.getNote().trim() : "";
 
         if (note != null && !note.isEmpty()) {
             holder.tvNote.setVisibility(View.VISIBLE);
@@ -252,22 +213,185 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.VH> {
         } else {
             holder.tvNote.setVisibility(View.GONE);
         }
-        // ---- end note handling ----
+
+        // Hiển thị lí do hủy nếu có (tách biệt với phần ghi chú)
+        if (cancelReason != null && !cancelReason.isEmpty()) {
+            holder.tvNote2.setVisibility(View.VISIBLE);
+            holder.tvNote2.setText("Lí do hủy: " + cancelReason);
+        } else {
+            holder.tvNote2.setVisibility(View.GONE);
+        }
 
         String s = oi.getStatus() != null ? oi.getStatus().toLowerCase() : "preparing";
-        if (s.contains("done") || s.contains("xong") || s.contains("completed") || s.contains("served") || s.contains("ready")) {
+        if (s.contains("done") || s.contains("ready") || s.contains("completed")) {
             holder.tvStatus.setText("Đã xong");
             holder.tvStatus.setBackgroundResource(R.drawable.badge_green_bg);
-        } else if (s.contains("out") || s.contains("het") || s.contains("sold") || s.contains("unavailable")) {
+        } else if (s.contains("out") || s.contains("het") || s.contains("sold")) {
             holder.tvStatus.setText("Đã hết");
             holder.tvStatus.setBackgroundResource(R.drawable.badge_red_bg);
-        } else if (s.contains("cancel") || s.contains("huy")) {
-            holder.tvStatus.setText("Đã huỷ");
+        } else if (s.contains("cancel") || s.contains("huy") || s.contains("cancel_requested")) {
+            holder.tvStatus.setText("Yêu cầu hủy");
             holder.tvStatus.setBackgroundResource(R.drawable.badge_red_bg);
         } else {
             holder.tvStatus.setText("Đang nấu");
             holder.tvStatus.setBackgroundResource(R.drawable.badge_yellow_bg);
         }
+
+        final String itemSubId = safeString(oi.getId());
+        final String fallbackMenuItemId = safeString(oi.getMenuItemId());
+        final String resolvedItemId = !itemSubId.isEmpty() ? itemSubId : fallbackMenuItemId;
+        final String parentOrderId = oi.getParentOrderId();
+        final Context ctx = holder.itemView.getContext();
+
+        holder.itemView.setOnLongClickListener(view -> {
+            PopupMenu popup = new PopupMenu(ctx, view);
+            popup.getMenu().add(0, 1, 0, "Yêu cầu hủy món");
+            popup.setOnMenuItemClickListener((MenuItem menuItem) -> {
+                if (menuItem.getItemId() == 1) {
+                    final EditText input = new EditText(ctx);
+                    input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+                    input.setHint("Nhập lý do hủy (tuỳ chọn)");
+
+                    // Prefill từ noteStore nếu có (sử dụng key = menuItemId nếu có, fallback = resolvedItemId)
+                    String noteKey = !fallbackMenuItemId.isEmpty() ? fallbackMenuItemId : resolvedItemId;
+                    try {
+                        if (noteStore != null && noteKey != null && !noteKey.isEmpty()) {
+                            // Use cancel: prefix when reading cancel-specific saved text
+                            String prev = noteStore.getNoteForMenu("cancel:" + noteKey);
+                            if (prev != null && !prev.isEmpty()) input.setText(prev);
+                        }
+                    } catch (Exception ignored) {}
+
+                    new AlertDialog.Builder(ctx)
+                            .setTitle("Lý do hủy món")
+                            .setView(input)
+                            .setPositiveButton("Xác nhận", (d1, w1) -> {
+                                String reason = input.getText() != null ? input.getText().toString().trim() : "";
+                                new AlertDialog.Builder(ctx)
+                                        .setTitle("Xác nhận gửi yêu cầu")
+                                        .setMessage("Bạn có chắc muốn gửi yêu cầu hủy món \"" + displayName + "\" không?")
+                                        .setPositiveButton("Có", (d2, w2) -> {
+                                            if (parentOrderId == null || parentOrderId.trim().isEmpty()) {
+                                                new AlertDialog.Builder(ctx)
+                                                        .setTitle("Không thể gửi")
+                                                        .setMessage("Không xác định được order chứa món này. Vui lòng vào chi tiết order.")
+                                                        .setPositiveButton("OK", null)
+                                                        .show();
+                                                return;
+                                            }
+                                            if (resolvedItemId == null || resolvedItemId.trim().isEmpty()) {
+                                                new AlertDialog.Builder(ctx)
+                                                        .setTitle("Không thể gửi")
+                                                        .setMessage("Không xác định được id món (không thể gửi yêu cầu).")
+                                                        .setPositiveButton("OK", null)
+                                                        .show();
+                                                return;
+                                            }
+
+                                            holder.itemView.setEnabled(false);
+                                            ApiService api = RetrofitClient.getInstance().getApiService();
+
+                                            // Build body expected by server.requestCancelDish: { requestedBy, reason }
+                                            Map<String, Object> body = new HashMap<>();
+                                            try {
+                                                String uid = ctx.getSharedPreferences("RestaurantPrefs", Context.MODE_PRIVATE).getString("userId", null);
+                                                if (uid != null) body.put("requestedBy", uid);
+                                            } catch (Exception ignored) {}
+                                            body.put("reason", reason);
+
+                                            Call<com.ph48845.datn_qlnh_rmis.data.remote.ApiResponse<Order>> call =
+                                                    api.requestCancelItem(parentOrderId, resolvedItemId, body);
+                                            call.enqueue(new Callback<com.ph48845.datn_qlnh_rmis.data.remote.ApiResponse<Order>>() {
+                                                @Override
+                                                public void onResponse(Call<com.ph48845.datn_qlnh_rmis.data.remote.ApiResponse<Order>> call, Response<com.ph48845.datn_qlnh_rmis.data.remote.ApiResponse<Order>> response) {
+                                                    holder.itemView.setEnabled(true);
+                                                    if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
+                                                        // Try to extract updated item from server response and update local oi
+                                                        try {
+                                                            Order updated = response.body().getData();
+                                                            boolean applied = false;
+                                                            if (updated != null && updated.getItems() != null) {
+                                                                for (Order.OrderItem si : updated.getItems()) {
+                                                                    String siId = si.getId();
+                                                                    String siMenuId = si.getMenuItemId();
+                                                                    if ((siId != null && !siId.isEmpty() && siId.equals(resolvedItemId))
+                                                                            || (siMenuId != null && !siMenuId.isEmpty() && siMenuId.equals(resolvedItemId))) {
+                                                                        // update local item fields from server truth
+                                                                        try {
+                                                                            if (si.getCancelReason() != null && !si.getCancelReason().isEmpty()) oi.setCancelReason(si.getCancelReason());
+                                                                        } catch (Exception ignored) {}
+                                                                        try {
+                                                                            if (si.getNote() != null && !si.getNote().isEmpty()) oi.setNote(si.getNote());
+                                                                        } catch (Exception ignored) {}
+                                                                        try {
+                                                                            if (si.getStatus() != null && !si.getStatus().isEmpty()) oi.setStatus(si.getStatus());
+                                                                        } catch (Exception ignored) {}
+                                                                        applied = true;
+                                                                        break;
+                                                                    }
+                                                                }
+                                                            }
+                                                            // fallback: if server didn't return item, still set local cancelReason to entered reason so user sees it immediately
+                                                            if (!applied) {
+                                                                if (reason != null && !reason.isEmpty()) oi.setCancelReason(reason);
+                                                                oi.setStatus("cancel_requested");
+                                                            }
+
+                                                            // Lưu lại lý do hủy vào noteStore dưới key "cancel:<menuId or itemId>"
+                                                            try {
+                                                                if (noteStore != null) {
+                                                                    String nk = !fallbackMenuItemId.isEmpty() ? fallbackMenuItemId : resolvedItemId;
+                                                                    if (nk != null && !nk.isEmpty()) {
+                                                                        noteStore.putNoteForMenu("cancel:" + nk, reason != null ? reason : "");
+                                                                    }
+                                                                }
+                                                            } catch (Exception ignored) {}
+
+                                                        } catch (Exception e) {
+                                                            // fallback: set local reason
+                                                            if (reason != null && !reason.isEmpty()) oi.setCancelReason(reason);
+                                                            oi.setStatus("cancel_requested");
+                                                            // still try to save into noteStore
+                                                            try {
+                                                                if (noteStore != null) {
+                                                                    String nk = !fallbackMenuItemId.isEmpty() ? fallbackMenuItemId : resolvedItemId;
+                                                                    if (nk != null && !nk.isEmpty()) {
+                                                                        noteStore.putNoteForMenu("cancel:" + nk, reason != null ? reason : "");
+                                                                    }
+                                                                }
+                                                            } catch (Exception ignored) {}
+                                                        }
+
+                                                        int pos = holder.getAdapterPosition();
+                                                        if (pos >= 0) notifyItemChanged(pos);
+                                                        new AlertDialog.Builder(ctx).setMessage("Đã gửi yêu cầu hủy món").setPositiveButton("OK", null).show();
+                                                    } else {
+                                                        String msg = "Gửi yêu cầu thất bại";
+                                                        if (response != null && response.errorBody() != null) {
+                                                            try { msg += ": " + response.errorBody().string(); } catch (Exception ignored) {}
+                                                        }
+                                                        new AlertDialog.Builder(ctx).setTitle("Lỗi").setMessage(msg).setPositiveButton("OK", null).show();
+                                                    }
+                                                }
+
+                                                @Override
+                                                public void onFailure(Call<com.ph48845.datn_qlnh_rmis.data.remote.ApiResponse<Order>> call, Throwable t) {
+                                                    holder.itemView.setEnabled(true);
+                                                    new AlertDialog.Builder(ctx).setTitle("Lỗi").setMessage("Gửi yêu cầu thất bại: " + (t != null ? t.getMessage() : "unknown")).setPositiveButton("OK", null).show();
+                                                }
+                                            });
+                                        })
+                                        .setNegativeButton("Không", null)
+                                        .show();
+                            })
+                            .setNegativeButton("Hủy", null)
+                            .show();
+                }
+                return true;
+            });
+            popup.show();
+            return true;
+        });
 
         holder.itemView.setOnClickListener(v -> {
             if (listener != null) listener.onItemClick(oi);
@@ -290,7 +414,8 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.VH> {
 
     static class VH extends RecyclerView.ViewHolder {
         ImageView ivThumb;
-        TextView tvName, tvQty, tvPrice, tvStatus, tvNote;
+        TextView tvName, tvQty, tvPrice, tvStatus, tvNote, tvNote2;
+
         VH(@NonNull View itemView) {
             super(itemView);
             ivThumb = itemView.findViewById(R.id.iv_item_thumb);
@@ -299,6 +424,7 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.VH> {
             tvPrice = itemView.findViewById(R.id.tv_item_price);
             tvStatus = itemView.findViewById(R.id.tv_item_status);
             tvNote = itemView.findViewById(R.id.tv_item_note);
+            tvNote2 = itemView.findViewById(R.id.tv_item_huy);
         }
     }
 }

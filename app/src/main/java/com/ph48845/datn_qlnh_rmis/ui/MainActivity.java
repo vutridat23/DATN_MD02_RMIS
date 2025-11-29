@@ -33,6 +33,7 @@ import com.ph48845.datn_qlnh_rmis.ui.table.MergeManager;
 import com.ph48845.datn_qlnh_rmis.ui.table.ReservationHelper;
 import com.ph48845.datn_qlnh_rmis.ui.table.TableActionsHandler;
 import com.ph48845.datn_qlnh_rmis.ui.table.TransferManager;
+import com.ph48845.datn_qlnh_rmis.ui.table.TemporaryBillDialogFragment;
 import com.ph48845.datn_qlnh_rmis.ui.thungan.ThuNganActivity;
 
 import java.util.ArrayList;
@@ -46,8 +47,8 @@ import java.util.regex.Pattern;
 /**
  * MainActivity (rút gọn): chỉ còn setup UI, tải dữ liệu và ủy quyền các hành động cho helpers.
  *
- * Sửa lỗi: navigationView và drawerLayout id khớp với activity_main.xml (navigationView_order / drawerLayout_order)
- * và thêm kiểm tra null trước khi truy cập navigationView.getMenu() / header.
+ * Sửa đổi chính trong file này:
+ * - Khi long-press trên bàn gọi showTableActionsMenuForLongPress(...) để bàn trống chỉ hiển thị "Đặt trước".
  */
 public class MainActivity extends BaseMenuActivity {
 
@@ -167,7 +168,8 @@ public class MainActivity extends BaseMenuActivity {
             @Override
             public void onTableLongClick(View v, TableItem table) {
                 if (table == null) return;
-                tableActionsHandler.showTableActionsMenu(v, table);
+                // Use long-press specific menu (this method only shows "Đặt trước" for empty/available tables)
+                tableActionsHandler.showTableActionsMenuForLongPress(v, table);
             }
         };
 
@@ -181,6 +183,20 @@ public class MainActivity extends BaseMenuActivity {
         mergeManager = new MergeManager(this, tableRepository, orderRepository, progressBar);
         reservationHelper = new ReservationHelper(this, tableRepository, progressBar);
         tableActionsHandler = new TableActionsHandler(this, transferManager, mergeManager, reservationHelper);
+
+        // --- NEW: register TemporaryBillRequester to open TemporaryBillDialogFragment ---
+        tableActionsHandler.setTemporaryBillRequester(table -> {
+            if (table == null) return;
+            TemporaryBillDialogFragment f = TemporaryBillDialogFragment.newInstance(table, new TemporaryBillDialogFragment.Listener() {
+                @Override
+                public void onTemporaryBillRequested(Order order) {
+                    // refresh UI after successful request
+                    fetchTablesFromServer();
+                }
+            });
+            f.show(getSupportFragmentManager(), "tempBill");
+        });
+        // --- end TemporaryBillRequester registration ---
 
         // avatar menu
         ImageView avatar = findViewById(R.id.imageViewAvatar);
