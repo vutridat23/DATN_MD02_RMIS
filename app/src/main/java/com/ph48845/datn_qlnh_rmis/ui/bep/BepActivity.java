@@ -1,10 +1,14 @@
 package com.ph48845.datn_qlnh_rmis.ui.bep;
 
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.SpannableString;
+import android.text.style.RelativeSizeSpan;
 import android.util.Log;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
@@ -21,6 +25,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.navigation.NavigationView;
 import com.ph48845.datn_qlnh_rmis.R;
+import com.ph48845.datn_qlnh_rmis.core.base.BaseMenuActivity;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
 import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
 import com.ph48845.datn_qlnh_rmis.data.repository.OrderRepository;
@@ -43,7 +48,7 @@ import java.util.Set;
  * - An toàn: mọi findViewById có null-check để không gây crash nếu layout dùng phiên bản cũ hoặc mới.
  * - Thêm xử lý mở màn "Nguyên liệu" khi chọn menu nav_nguyen_lieu.
  */
-public class BepActivity extends AppCompatActivity {
+public class BepActivity extends BaseMenuActivity {
 
     private static final String TAG = "BepActivity";
     private static final String SOCKET_URL = "http://192.168.1.84:3000"; // cập nhật nếu cần
@@ -51,8 +56,7 @@ public class BepActivity extends AppCompatActivity {
     private RecyclerView rvTables;
     private ProgressBar progressBar;
     private ProgressBar progressOverlay;
-    private Button btnRefresh;
-    private TextView tvTitle;
+    private View redDot;
 
     private TableRepository tableRepository;
     private OrderRepository orderRepository;
@@ -104,6 +108,49 @@ public class BepActivity extends AppCompatActivity {
         navigationView = findViewById(R.id.navigationView_bep);
         navIcon = findViewById(R.id.nav_icon);
 
+        redDot = findViewById(R.id.redDot);   // lấy view từ layout
+
+        //thay đổi trạng thái thông báo đặt điều kiện và chuyển View.GONE sang View.VISIBLE)
+        redDot.setVisibility(View.GONE);   // hiển thị khi cần
+
+        navIcon.setOnClickListener(v -> drawerLayout.openDrawer(GravityCompat.START));
+
+
+        toolbar.setNavigationOnClickListener(v -> {
+            drawerLayout.openDrawer(GravityCompat.START);
+        });
+
+        for (int i = 0; i < navigationView.getMenu().size(); i++) {
+            MenuItem menuItem = navigationView.getMenu().getItem(i);
+            SpannableString spanString = new SpannableString(menuItem.getTitle().toString());
+            spanString.setSpan(new RelativeSizeSpan(1.1f), 0, spanString.length(), 0);
+            menuItem.setTitle(spanString);
+        }
+
+        navigationView.setNavigationItemSelectedListener(item -> {
+            int id = item.getItemId();
+
+            if (id == R.id.nav_mood) {
+                showMoodDialog();
+            } else if (id == R.id.nav_contact) {
+                showContactDialog();
+            } else if (id == R.id.nav_pantry) {
+                // Chuyển sang màn nguyên liệu
+                try {
+                    Intent intent = new Intent(BepActivity.this, NguyenLieuActivity.class);
+                    startActivity(intent);
+                } catch (Exception e) {
+                    Log.w(TAG, "Không thể mở NguyenLieuActivity: " + e.getMessage());
+                    Toast.makeText(BepActivity.this, "Không thể mở Nguyên liệu", Toast.LENGTH_SHORT).show();
+                }
+            } else if (id == R.id.nav_logout) {
+                logout();
+            }
+
+            drawerLayout.closeDrawer(GravityCompat.START);
+            return true;
+        });
+
         // Thiết lập toolbar nếu tồn tại
         if (toolbar != null) {
             setSupportActionBar(toolbar);
@@ -112,12 +159,6 @@ public class BepActivity extends AppCompatActivity {
             }
         }
 
-        // Nếu cả toolbar_title và tvTitle tồn tại, ưu tiên toolbar_title; nếu không thì dùng tvTitle
-        if (toolbarTitle != null) {
-            toolbarTitle.setText("Danh sách bàn (Bếp)");
-        } else if (tvTitle != null) {
-            tvTitle.setText("Danh sách bàn (Bếp)");
-        }
 
         // Nav icon mở drawer nếu cả 2 view tồn tại
         if (navIcon != null && drawerLayout != null) {
@@ -130,28 +171,6 @@ public class BepActivity extends AppCompatActivity {
             });
         }
 
-        // NavigationView item listener (nếu có)
-        if (navigationView != null) {
-            navigationView.setNavigationItemSelectedListener(menuItem -> {
-                int id = menuItem.getItemId();
-
-                // Đóng drawer (nếu có)
-                if (drawerLayout != null) drawerLayout.closeDrawer(GravityCompat.START);
-
-                // Mở màn Nguyên liệu khi chọn mục tương ứng
-                if (id == R.id.nav_pantry) {
-                    try {
-                        startActivity(new Intent(BepActivity.this, NguyenLieuActivity.class));
-                    } catch (Exception e) {
-                        Log.w(TAG, "Không thể mở NguyenLieuActivity: " + e.getMessage());
-                        Toast.makeText(BepActivity.this, "Không thể mở Nguyên liệu", Toast.LENGTH_SHORT).show();
-                    }
-                    return true;
-                }
-
-                return false;
-            });
-        }
 
         // Repositories và adapter
         tableRepository = new TableRepository();
@@ -172,14 +191,54 @@ public class BepActivity extends AppCompatActivity {
             Log.w(TAG, "RecyclerView recyclerOrderBep không tìm thấy trong layout.");
         }
 
-        // Giữ hành vi refresh thủ công nếu nút tồn tại
-        if (btnRefresh != null) {
-            btnRefresh.setOnClickListener(v -> refreshActiveTables());
-        }
+        updateNavHeaderInfo();
+
 
         // initial load
         refreshActiveTables();
     }
+
+    private void updateNavHeaderInfo() {
+        // 1. Lấy tham chiếu đến NavigationView
+        NavigationView navigationView = findViewById(R.id.navigationView_bep);
+
+        // Kiểm tra null để tránh lỗi crash nếu chưa setup layout đúng
+        if (navigationView != null) {
+            // 2. Lấy Header View (cái layout XML bạn gửi lúc đầu nằm ở đây)
+            View headerView = navigationView.getHeaderView(0);
+
+            // 3. Ánh xạ các TextView trong Header
+            TextView tvName = headerView.findViewById(R.id.textViewName);
+            TextView tvRole = headerView.findViewById(R.id.textViewRole);
+
+            // 4. Lấy dữ liệu từ SharedPreferences (dùng đúng tên file và key bạn đã lưu)
+            SharedPreferences prefs = getSharedPreferences("RestaurantPrefs", MODE_PRIVATE);
+
+            String savedName = prefs.getString("fullName", "Người dùng"); // "Người dùng" là giá trị mặc định
+            String savedRole = prefs.getString("userRole", "");
+
+            // 5. Set text lên giao diện
+            tvName.setText(savedName);
+            tvRole.setText(getVietnameseRole(savedRole)); // Hàm chuyển đổi role sang tiếng Việt
+        }
+    }
+
+    // Hàm phụ trợ chuyển đổi Role (giữ nguyên logic cũ cho đồng bộ)
+    private String getVietnameseRole(String roleKey) {
+        if (roleKey == null) return "";
+        switch (roleKey.toLowerCase()) {
+            case "cashier":
+                return "Thu ngân";
+            case "manager":
+            case "order":
+                return "Phục vụ";
+            case "kitchen":
+                return "Bếp";
+            default:
+                return roleKey;
+        }
+    }
+
 
     @Override
     protected void onStart() {
