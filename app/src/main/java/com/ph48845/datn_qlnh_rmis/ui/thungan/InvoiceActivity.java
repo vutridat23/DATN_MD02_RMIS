@@ -215,400 +215,112 @@ public class InvoiceActivity extends AppCompatActivity {
     }
 
     /**
-     * Tạo một card hóa đơn cho một order
+     * Tạo một card hóa đơn cho một order - Sử dụng XML layout
      */
     private void createInvoiceCard(Order order) {
-        // Tạo CardView
-        CardView cardView = new CardView(this);
-        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-        cardParams.setMargins(0, 0, 0, (int) (16 * getResources().getDisplayMetrics().density));
-        cardView.setLayoutParams(cardParams);
-        cardView.setRadius((int) (12 * getResources().getDisplayMetrics().density));
-        cardView.setCardElevation(4);
-        cardView.setUseCompatPadding(true);
+        // Inflate XML layout cho card
+        View cardView = LayoutInflater.from(this).inflate(R.layout.card_invoice, llOrderCards, false);
+        CardView cardViewContainer = cardView.findViewById(R.id.cardInvoice);
         
         // Highlight hóa đơn mới vừa tách
         if (newlySplitOrderId != null && order.getId() != null && order.getId().equals(newlySplitOrderId)) {
-            cardView.setCardBackgroundColor(0xFFE8F5E9); // Màu xanh nhạt
+            cardViewContainer.setCardBackgroundColor(0xFFE8F5E9); // Màu xanh nhạt
         }
 
-        // Container bên trong card
-        LinearLayout cardContent = new LinearLayout(this);
-        cardContent.setOrientation(LinearLayout.VERTICAL);
-        cardContent.setPadding(
-            (int) (20 * getResources().getDisplayMetrics().density),
-            (int) (20 * getResources().getDisplayMetrics().density),
-            (int) (20 * getResources().getDisplayMetrics().density),
-            (int) (20 * getResources().getDisplayMetrics().density)
-        );
+        // Lấy các view từ XML
+        TextView tvTable = cardView.findViewById(R.id.tvTable);
+        TextView tvOrderCode = cardView.findViewById(R.id.tvOrderCode);
+        LinearLayout llItemsContainer = cardView.findViewById(R.id.llItemsContainer);
+        LinearLayout llTotals = cardView.findViewById(R.id.llTotals);
 
-        // Tiêu đề HÓA ĐƠN THANH TOÁN
-        TextView tvTitle = new TextView(this);
-        tvTitle.setText("HÓA ĐƠN THANH TOÁN");
-        tvTitle.setTextColor(0xFF000000);
-        tvTitle.setTextSize(16);
-        tvTitle.setTypeface(null, android.graphics.Typeface.BOLD);
-        tvTitle.setGravity(android.view.Gravity.CENTER);
-        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-        titleParams.setMargins(0, 0, 0, (int) (16 * getResources().getDisplayMetrics().density));
-        tvTitle.setLayoutParams(titleParams);
-        cardContent.addView(tvTitle);
-
-        // Thông tin bàn và mã đơn
-        LinearLayout infoLayout = new LinearLayout(this);
-        infoLayout.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout.LayoutParams infoParams = new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-        infoParams.setMargins(0, 0, 0, (int) (16 * getResources().getDisplayMetrics().density));
-        infoLayout.setLayoutParams(infoParams);
-
-        TextView tvTable = new TextView(this);
+        // Thiết lập thông tin bàn và mã đơn
         tvTable.setText("Bàn: " + String.format("%02d", tableNumber));
-        tvTable.setTextColor(0xFF000000);
-        tvTable.setTextSize(16);
-        infoLayout.addView(tvTable);
-
-        TextView tvCode = new TextView(this);
         String orderCode = order.getId() != null ? order.getId().substring(0, Math.min(12, order.getId().length())) : "N/A";
-        tvCode.setText("Mã đơn: HD" + orderCode);
-        tvCode.setTextColor(0xFF000000);
-        tvCode.setTextSize(16);
-        LinearLayout.LayoutParams codeParams = new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.WRAP_CONTENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-        codeParams.setMargins(0, (int) (4 * getResources().getDisplayMetrics().density), 0, 0);
-        tvCode.setLayoutParams(codeParams);
-        infoLayout.addView(tvCode);
-
-        cardContent.addView(infoLayout);
-
-        // Header bảng món ăn
-        LinearLayout headerLayout = new LinearLayout(this);
-        headerLayout.setOrientation(LinearLayout.HORIZONTAL);
-        headerLayout.setPadding(
-            (int) (8 * getResources().getDisplayMetrics().density),
-            (int) (8 * getResources().getDisplayMetrics().density),
-            (int) (8 * getResources().getDisplayMetrics().density),
-            (int) (8 * getResources().getDisplayMetrics().density)
-        );
-        headerLayout.setBackgroundColor(0xFFF0F0F0);
-        LinearLayout.LayoutParams headerParams = new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-        headerParams.setMargins(0, 0, 0, (int) (8 * getResources().getDisplayMetrics().density));
-        headerLayout.setLayoutParams(headerParams);
-
-        TextView tvHeaderName = new TextView(this);
-        tvHeaderName.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 2f));
-        tvHeaderName.setText("Món ăn");
-        tvHeaderName.setTextColor(0xFF000000);
-        tvHeaderName.setTextSize(16);
-        tvHeaderName.setTypeface(null, android.graphics.Typeface.BOLD);
-        headerLayout.addView(tvHeaderName);
-
-        TextView tvHeaderQty = new TextView(this);
-        tvHeaderQty.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        tvHeaderQty.setText("SL");
-        tvHeaderQty.setTextColor(0xFF000000);
-        tvHeaderQty.setTextSize(16);
-        tvHeaderQty.setTypeface(null, android.graphics.Typeface.BOLD);
-        tvHeaderQty.setGravity(android.view.Gravity.CENTER);
-        headerLayout.addView(tvHeaderQty);
-
-        TextView tvHeaderPrice = new TextView(this);
-        tvHeaderPrice.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.5f));
-        tvHeaderPrice.setText("Giá");
-        tvHeaderPrice.setTextColor(0xFF000000);
-        tvHeaderPrice.setTextSize(16);
-        tvHeaderPrice.setTypeface(null, android.graphics.Typeface.BOLD);
-        tvHeaderPrice.setGravity(android.view.Gravity.RIGHT);
-        headerLayout.addView(tvHeaderPrice);
-
-        cardContent.addView(headerLayout);
-
-        // Container cho danh sách món ăn
-        LinearLayout itemsContainer = new LinearLayout(this);
-        itemsContainer.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout.LayoutParams itemsParams = new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-        itemsParams.setMargins(0, 0, 0, (int) (16 * getResources().getDisplayMetrics().density));
-        itemsContainer.setLayoutParams(itemsParams);
+        tvOrderCode.setText("Mã đơn: HD" + orderCode);
 
         // Hiển thị các món ăn
         List<Order.OrderItem> orderItems = order.getItems();
         boolean isEditingThisOrder = (editingOrder != null && editingOrder.getId() != null && 
                                      order.getId() != null && editingOrder.getId().equals(order.getId()));
         
+        llItemsContainer.removeAllViews();
         if (orderItems != null && !orderItems.isEmpty()) {
             for (int i = 0; i < orderItems.size(); i++) {
                 final int itemIndex = i;
                 Order.OrderItem item = orderItems.get(i);
                 if (item == null) continue;
-                LinearLayout itemRow = new LinearLayout(this);
-                itemRow.setOrientation(LinearLayout.HORIZONTAL);
-                itemRow.setPadding(
-                    (int) (16 * getResources().getDisplayMetrics().density),
-                    (int) (12 * getResources().getDisplayMetrics().density),
-                    (int) (16 * getResources().getDisplayMetrics().density),
-                    (int) (12 * getResources().getDisplayMetrics().density)
-                );
-
-                TextView tvItemName = new TextView(this);
-                tvItemName.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 2f));
-                tvItemName.setText(item.getName() != null ? item.getName() : "(Không tên)");
-                tvItemName.setTextColor(0xFF000000);
-                tvItemName.setTextSize(16);
-                itemRow.addView(tvItemName);
-
-                // Số lượng với nút +/-
-                LinearLayout qtyLayout = new LinearLayout(this);
-                qtyLayout.setOrientation(LinearLayout.HORIZONTAL);
-                qtyLayout.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-                qtyLayout.setGravity(android.view.Gravity.CENTER);
-
+                
+                // Sử dụng layout khác nhau cho edit mode và view mode
+                View itemRow;
                 if (isEditingThisOrder) {
-                    int controlSize = (int) (36 * getResources().getDisplayMetrics().density);
-
-                    // Nút trừ (-)
-                    Button btnMinus = new Button(this);
-                    btnMinus.setText("-");
-                    btnMinus.setTextColor(0xFFD35400);
-                    btnMinus.setTextSize(18);
-                    btnMinus.setTypeface(null, android.graphics.Typeface.BOLD);
-                    btnMinus.setBackground(null);
-                    LinearLayout.LayoutParams minusParams = new LinearLayout.LayoutParams(controlSize, controlSize);
-                    minusParams.setMargins(0, 0, 8, 0);
-                    btnMinus.setLayoutParams(minusParams);
+                    itemRow = LayoutInflater.from(this).inflate(R.layout.item_invoice_row_edit, llItemsContainer, false);
+                    
+                    Button btnMinus = itemRow.findViewById(R.id.btnMinus);
+                    Button btnPlus = itemRow.findViewById(R.id.btnPlus);
+                    TextView tvQty = itemRow.findViewById(R.id.tvItemQuantity);
+                    
                     btnMinus.setOnClickListener(v -> decreaseItemQuantity(order, itemIndex));
-                    qtyLayout.addView(btnMinus);
-
-                    // Hiển thị số lượng
-                    TextView tvQty = new TextView(this);
-                    tvQty.setLayoutParams(new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.WRAP_CONTENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                    ));
-                    tvQty.setText(String.valueOf(item.getQuantity()));
-                    tvQty.setTextColor(0xFF000000);
-                    tvQty.setTextSize(16);
-                    tvQty.setTypeface(null, android.graphics.Typeface.BOLD);
-                    tvQty.setPadding(16, 0, 16, 0);
-                    tvQty.setGravity(android.view.Gravity.CENTER);
-                    qtyLayout.addView(tvQty);
-
-                    // Nút cộng (+)
-                    Button btnPlus = new Button(this);
-                    btnPlus.setText("+");
-                    btnPlus.setTextColor(0xFF2BB673);
-                    btnPlus.setTextSize(18);
-                    btnPlus.setTypeface(null, android.graphics.Typeface.BOLD);
-                    btnPlus.setBackground(null);
-                    LinearLayout.LayoutParams plusParams = new LinearLayout.LayoutParams(controlSize, controlSize);
-                    plusParams.setMargins(8, 0, 0, 0);
-                    btnPlus.setLayoutParams(plusParams);
                     btnPlus.setOnClickListener(v -> increaseItemQuantity(order, itemIndex));
-                    qtyLayout.addView(btnPlus);
+                    tvQty.setText(String.valueOf(item.getQuantity()));
                 } else {
-                    TextView tvItemQty = new TextView(this);
-                    tvItemQty.setLayoutParams(new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.WRAP_CONTENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                    ));
-                    tvItemQty.setText("x" + item.getQuantity());
-                    tvItemQty.setTextColor(0xFF000000);
-                    tvItemQty.setTextSize(16);
-                    tvItemQty.setGravity(android.view.Gravity.CENTER);
-                    qtyLayout.addView(tvItemQty);
+                    itemRow = LayoutInflater.from(this).inflate(R.layout.item_invoice_row, llItemsContainer, false);
+                    TextView tvQty = itemRow.findViewById(R.id.tvItemQuantity);
+                    tvQty.setText("x" + item.getQuantity());
                 }
-
-                itemRow.addView(qtyLayout);
-
-                TextView tvItemPrice = new TextView(this);
-                tvItemPrice.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.5f));
+                
+                TextView tvItemName = itemRow.findViewById(R.id.tvItemName);
+                TextView tvItemPrice = itemRow.findViewById(R.id.tvItemPrice);
+                
+                tvItemName.setText(item.getName() != null ? item.getName() : "(Không tên)");
                 double itemTotal = item.getPrice() * item.getQuantity();
                 tvItemPrice.setText(formatCurrency(itemTotal));
-                tvItemPrice.setTextColor(0xFF000000);
-                tvItemPrice.setTextSize(16);
-                tvItemPrice.setGravity(android.view.Gravity.RIGHT);
-                itemRow.addView(tvItemPrice);
-
-                itemsContainer.addView(itemRow);
+                
+                llItemsContainer.addView(itemRow);
             }
         }
 
-        // Nút thêm món (chỉ hiển thị khi đang chỉnh sửa)
+        // Nút thêm món và action buttons (chỉ hiển thị khi đang chỉnh sửa)
         if (isEditingThisOrder) {
-            Button btnAddItem = new Button(this);
-            btnAddItem.setText("+ Thêm món");
-            btnAddItem.setTextColor(0xFFFFFFFF);
-            btnAddItem.setTextSize(16);
-            btnAddItem.setTypeface(null, android.graphics.Typeface.BOLD);
-            btnAddItem.setBackgroundResource(R.drawable.bg_button_primary);
-            LinearLayout.LayoutParams addItemParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            );
-            addItemParams.setMargins(0, (int) (8 * getResources().getDisplayMetrics().density), 0, 0);
-            btnAddItem.setLayoutParams(addItemParams);
+            View actionLayout = LayoutInflater.from(this).inflate(R.layout.layout_invoice_actions, llItemsContainer, false);
+            Button btnAddItem = actionLayout.findViewById(R.id.btnAddItem);
+            Button btnSave = actionLayout.findViewById(R.id.btnSave);
+            Button btnCancel = actionLayout.findViewById(R.id.btnCancel);
+            
             btnAddItem.setOnClickListener(v -> showAddItemDialog(order));
-            itemsContainer.addView(btnAddItem);
-
-            // Nút lưu và hủy
-            LinearLayout actionLayout = new LinearLayout(this);
-            actionLayout.setOrientation(LinearLayout.HORIZONTAL);
-            LinearLayout.LayoutParams actionParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            );
-            actionParams.setMargins(0, (int) (16 * getResources().getDisplayMetrics().density), 0, 0);
-            actionLayout.setLayoutParams(actionParams);
-
-            Button btnSave = new Button(this);
-            btnSave.setText("Lưu");
-            btnSave.setTextColor(0xFFFFFFFF);
-            btnSave.setTextSize(16);
-            btnSave.setTypeface(null, android.graphics.Typeface.BOLD);
-            btnSave.setBackgroundResource(R.drawable.bg_button_primary);
-            LinearLayout.LayoutParams saveParams = new LinearLayout.LayoutParams(
-                0,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                1f
-            );
-            saveParams.setMargins(0, 0, (int) (8 * getResources().getDisplayMetrics().density), 0);
-            btnSave.setLayoutParams(saveParams);
             btnSave.setOnClickListener(v -> saveOrderChanges(order));
-            actionLayout.addView(btnSave);
-
-            Button btnCancel = new Button(this);
-            btnCancel.setText("Hủy");
-            btnCancel.setTextColor(0xFF000000);
-            btnCancel.setTextSize(16);
-            btnCancel.setTypeface(null, android.graphics.Typeface.BOLD);
-            btnCancel.setBackgroundColor(0xFFE0E0E0);
-            LinearLayout.LayoutParams cancelParams = new LinearLayout.LayoutParams(
-                0,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                1f
-            );
-            cancelParams.setMargins((int) (8 * getResources().getDisplayMetrics().density), 0, 0, 0);
-            btnCancel.setLayoutParams(cancelParams);
             btnCancel.setOnClickListener(v -> {
                 editingOrder = null;
                 loadInvoiceData();
             });
-            actionLayout.addView(btnCancel);
-
-            cardContent.addView(actionLayout);
+            
+            llItemsContainer.addView(actionLayout);
         }
 
-        cardContent.addView(itemsContainer);
-
-        // Tổng kết thanh toán
-        LinearLayout totalsLayout = new LinearLayout(this);
-        totalsLayout.setOrientation(LinearLayout.VERTICAL);
-
-        // Tổng cộng
-        LinearLayout totalRow = new LinearLayout(this);
-        totalRow.setOrientation(LinearLayout.HORIZONTAL);
-        LinearLayout.LayoutParams totalRowParams = new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-        totalRowParams.setMargins(0, 0, 0, (int) (8 * getResources().getDisplayMetrics().density));
-        totalRow.setLayoutParams(totalRowParams);
-
-        TextView tvTotalLabel = new TextView(this);
-        tvTotalLabel.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        tvTotalLabel.setText("Tổng cộng:");
-        tvTotalLabel.setTextColor(0xFF000000);
-        tvTotalLabel.setTextSize(16);
-        totalRow.addView(tvTotalLabel);
-
-        TextView tvTotal = new TextView(this);
-        tvTotal.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        // Tổng kết thanh toán - Sử dụng XML layout
+        View totalsView = LayoutInflater.from(this).inflate(R.layout.layout_invoice_totals, llTotals, false);
+        TextView tvTotal = totalsView.findViewById(R.id.tvTotal);
+        TextView tvDiscount = totalsView.findViewById(R.id.tvDiscount);
+        TextView tvFinalAmount = totalsView.findViewById(R.id.tvFinalAmount);
+        
         tvTotal.setText(formatCurrency(order.getTotalAmount()));
-        tvTotal.setTextColor(0xFF000000);
-        tvTotal.setTextSize(16);
-        tvTotal.setTypeface(null, android.graphics.Typeface.BOLD);
-        totalRow.addView(tvTotal);
-
-        totalsLayout.addView(totalRow);
-
-        // Giảm giá
-        LinearLayout discountRow = new LinearLayout(this);
-        discountRow.setOrientation(LinearLayout.HORIZONTAL);
-        LinearLayout.LayoutParams discountRowParams = new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-        discountRowParams.setMargins(0, 0, 0, (int) (8 * getResources().getDisplayMetrics().density));
-        discountRow.setLayoutParams(discountRowParams);
-
-        TextView tvDiscountLabel = new TextView(this);
-        tvDiscountLabel.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        tvDiscountLabel.setText("Giảm giá:");
-        tvDiscountLabel.setTextColor(0xFF000000);
-        tvDiscountLabel.setTextSize(16);
-        discountRow.addView(tvDiscountLabel);
-
-        TextView tvDiscount = new TextView(this);
-        tvDiscount.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         tvDiscount.setText(formatCurrency(order.getDiscount()));
-        tvDiscount.setTextColor(0xFF000000);
-        tvDiscount.setTextSize(16);
-        tvDiscount.setTypeface(null, android.graphics.Typeface.BOLD);
-        discountRow.addView(tvDiscount);
+        tvFinalAmount.setText(formatCurrency(order.getFinalAmount()));
+        
+        llTotals.removeAllViews();
+        llTotals.addView(totalsView);
 
-        totalsLayout.addView(discountRow);
-
-        // Thành tiền
-        LinearLayout finalRow = new LinearLayout(this);
-        finalRow.setOrientation(LinearLayout.HORIZONTAL);
-
-        TextView tvFinalLabel = new TextView(this);
-        tvFinalLabel.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        tvFinalLabel.setText("Thành tiền:");
-        tvFinalLabel.setTextColor(0xFF000000);
-        tvFinalLabel.setTextSize(16);
-        tvFinalLabel.setTypeface(null, android.graphics.Typeface.BOLD);
-        finalRow.addView(tvFinalLabel);
-
-        TextView tvFinal = new TextView(this);
-        tvFinal.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
-        tvFinal.setText(formatCurrency(order.getFinalAmount()));
-        tvFinal.setTextColor(0xFF000000);
-        tvFinal.setTextSize(16);
-        tvFinal.setTypeface(null, android.graphics.Typeface.BOLD);
-        finalRow.addView(tvFinal);
-
-        totalsLayout.addView(finalRow);
-
-        cardContent.addView(totalsLayout);
-
-        cardView.addView(cardContent);
+        // Thêm card vào container
         llOrderCards.addView(cardView);
 
         // Lưu CardView vào map để dễ dàng refresh sau này
         if (order.getId() != null) {
-            orderCardMap.put(order.getId(), cardView);
+            orderCardMap.put(order.getId(), cardViewContainer);
         }
 
         // Nhấn giữ vào card để mở menu tùy chọn, chạm nhanh để thanh toán
         final Order currentOrder = order;
-        cardView.setOnClickListener(v -> processPaymentForOrder(currentOrder));
-        cardView.setOnLongClickListener(v -> {
+        cardViewContainer.setOnClickListener(v -> processPaymentForOrder(currentOrder));
+        cardViewContainer.setOnLongClickListener(v -> {
             showInvoiceOptionsDialogForOrder(currentOrder);
             return true;
         });
@@ -716,8 +428,7 @@ public class InvoiceActivity extends AppCompatActivity {
     }
 
     /**
-     * Hiển thị danh sách các hóa đơn riêng biệt (sau khi tách)
-     * Method này không còn được sử dụng, giữ lại để tránh lỗi
+     * Hiển thị danh sách các hóa đơn riêng biệt (sau khi tách) - Sử dụng XML layout
      */
     private void displaySplitOrders() {
         if (llOrderCards == null) return;
@@ -731,34 +442,18 @@ public class InvoiceActivity extends AppCompatActivity {
         for (Order order : orders) {
             if (order == null) continue;
 
-            CardView cardView = new CardView(this);
-            cardView.setUseCompatPadding(true);
-            cardView.setCardElevation(4f);
-            cardView.setRadius(16f);
-            LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-            );
-            cardParams.setMargins(0, 0, 0, (int) (12 * getResources().getDisplayMetrics().density));
-            cardView.setLayoutParams(cardParams);
+            // Inflate XML layout
+            View cardView = LayoutInflater.from(this).inflate(R.layout.card_split_order, llOrderCards, false);
+            CardView cardViewContainer = cardView.findViewById(R.id.cardSplitOrder);
+            
+            TextView tvCode = cardView.findViewById(R.id.tvCode);
+            TextView tvInfo = cardView.findViewById(R.id.tvInfo);
+            TextView tvStatus = cardView.findViewById(R.id.tvStatus);
+            LinearLayout llItems = cardView.findViewById(R.id.llItems);
 
-            LinearLayout content = new LinearLayout(this);
-            content.setOrientation(LinearLayout.VERTICAL);
-            content.setPadding(
-                    (int) (16 * getResources().getDisplayMetrics().density),
-                    (int) (16 * getResources().getDisplayMetrics().density),
-                    (int) (16 * getResources().getDisplayMetrics().density),
-                    (int) (16 * getResources().getDisplayMetrics().density)
-            );
-
-            TextView tvCode = new TextView(this);
+            // Thiết lập thông tin
             tvCode.setText("Mã: " + (order.getId() != null ? order.getId() : generateOrderCode()));
-            tvCode.setTextSize(15);
-            tvCode.setTextColor(0xFF1B5E20);
-            tvCode.setTypeface(null, android.graphics.Typeface.BOLD);
-            content.addView(tvCode);
-
-            TextView tvInfo = new TextView(this);
+            
             int totalQty = 0;
             if (order.getItems() != null) {
                 for (Order.OrderItem item : order.getItems()) {
@@ -766,32 +461,20 @@ public class InvoiceActivity extends AppCompatActivity {
                 }
             }
             tvInfo.setText("Tổng món: " + totalQty + " • Thanh tiền: " + formatCurrency(order.getFinalAmount()));
-            tvInfo.setTextSize(14);
-            tvInfo.setTextColor(0xFF333333);
-            tvInfo.setPadding(0, (int) (4 * getResources().getDisplayMetrics().density), 0, 0);
-            content.addView(tvInfo);
-
-            TextView tvStatus = new TextView(this);
             tvStatus.setText("Trạng thái: " + (order.getOrderStatus() != null ? order.getOrderStatus() : "pending"));
-            tvStatus.setTextSize(13);
-            tvStatus.setTextColor(0xFF777777);
-            tvStatus.setPadding(0, (int) (4 * getResources().getDisplayMetrics().density), 0, (int) (8 * getResources().getDisplayMetrics().density));
-            content.addView(tvStatus);
 
+            // Thêm các món ăn
             if (order.getItems() != null && !order.getItems().isEmpty()) {
                 for (Order.OrderItem item : order.getItems()) {
                     if (item == null) continue;
-                    TextView tvItem = new TextView(this);
+                    View itemView = LayoutInflater.from(this).inflate(R.layout.item_split_order_item, llItems, false);
+                    TextView tvItem = itemView.findViewById(R.id.tvItem);
                     tvItem.setText("- " + (item.getName() != null ? item.getName() : "Món") +
                             " x" + item.getQuantity() + " (" + formatCurrency(item.getPrice() * item.getQuantity()) + ")");
-                    tvItem.setTextSize(13);
-                    tvItem.setTextColor(0xFF000000);
-                    tvItem.setPadding(0, (int) (2 * getResources().getDisplayMetrics().density), 0, 0);
-                    content.addView(tvItem);
+                    llItems.addView(itemView);
                 }
             }
 
-            cardView.addView(content);
             llOrderCards.addView(cardView);
         }
     }
