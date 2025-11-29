@@ -89,7 +89,8 @@
                     android:padding="14dp">
 
 
-                    <!-- Controls: Realtime + Refresh + Loading -->
+                    <!-- Controls: (Realtime + Refresh) đã bị loại bỏ theo yêu cầu.
+                         Chỉ giữ ProgressBar nhỏ bên phải nếu cần hiển thị loading. -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="48dp"
@@ -99,27 +100,11 @@
                         android:paddingEnd="12dp"
                         android:layout_marginBottom="8dp">
 
-                        <Button
-                            android:id="@+id/btn_bep_realtime"
-                            android:layout_width="wrap_content"
-                            android:layout_height="36dp"
-                            android:backgroundTint="#2196F3"
-                            android:text="Realtime OFF"
-                            android:textColor="#FFFFFF" />
-
+                        <!-- Khoảng trống giữ layout cân bằng (bạn có thể để nút hoặc trạng thái ở đây) -->
                         <View
                             android:layout_width="0dp"
                             android:layout_height="match_parent"
                             android:layout_weight="1" />
-
-                        <Button
-                            android:id="@+id/btn_bep_refresh"
-                            android:layout_width="wrap_content"
-                            android:layout_height="36dp"
-                            android:text="Làm mới"
-                            android:textAllCaps="false"
-                            android:backgroundTint="#32B768"
-                            android:textColor="#FFFFFF" />
 
                         <ProgressBar
                             android:id="@+id/progress_bep"

@@ -2,4 +2,13 @@
 <resources>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <!-- primary green used in headers -->
+    <color name="primary_green">#4CAF50</color>
+    <!-- action blue used for primary actions/buttons -->
+    <color name="action_blue">#2196F3</color>
+    <!-- status colors -->
+    <color name="status_ok">#4CAF50</color>
+    <color name="status_low">#FF9800</color> <!-- orange -->
+    <color name="status_out">#F44336</color> <!-- red -->
 </resources>
