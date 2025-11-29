@@ -28,7 +28,7 @@ import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
 import com.ph48845.datn_qlnh_rmis.data.repository.OrderRepository;
 import com.ph48845.datn_qlnh_rmis.core.base.BaseMenuActivity;
 
-import com.ph48845.datn_qlnh_rmis.ui.revenue.RevenueActivity;
+import com.ph48845.datn_qlnh_rmis.ui.revenue.ReportActivity;
 import com.ph48845.datn_qlnh_rmis.ui.thungan.adapter.ThuNganAdapter;
 
 import java.util.ArrayList;
@@ -110,7 +110,7 @@ public class ThuNganActivity extends BaseMenuActivity {
                 startActivity(intent);
             }
             else if (id == R.id.nav_revenue) {
-                Intent intent = new Intent(ThuNganActivity.this, RevenueActivity.class);
+                Intent intent = new Intent(ThuNganActivity.this, ReportActivity.class);
                 startActivity(intent);
             }
 

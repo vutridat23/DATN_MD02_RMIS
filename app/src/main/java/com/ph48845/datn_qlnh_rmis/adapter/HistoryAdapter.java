@@ -38,7 +38,7 @@ public class HistoryAdapter extends RecyclerView.Adapter<HistoryAdapter.HistoryV
         HistoryItem item = historyList.get(position);
 
         // Hiển thị ID hóa đơn
-        holder.tvOrderId.setText(item.getId());
+        holder.tvOrderId.setText(item.getId() != null ? item.getId() : "N/A");
 
         // Số bàn
         holder.tvTableNumber.setText("Bàn " + item.getTableNumber());
@@ -46,17 +46,14 @@ public class HistoryAdapter extends RecyclerView.Adapter<HistoryAdapter.HistoryV
         // Ngày tạo hóa đơn
         holder.tvOrderDate.setText(formatDate(item.getCreatedAt()));
 
-        // Tổng số món
         holder.tvItemCount.setText("Số món: " + item.getTotalItems());
+        holder.tvTotal.setText("Tổng: " + NumberFormat.getInstance(new Locale("vi","VN")).format(item.getTotalAmount()) + " VND");
 
-        // Tổng tiền
-        NumberFormat formatter = NumberFormat.getInstance(new Locale("vi", "VN"));
-        holder.tvTotal.setText("Tổng: " + formatter.format(item.getTotalAmount()) + " VND");
     }
 
     @Override
     public int getItemCount() {
-        return historyList.size();
+        return historyList != null ? historyList.size() : 0;
     }
 
     static class HistoryViewHolder extends RecyclerView.ViewHolder {
@@ -74,6 +71,7 @@ public class HistoryAdapter extends RecyclerView.Adapter<HistoryAdapter.HistoryV
 
     // Chuyển từ ISO 8601 sang định dạng dd/MM/yyyy HH:mm
     private String formatDate(String isoDate) {
+        if (isoDate == null || isoDate.isEmpty()) return "N/A";
         try {
             SimpleDateFormat isoFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.getDefault());
             isoFormat.setTimeZone(TimeZone.getTimeZone("UTC"));

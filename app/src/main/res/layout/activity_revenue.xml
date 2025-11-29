@@ -17,9 +17,8 @@
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             android:background="#2BB673"
-            app:title="Thống kê doanh thu"
-            app:titleTextColor="#FFFFFF"
-           />
+            app:title="Thống kê báo cáo"
+            app:titleTextColor="#FFFFFF"/>
     </com.google.android.material.appbar.AppBarLayout>
 
     <!-- Scrollable content -->
@@ -35,7 +34,7 @@
             android:orientation="vertical"
             android:padding="16dp">
 
-            <!-- Tìm kiếm theo ngày -->
+            <!-- Chọn ngày -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -50,8 +49,7 @@
                     android:layout_weight="1"
                     android:hint="Từ ngày"
                     android:focusable="false"
-                    android:padding="8dp"
-                   />
+                    android:padding="8dp"/>
 
                 <View
                     android:layout_width="8dp"
@@ -64,8 +62,7 @@
                     android:layout_weight="1"
                     android:hint="Đến ngày"
                     android:focusable="false"
-                    android:padding="8dp"
-                    />
+                    android:padding="8dp"/>
 
                 <View
                     android:layout_width="8dp"
@@ -79,9 +76,6 @@
                     android:backgroundTint="#2BB673"
                     android:textColor="#FFFFFF"/>
             </LinearLayout>
-
-            <!-- Biểu đồ cột -->
-
 
             <!-- Thông tin tóm tắt -->
             <androidx.cardview.widget.CardView
@@ -105,7 +99,7 @@
                         android:text="Số lượng hóa đơn: 0"
                         android:textColor="#000000"
                         android:textSize="16sp"
-                        android:layout_marginBottom="8dp" />
+                        android:layout_marginBottom="8dp"/>
 
                     <TextView
                         android:id="@+id/tv_total_revenue"
@@ -114,15 +108,15 @@
                         android:text="Tổng doanh thu: 0 VND"
                         android:textColor="#000000"
                         android:textSize="16sp"
-                        android:textStyle="bold" />
+                        android:textStyle="bold"/>
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
-            <!-- Danh sách chi tiết hóa đơn -->
+            <!-- Danh sách chi tiết báo cáo -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Chi tiết hóa đơn"
+                android:text="Chi tiết báo cáo"
                 android:textSize="18sp"
                 android:textStyle="bold"
                 android:textColor="#2BB673"
@@ -132,14 +126,6 @@
                 android:id="@+id/rvRevenueDetails"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"/>
-
-            <!-- Spacer for bottom nav -->
-
-
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
-
-
-
-
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

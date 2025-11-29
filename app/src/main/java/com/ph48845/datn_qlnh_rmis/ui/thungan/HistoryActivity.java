@@ -15,7 +15,9 @@ import com.ph48845.datn_qlnh_rmis.data.remote.ApiService;
 import com.ph48845.datn_qlnh_rmis.data.remote.RetrofitClient;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -44,21 +46,30 @@ public class HistoryActivity extends AppCompatActivity {
     }
 
     private void fetchHistory() {
-        Call<ApiResponse<List<HistoryItem>>> call = apiService.getAllHistory(); // API giả định
+        // Nếu cần filter có thể truyền queryMap, hiện để null
+        Map<String, String> queryMap = new HashMap<>();
+
+        Call<ApiResponse<List<HistoryItem>>> call = apiService.getAllHistory(queryMap);
         call.enqueue(new Callback<ApiResponse<List<HistoryItem>>>() {
             @Override
             public void onResponse(Call<ApiResponse<List<HistoryItem>>> call, Response<ApiResponse<List<HistoryItem>>> response) {
                 if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
-                    historyList.clear();
-                    historyList.addAll(response.body().getData());
-                    adapter.notifyDataSetChanged();
+                    List<HistoryItem> data = response.body().getData();
+                    if (data != null && !data.isEmpty()) {
+                        historyList.clear();
+                        historyList.addAll(data);
+                        adapter.notifyDataSetChanged();
+                    } else {
+                        Toast.makeText(HistoryActivity.this, "Không có dữ liệu lịch sử", Toast.LENGTH_SHORT).show();
+                    }
                 } else {
-                    Toast.makeText(HistoryActivity.this, "Không có dữ liệu lịch sử", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(HistoryActivity.this, "Lấy dữ liệu thất bại", Toast.LENGTH_SHORT).show();
                 }
             }
 
             @Override
             public void onFailure(Call<ApiResponse<List<HistoryItem>>> call, Throwable t) {
+                t.printStackTrace();
                 Toast.makeText(HistoryActivity.this, "Không thể kết nối server", Toast.LENGTH_SHORT).show();
             }
         });

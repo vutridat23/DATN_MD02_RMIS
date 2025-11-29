@@ -3,10 +3,8 @@ package com.ph48845.datn_qlnh_rmis.data.repository;
 import android.util.Log;
 
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
-import com.ph48845.datn_qlnh_rmis.data.model.RevenueItem;
 import com.ph48845.datn_qlnh_rmis.data.remote.ApiResponse;
 import com.ph48845.datn_qlnh_rmis.data.remote.ApiService;
-import com.ph48845.datn_qlnh_rmis.data.remote.OrderApi;
 import com.ph48845.datn_qlnh_rmis.data.remote.RetrofitClient;
 
 import java.io.IOException;
@@ -338,32 +336,6 @@ public class OrderRepository {
         });
     }
 
-    public void getRevenueByDate(String fromDate, String toDate, RepositoryCallback<List<RevenueItem>> callback) {
-        Map<String, String> params = new HashMap<>();
-        if (fromDate != null) params.put("fromDate", fromDate);
-        if (toDate != null) params.put("toDate", toDate);
-
-        api.getRevenueByDate(params).enqueue(new Callback<ApiResponse<List<RevenueItem>>>() {
-            @Override
-            public void onResponse(Call<ApiResponse<List<RevenueItem>>> call, Response<ApiResponse<List<RevenueItem>>> response) {
-                if (response.isSuccessful() && response.body() != null) {
-                    List<RevenueItem> list = response.body().getData();
-                    if (list != null) {
-                        callback.onSuccess(list);
-                    } else {
-                        callback.onError("Server trả về danh sách rỗng");
-                    }
-                } else {
-                    callback.onError("Lỗi tải dữ liệu: " + response.code());
-                }
-            }
-
-            @Override
-            public void onFailure(Call<ApiResponse<List<RevenueItem>>> call, Throwable t) {
-                callback.onError("Lỗi kết nối: " + t.getMessage());
-            }
-        });
-    }
 
 
 }

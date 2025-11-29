@@ -1,8 +1,11 @@
 package com.ph48845.datn_qlnh_rmis.data.remote;
 
+import com.ph48845.datn_qlnh_rmis.data.model.HistoryItem;
+import com.ph48845.datn_qlnh_rmis.data.model.Ingredient;
 import com.ph48845.datn_qlnh_rmis.data.model.LoginResponse;
 import com.ph48845.datn_qlnh_rmis.data.model.MenuItem;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
+import com.ph48845.datn_qlnh_rmis.data.model.ReportItem;
 import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
 import com.ph48845.datn_qlnh_rmis.data.model.User;
 
@@ -98,25 +101,50 @@ public interface ApiService {
     @POST("orders/pay")
     Call<ApiResponse<Order>> payOrder(@Body Map<String, Object> body);
 
-    @GET("orders/revenue")
-    Call<ApiResponse<List<RevenueItem>>> getRevenueFromOrders(@QueryMap Map<String, String> params);
+
     // Lấy doanh thu theo ngày / khoảng ngày
-    @GET("orders/byDate")
-    Call<ApiResponse<List<RevenueItem>>> getRevenueByDate(@QueryMap Map<String, String> params);
+
 //    @GET("revenue/daily")
 //    Call<ApiResponse<List<RevenueItem>>> getRevenueByDay(@Query("date") String date);
-@POST("reports/daily")
-Call<ApiResponse<RevenueItem>> createDailyReport(@Body Map<String, String> body);
+
 
     @GET("orders/historyod")
     Call<ApiResponse<List<HistoryItem>>> getAllHistory();
 
 
-    @GET("revenue/daily")
-    Call<ApiResponse<List<RevenueItem>>> getRevenueByRange(
-            @Query("fromDate") String fromDate,
-            @Query("toDate") String toDate
+
+
+    // --- HISTORY ENDPOINTS ---
+    @GET("history")
+    Call<ApiResponse<List<HistoryItem>>> getAllHistory(
+            @QueryMap Map<String, String> filters  // Optional: filter by orderId, tableNumber, action
     );
+
+    @GET("history/{id}")
+    Call<ApiResponse<HistoryItem>> getHistoryById(@Path("id") String historyId);
+
+    // ApiService.java
+    // Lấy danh sách tất cả báo cáo
+    @GET("reports/byDate")
+    Call<ApiResponse<List<ReportItem>>> getReportsByDate(@QueryMap Map<String, String> params);
+    @GET("reports")
+    Call<ApiResponse<List<ReportItem>>> getAllReports();
+
+    // Lấy báo cáo theo ID
+    @GET("reports/{id}")
+    Call<ApiResponse<ReportItem>> getReportById(@Path("id") String reportId);
+
+    // Tạo báo cáo ngày
+    @POST("reports/daily")
+    Call<ApiResponse<ReportItem>> createDailyReport(@Body Map<String, String> body);
+
+    // Tạo báo cáo tuần
+    @POST("reports/weekly")
+    Call<ApiResponse<ReportItem>> createWeeklyReport(@Body Map<String, String> body);
+
+
+
+
 
 
     // --- TABLE ENDPOINTS ---
