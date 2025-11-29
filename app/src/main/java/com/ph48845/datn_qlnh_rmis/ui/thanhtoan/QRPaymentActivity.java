@@ -1,7 +1,13 @@
 package com.ph48845.datn_qlnh_rmis.ui.thanhtoan;
 
+import android.Manifest;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.media.MediaPlayer;
+import android.os.Build;
 import android.os.Bundle;
 import android.widget.Button;
 import android.widget.ImageView;
@@ -10,6 +16,8 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.NotificationCompat;
+import androidx.core.app.NotificationManagerCompat;
 
 import com.google.zxing.BarcodeFormat;
 import com.journeyapps.barcodescanner.BarcodeEncoder;
@@ -49,7 +57,14 @@ public class QRPaymentActivity extends AppCompatActivity {
         amount = getIntent().getDoubleExtra("amount", 0);
 
         tvAmount.setText(String.format("%,.0f₫", amount));
+
         generateQR("PAY|" + amount);
+
+        // Tạo Notification Channel
+        createNotificationChannel();
+
+        // Xin quyền hiển thị thông báo
+        requestNotificationPermission();
 
         btnThanhToan.setOnClickListener(v -> showConfirmDialog());
     }
@@ -68,7 +83,7 @@ public class QRPaymentActivity extends AppCompatActivity {
         new AlertDialog.Builder(this)
                 .setTitle("Xác nhận thanh toán QR")
                 .setMessage("Khách hàng đã quét và thanh toán chưa?")
-                .setPositiveButton("Đã nhận", (dialog, which) -> payOrder()) // chỉ gọi khi xác nhận
+                .setPositiveButton("Đã nhận", (dialog, which) -> payOrder())
                 .setNegativeButton("Chưa nhận", null)
                 .show();
     }
@@ -85,14 +100,20 @@ public class QRPaymentActivity extends AppCompatActivity {
             @Override
             public void onResponse(Call<ApiResponse<Order>> call, Response<ApiResponse<Order>> response) {
                 if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
-                    Toast.makeText(QRPaymentActivity.this, "Thanh toán QR thành công", Toast.LENGTH_SHORT).show();
 
-                    // Chuyển sang màn ThuNganActivity
+                    // 🔊 Phát âm thanh ting-ting
+                    MediaPlayer mediaPlayer = MediaPlayer.create(QRPaymentActivity.this, R.raw.ting_ting);
+                    mediaPlayer.start();
+
+                    // 🔔 Gửi thông báo
+                    sendPaymentNotification(amount);
+
+                    Toast.makeText(QRPaymentActivity.this, "Thanh toán QR thành công!", Toast.LENGTH_SHORT).show();
+
                     Intent intent = new Intent(QRPaymentActivity.this, ThuNganActivity.class);
-                    intent.putExtra("orderId", orderId); // nếu cần truyền dữ liệu
+                    intent.putExtra("orderId", orderId);
                     startActivity(intent);
 
-                    // Kết thúc màn QRPaymentActivity
                     finish();
                 } else {
                     Toast.makeText(QRPaymentActivity.this,
@@ -108,4 +129,48 @@ public class QRPaymentActivity extends AppCompatActivity {
         });
     }
 
+    // ------------------ NOTIFICATION FUNCTIONS ------------------
+
+    private void requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1001);
+            }
+        }
+    }
+
+    private void sendPaymentNotification(double amount) {
+
+        // Kiểm tra quyền trước khi notify
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                        != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+
+        NotificationCompat.Builder builder =
+                new NotificationCompat.Builder(this, "payment_channel")
+                        .setSmallIcon(android.R.drawable.ic_dialog_info)
+                        .setContentTitle("Đã nhận thanh toán")
+                        .setContentText("Đã nhận được " + String.format("%,.0f₫", amount))
+                        .setPriority(NotificationCompat.PRIORITY_HIGH)
+                        .setAutoCancel(true);
+
+        NotificationManagerCompat manager = NotificationManagerCompat.from(this);
+        manager.notify(1001, builder.build());
+    }
+
+    private void createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(
+                    "payment_channel",
+                    "Payment Notifications",
+                    NotificationManager.IMPORTANCE_HIGH
+            );
+            channel.setDescription("Thông báo khi nhận thanh toán");
+            NotificationManager manager = getSystemService(NotificationManager.class);
+            manager.createNotificationChannel(channel);
+        }
+    }
 }

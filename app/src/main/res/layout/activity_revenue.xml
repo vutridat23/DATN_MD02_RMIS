@@ -19,8 +19,7 @@
             android:background="#2BB673"
             app:title="Thống kê doanh thu"
             app:titleTextColor="#FFFFFF"
-            app:navigationIcon="?attr/homeAsUpIndicator"
-            app:navigationIconTint="#FFFFFF" />
+           />
     </com.google.android.material.appbar.AppBarLayout>
 
     <!-- Scrollable content -->

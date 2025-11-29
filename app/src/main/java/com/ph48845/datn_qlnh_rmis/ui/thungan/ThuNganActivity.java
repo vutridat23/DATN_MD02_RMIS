@@ -28,6 +28,7 @@ import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
 import com.ph48845.datn_qlnh_rmis.data.repository.OrderRepository;
 import com.ph48845.datn_qlnh_rmis.core.base.BaseMenuActivity;
 
+import com.ph48845.datn_qlnh_rmis.ui.revenue.RevenueActivity;
 import com.ph48845.datn_qlnh_rmis.ui.thungan.adapter.ThuNganAdapter;
 
 import java.util.ArrayList;
@@ -79,7 +80,7 @@ public class ThuNganActivity extends BaseMenuActivity {
         redDot = findViewById(R.id.redDot);   // lấy view từ layout
 
         //thay đổi trạng thái thông báo đặt điều kiện và chuyển View.GONE sang View.VISIBLE)
-        redDot.setVisibility(View.VISIBLE);   // hiển thị khi cần
+        redDot.setVisibility(View.GONE);   // hiển thị khi cần
 
         ImageView navIcon = findViewById(R.id.nav_icon);
         navIcon.setOnClickListener(v -> drawerLayout.openDrawer(GravityCompat.START));
@@ -104,7 +105,15 @@ public class ThuNganActivity extends BaseMenuActivity {
                 showContactDialog();
             } else if (id == R.id.nav_logout) {
                 logout();
+            }    else if (id == R.id.nav_payment_history) {
+                Intent intent = new Intent(ThuNganActivity.this, HistoryActivity.class);
+                startActivity(intent);
             }
+            else if (id == R.id.nav_revenue) {
+                Intent intent = new Intent(ThuNganActivity.this, RevenueActivity.class);
+                startActivity(intent);
+            }
+
 
             drawerLayout.closeDrawer(GravityCompat.START);
             return true;
