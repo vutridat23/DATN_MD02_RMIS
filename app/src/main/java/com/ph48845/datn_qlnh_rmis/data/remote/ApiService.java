@@ -1,10 +1,8 @@
 package com.ph48845.datn_qlnh_rmis.data.remote;
 
-import com.ph48845.datn_qlnh_rmis.data.model.HistoryItem;
 import com.ph48845.datn_qlnh_rmis.data.model.LoginResponse;
 import com.ph48845.datn_qlnh_rmis.data.model.MenuItem;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
-import com.ph48845.datn_qlnh_rmis.data.model.RevenueItem;
 import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
 import com.ph48845.datn_qlnh_rmis.data.model.User;
 
@@ -15,9 +13,9 @@ import retrofit2.Call;
 import retrofit2.http.Body;
 import retrofit2.http.DELETE;
 import retrofit2.http.GET;
+import retrofit2.http.PATCH;
 import retrofit2.http.POST;
 import retrofit2.http.PUT;
-import retrofit2.http.PATCH;
 import retrofit2.http.Path;
 import retrofit2.http.Query;
 import retrofit2.http.QueryMap;
@@ -128,11 +126,18 @@ Call<ApiResponse<RevenueItem>> createDailyReport(@Body Map<String, String> body)
     @PUT("tables/{id}")
     Call<TableItem> updateTable(@Path("id") String tableId, @Body Map<String, Object> updates);
 
-
-
     @POST("tables/{id}/merge")
     Call<TableItem> mergeTable(@Path("id") String targetTableId, @Body Map<String, String> body);
 
+
+    // --- INGREDIENTS (nguyên liệu) ---
+    // Lấy tất cả nguyên liệu (API trả về wrapper { success, data: [ingredient] })
+    @GET("ingredients")
+    Call<ApiResponse<List<Ingredient>>> getAllIngredients(@Query("status") String status, @Query("tag") String tag);
+
+    // Bếp lấy nguyên liệu (POST /ingredients/{id}/take) body: { amount: number }
+    @POST("ingredients/{id}/take")
+    Call<ApiResponse<Ingredient>> takeIngredient(@Path("id") String ingredientId, @Body Map<String, Object> body);
 
     /**
      * Helper class for sending status updates to the server.

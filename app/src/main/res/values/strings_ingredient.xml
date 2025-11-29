@@ -1,0 +1,4 @@
+<resources>
+    <!-- Mô tả nội dung của ảnh nguyên liệu (dùng cho accessibility) -->
+    <string name="ingredient_image">Ảnh nguyên liệu</string>
+</resources>

@@ -8,12 +8,14 @@ import android.print.PrintDocumentAdapter;
 import android.print.PrintJob;
 import android.print.PrintManager;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
+import android.widget.ListView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -81,7 +83,7 @@ public class InvoiceActivity extends AppCompatActivity {
 
         initViews();
         setupToolbar();
-
+        
         orderRepository = new OrderRepository();
         menuRepository = new MenuRepository();
 
@@ -117,7 +119,7 @@ public class InvoiceActivity extends AppCompatActivity {
             public void onSuccess(List<Order> orderList) {
                 runOnUiThread(() -> {
                     progressBar.setVisibility(View.GONE);
-
+                    
                     if (orderList == null || orderList.isEmpty()) {
                         Toast.makeText(InvoiceActivity.this, "Không có đơn hàng cho bàn này", Toast.LENGTH_SHORT).show();
                         return;
@@ -157,7 +159,7 @@ public class InvoiceActivity extends AppCompatActivity {
             order.normalizeItems();
             createInvoiceCard(order);
         }
-
+        
         // Reset highlight sau khi đã hiển thị xong
         newlySplitOrderId = null;
     }
@@ -169,15 +171,15 @@ public class InvoiceActivity extends AppCompatActivity {
         // Tạo CardView
         CardView cardView = new CardView(this);
         LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
         );
         cardParams.setMargins(0, 0, 0, (int) (16 * getResources().getDisplayMetrics().density));
         cardView.setLayoutParams(cardParams);
         cardView.setRadius((int) (12 * getResources().getDisplayMetrics().density));
         cardView.setCardElevation(4);
         cardView.setUseCompatPadding(true);
-
+        
         // Highlight hóa đơn mới vừa tách
         if (newlySplitOrderId != null && order.getId() != null && order.getId().equals(newlySplitOrderId)) {
             cardView.setCardBackgroundColor(0xFFE8F5E9); // Màu xanh nhạt
@@ -187,10 +189,10 @@ public class InvoiceActivity extends AppCompatActivity {
         LinearLayout cardContent = new LinearLayout(this);
         cardContent.setOrientation(LinearLayout.VERTICAL);
         cardContent.setPadding(
-                (int) (20 * getResources().getDisplayMetrics().density),
-                (int) (20 * getResources().getDisplayMetrics().density),
-                (int) (20 * getResources().getDisplayMetrics().density),
-                (int) (20 * getResources().getDisplayMetrics().density)
+            (int) (20 * getResources().getDisplayMetrics().density),
+            (int) (20 * getResources().getDisplayMetrics().density),
+            (int) (20 * getResources().getDisplayMetrics().density),
+            (int) (20 * getResources().getDisplayMetrics().density)
         );
 
         // Tiêu đề HÓA ĐƠN THANH TOÁN
@@ -201,8 +203,8 @@ public class InvoiceActivity extends AppCompatActivity {
         tvTitle.setTypeface(null, android.graphics.Typeface.BOLD);
         tvTitle.setGravity(android.view.Gravity.CENTER);
         LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
         );
         titleParams.setMargins(0, 0, 0, (int) (16 * getResources().getDisplayMetrics().density));
         tvTitle.setLayoutParams(titleParams);
@@ -212,8 +214,8 @@ public class InvoiceActivity extends AppCompatActivity {
         LinearLayout infoLayout = new LinearLayout(this);
         infoLayout.setOrientation(LinearLayout.VERTICAL);
         LinearLayout.LayoutParams infoParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
         );
         infoParams.setMargins(0, 0, 0, (int) (16 * getResources().getDisplayMetrics().density));
         infoLayout.setLayoutParams(infoParams);
@@ -230,8 +232,8 @@ public class InvoiceActivity extends AppCompatActivity {
         tvCode.setTextColor(0xFF000000);
         tvCode.setTextSize(16);
         LinearLayout.LayoutParams codeParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
         );
         codeParams.setMargins(0, (int) (4 * getResources().getDisplayMetrics().density), 0, 0);
         tvCode.setLayoutParams(codeParams);
@@ -243,15 +245,15 @@ public class InvoiceActivity extends AppCompatActivity {
         LinearLayout headerLayout = new LinearLayout(this);
         headerLayout.setOrientation(LinearLayout.HORIZONTAL);
         headerLayout.setPadding(
-                (int) (8 * getResources().getDisplayMetrics().density),
-                (int) (8 * getResources().getDisplayMetrics().density),
-                (int) (8 * getResources().getDisplayMetrics().density),
-                (int) (8 * getResources().getDisplayMetrics().density)
+            (int) (8 * getResources().getDisplayMetrics().density),
+            (int) (8 * getResources().getDisplayMetrics().density),
+            (int) (8 * getResources().getDisplayMetrics().density),
+            (int) (8 * getResources().getDisplayMetrics().density)
         );
         headerLayout.setBackgroundColor(0xFFF0F0F0);
         LinearLayout.LayoutParams headerParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
         );
         headerParams.setMargins(0, 0, 0, (int) (8 * getResources().getDisplayMetrics().density));
         headerLayout.setLayoutParams(headerParams);
@@ -288,17 +290,17 @@ public class InvoiceActivity extends AppCompatActivity {
         LinearLayout itemsContainer = new LinearLayout(this);
         itemsContainer.setOrientation(LinearLayout.VERTICAL);
         LinearLayout.LayoutParams itemsParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
         );
         itemsParams.setMargins(0, 0, 0, (int) (16 * getResources().getDisplayMetrics().density));
         itemsContainer.setLayoutParams(itemsParams);
 
         // Hiển thị các món ăn
         List<Order.OrderItem> orderItems = order.getItems();
-        boolean isEditingThisOrder = (editingOrder != null && editingOrder.getId() != null &&
-                order.getId() != null && editingOrder.getId().equals(order.getId()));
-
+        boolean isEditingThisOrder = (editingOrder != null && editingOrder.getId() != null && 
+                                     order.getId() != null && editingOrder.getId().equals(order.getId()));
+        
         if (orderItems != null && !orderItems.isEmpty()) {
             for (int i = 0; i < orderItems.size(); i++) {
                 final int itemIndex = i;
@@ -307,10 +309,10 @@ public class InvoiceActivity extends AppCompatActivity {
                 LinearLayout itemRow = new LinearLayout(this);
                 itemRow.setOrientation(LinearLayout.HORIZONTAL);
                 itemRow.setPadding(
-                        (int) (16 * getResources().getDisplayMetrics().density),
-                        (int) (12 * getResources().getDisplayMetrics().density),
-                        (int) (16 * getResources().getDisplayMetrics().density),
-                        (int) (12 * getResources().getDisplayMetrics().density)
+                    (int) (16 * getResources().getDisplayMetrics().density),
+                    (int) (12 * getResources().getDisplayMetrics().density),
+                    (int) (16 * getResources().getDisplayMetrics().density),
+                    (int) (12 * getResources().getDisplayMetrics().density)
                 );
 
                 TextView tvItemName = new TextView(this);
@@ -345,8 +347,8 @@ public class InvoiceActivity extends AppCompatActivity {
                     // Hiển thị số lượng
                     TextView tvQty = new TextView(this);
                     tvQty.setLayoutParams(new LinearLayout.LayoutParams(
-                            LinearLayout.LayoutParams.WRAP_CONTENT,
-                            LinearLayout.LayoutParams.WRAP_CONTENT
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
                     ));
                     tvQty.setText(String.valueOf(item.getQuantity()));
                     tvQty.setTextColor(0xFF000000);
@@ -371,8 +373,8 @@ public class InvoiceActivity extends AppCompatActivity {
                 } else {
                     TextView tvItemQty = new TextView(this);
                     tvItemQty.setLayoutParams(new LinearLayout.LayoutParams(
-                            LinearLayout.LayoutParams.WRAP_CONTENT,
-                            LinearLayout.LayoutParams.WRAP_CONTENT
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
                     ));
                     tvItemQty.setText("x" + item.getQuantity());
                     tvItemQty.setTextColor(0xFF000000);
@@ -405,8 +407,8 @@ public class InvoiceActivity extends AppCompatActivity {
             btnAddItem.setTypeface(null, android.graphics.Typeface.BOLD);
             btnAddItem.setBackgroundResource(R.drawable.bg_button_primary);
             LinearLayout.LayoutParams addItemParams = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
             );
             addItemParams.setMargins(0, (int) (8 * getResources().getDisplayMetrics().density), 0, 0);
             btnAddItem.setLayoutParams(addItemParams);
@@ -417,8 +419,8 @@ public class InvoiceActivity extends AppCompatActivity {
             LinearLayout actionLayout = new LinearLayout(this);
             actionLayout.setOrientation(LinearLayout.HORIZONTAL);
             LinearLayout.LayoutParams actionParams = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
             );
             actionParams.setMargins(0, (int) (16 * getResources().getDisplayMetrics().density), 0, 0);
             actionLayout.setLayoutParams(actionParams);
@@ -430,9 +432,9 @@ public class InvoiceActivity extends AppCompatActivity {
             btnSave.setTypeface(null, android.graphics.Typeface.BOLD);
             btnSave.setBackgroundResource(R.drawable.bg_button_primary);
             LinearLayout.LayoutParams saveParams = new LinearLayout.LayoutParams(
-                    0,
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    1f
+                0,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                1f
             );
             saveParams.setMargins(0, 0, (int) (8 * getResources().getDisplayMetrics().density), 0);
             btnSave.setLayoutParams(saveParams);
@@ -446,9 +448,9 @@ public class InvoiceActivity extends AppCompatActivity {
             btnCancel.setTypeface(null, android.graphics.Typeface.BOLD);
             btnCancel.setBackgroundColor(0xFFE0E0E0);
             LinearLayout.LayoutParams cancelParams = new LinearLayout.LayoutParams(
-                    0,
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    1f
+                0,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                1f
             );
             cancelParams.setMargins((int) (8 * getResources().getDisplayMetrics().density), 0, 0, 0);
             btnCancel.setLayoutParams(cancelParams);
@@ -471,8 +473,8 @@ public class InvoiceActivity extends AppCompatActivity {
         LinearLayout totalRow = new LinearLayout(this);
         totalRow.setOrientation(LinearLayout.HORIZONTAL);
         LinearLayout.LayoutParams totalRowParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
         );
         totalRowParams.setMargins(0, 0, 0, (int) (8 * getResources().getDisplayMetrics().density));
         totalRow.setLayoutParams(totalRowParams);
@@ -498,8 +500,8 @@ public class InvoiceActivity extends AppCompatActivity {
         LinearLayout discountRow = new LinearLayout(this);
         discountRow.setOrientation(LinearLayout.HORIZONTAL);
         LinearLayout.LayoutParams discountRowParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
         );
         discountRowParams.setMargins(0, 0, 0, (int) (8 * getResources().getDisplayMetrics().density));
         discountRow.setLayoutParams(discountRowParams);
@@ -555,38 +557,26 @@ public class InvoiceActivity extends AppCompatActivity {
 
         // Nhấn giữ vào card để mở menu tùy chọn, chạm nhanh để thanh toán
         final Order currentOrder = order;
-        cardView.setOnClickListener(v -> {
-            // Kiểm tra order hiện tại có hợp lệ không
-            if (currentOrder == null || currentOrder.getId() == null) {
-                Toast.makeText(InvoiceActivity.this, "Hóa đơn không hợp lệ", Toast.LENGTH_SHORT).show();
-                return;
-            }
-
-            // Log để debug
-            Log.d(TAG, "Opening payment - Order ID: " + currentOrder.getId());
-            Log.d(TAG, "Table Number: " + tableNumber);
-            Log.d(TAG, "Final Amount: " + currentOrder.getFinalAmount());
-
-            // Chuyển sang màn thanh toán
-            Intent intent = new Intent(InvoiceActivity.this, ThanhToanActivity.class);
-            intent.putExtra("orderId", currentOrder.getId());
-            intent.putExtra("tableNumber", tableNumber);  // QUAN TRỌNG: phải truyền tableNumber
-            intent.putExtra("finalAmount", currentOrder.getFinalAmount());
-
-            startActivity(intent);
+        cardView.setOnClickListener(v -> processPaymentForOrder(currentOrder));
+        cardView.setOnLongClickListener(v -> {
+            showInvoiceOptionsDialogForOrder(currentOrder);
+            return true;
         });
-
     }
 
     /**
-     * Thanh toán cho một order cụ thể
+     * Thanh toán cho một order cụ thể - chuyển sang màn hình thanh toán
      */
     private void processPaymentForOrder(Order order) {
-        if (order == null) {
+        if (order == null || order.getId() == null) {
             Toast.makeText(this, "Hóa đơn không hợp lệ", Toast.LENGTH_SHORT).show();
             return;
         }
-        processPaymentForSpecificOrder(order);
+        // Chuyển sang màn hình thanh toán
+        Intent intent = new Intent(InvoiceActivity.this, ThanhToanActivity.class);
+        intent.putExtra("orderId", order.getId());
+        intent.putExtra("tableNumber", tableNumber);
+        startActivity(intent);
     }
 
     /**
@@ -760,24 +750,22 @@ public class InvoiceActivity extends AppCompatActivity {
      * Hiển thị dialog hủy hóa đơn
      */
     private void showCancelInvoiceDialog() {
-        EditText etReason = new EditText(this);
-        etReason.setHint("Nhập lý do hủy hóa đơn");
-        etReason.setMinLines(3);
+        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_cancel_invoice, null);
+        EditText etReason = dialogView.findViewById(R.id.etReason);
 
         new AlertDialog.Builder(this)
-                .setTitle("Hủy hóa đơn")
-                .setMessage("Vui lòng nhập lý do hủy:")
-                .setView(etReason)
-                .setPositiveButton("Hủy đơn", (dialog, which) -> {
-                    String reason = etReason.getText().toString().trim();
-                    if (reason.isEmpty()) {
-                        Toast.makeText(this, "Vui lòng nhập lý do hủy", Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-                    cancelInvoice(reason);
-                })
-                .setNegativeButton("Không", null)
-                .show();
+            .setTitle("Hủy hóa đơn")
+            .setView(dialogView)
+            .setPositiveButton("Hủy đơn", (dialog, which) -> {
+                String reason = etReason.getText().toString().trim();
+                if (reason.isEmpty()) {
+                    Toast.makeText(this, "Vui lòng nhập lý do hủy", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                cancelInvoice(reason);
+            })
+            .setNegativeButton("Không", null)
+            .show();
     }
 
     /**
@@ -831,15 +819,15 @@ public class InvoiceActivity extends AppCompatActivity {
         }
 
         new AlertDialog.Builder(this)
-                .setTitle("Chọn món ăn để tách hóa đơn")
-                .setMultiChoiceItems(itemNames, selectedItems, (dialog, which, isChecked) -> {
-                    selectedItems[which] = isChecked;
-                })
-                .setPositiveButton("Tách", (dialog, which) -> {
-                    splitInvoice(selectedItems);
-                })
-                .setNegativeButton("Hủy", null)
-                .show();
+            .setTitle("Chọn món ăn để tách hóa đơn")
+            .setMultiChoiceItems(itemNames, selectedItems, (dialog, which, isChecked) -> {
+                selectedItems[which] = isChecked;
+            })
+            .setPositiveButton("Tách", (dialog, which) -> {
+                splitInvoice(selectedItems);
+            })
+            .setNegativeButton("Hủy", null)
+            .show();
     }
 
     /**
@@ -874,7 +862,7 @@ public class InvoiceActivity extends AppCompatActivity {
             cashierId = originalOrder.getCashierId();
             tableId = originalOrder.getTableId();
         }
-
+        
         // Nếu không có, sử dụng fake IDs (giống OrderActivity)
         if (serverId == null || serverId.isEmpty()) {
             serverId = "64a7f3b2c9d1e2f3a4b5c6d7"; // Fake server ID
@@ -892,7 +880,7 @@ public class InvoiceActivity extends AppCompatActivity {
         if (tableId != null && !tableId.isEmpty()) {
             newOrder.setTableId(tableId);
         }
-
+        
         double splitTotal = 0;
         for (Order.OrderItem item : itemsToSplit) {
             splitTotal += item.getPrice() * item.getQuantity();
@@ -1009,10 +997,10 @@ public class InvoiceActivity extends AppCompatActivity {
         intent.setAction("com.ph48845.datn_qlnh_rmis.ACTION_CHECK_ITEMS");
         intent.putExtra("tableNumber", tableNumber);
         intent.putExtra("orderIds", getOrderIds());
-
+        
         // Có thể sử dụng BroadcastReceiver hoặc Notification
         sendBroadcast(intent);
-
+        
         Toast.makeText(this, "Đã gửi yêu cầu kiểm tra lại món ăn cho bàn " + tableNumber, Toast.LENGTH_LONG).show();
         Log.d(TAG, "Request check items for table " + tableNumber);
     }
@@ -1071,85 +1059,27 @@ public class InvoiceActivity extends AppCompatActivity {
     }
 
     /**
-     * In tạm tính
+     * In tạm tính - Mở Activity hiển thị hóa đơn từ XML layout
      */
     private void printTemporaryBill() {
-        // Tạo HTML cho hóa đơn tạm tính
-        String htmlContent = generateTemporaryBillHTML();
-
-        // Sử dụng WebView để in
-        android.webkit.WebView webView = new android.webkit.WebView(this);
-        webView.setWebViewClient(new android.webkit.WebViewClient() {
-            @Override
-            public void onPageFinished(android.webkit.WebView view, String url) {
-                createPrintJob(webView);
-            }
-        });
-        webView.loadDataWithBaseURL(null, htmlContent, "text/html", "UTF-8", null);
-    }
-
-    /**
-     * Tạo PrintJob
-     */
-    private void createPrintJob(android.webkit.WebView webView) {
-        PrintManager printManager = (PrintManager) getSystemService(PRINT_SERVICE);
-        String jobName = "Hóa đơn tạm tính - Bàn " + tableNumber;
-        PrintDocumentAdapter printAdapter = webView.createPrintDocumentAdapter(jobName);
-        PrintAttributes.Builder builder = new PrintAttributes.Builder();
-        builder.setMediaSize(PrintAttributes.MediaSize.ISO_A4);
-        PrintJob printJob = printManager.print(jobName, printAdapter, builder.build());
-
-        if (printJob.isCompleted()) {
-            Toast.makeText(this, "Đã in hóa đơn tạm tính", Toast.LENGTH_SHORT).show();
-        } else if (printJob.isFailed()) {
-            Toast.makeText(this, "Lỗi in hóa đơn", Toast.LENGTH_SHORT).show();
+        if (orders == null || orders.isEmpty()) {
+            Toast.makeText(this, "Không có hóa đơn để in", Toast.LENGTH_SHORT).show();
+            return;
         }
-    }
-
-    /**
-     * Tạo HTML cho hóa đơn tạm tính
-     */
-    private String generateTemporaryBillHTML() {
-        StringBuilder html = new StringBuilder();
-        html.append("<html><head><meta charset='UTF-8'><style>");
-        html.append("body { font-family: Arial; padding: 20px; }");
-        html.append("h1 { text-align: center; }");
-        html.append("table { width: 100%; border-collapse: collapse; }");
-        html.append("th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }");
-        html.append("th { background-color: #f2f2f2; }");
-        html.append(".total { font-weight: bold; }");
-        html.append("</style></head><body>");
-
-        html.append("<h1>HÓA ĐƠN TẠM TÍNH</h1>");
-        html.append("<p><strong>Bàn:</strong> ").append(tableNumber).append("</p>");
-        html.append("<p><strong>Mã đơn:</strong> ").append(generateOrderCode()).append("</p>");
-        html.append("<p><strong>Ngày:</strong> ").append(new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(new Date())).append("</p>");
-
-        html.append("<table>");
-        html.append("<tr><th>Món ăn</th><th>SL</th><th>Giá</th><th>Thành tiền</th></tr>");
-
-        for (Order.OrderItem item : allItems) {
-            double itemTotal = item.getPrice() * item.getQuantity();
-            html.append("<tr>");
-            html.append("<td>").append(item.getName()).append("</td>");
-            html.append("<td>").append(item.getQuantity()).append("</td>");
-            html.append("<td>").append(formatCurrency(item.getPrice())).append("</td>");
-            html.append("<td>").append(formatCurrency(itemTotal)).append("</td>");
-            html.append("</tr>");
+        
+        // Lấy order đầu tiên để in
+        Order firstOrder = orders.get(0);
+        if (firstOrder == null) {
+            Toast.makeText(this, "Hóa đơn không hợp lệ", Toast.LENGTH_SHORT).show();
+            return;
         }
-
-        html.append("</table>");
-
-        double total = 0;
-        for (Order.OrderItem item : allItems) {
-            total += item.getPrice() * item.getQuantity();
-        }
-
-        html.append("<p class='total'>Tổng cộng: ").append(formatCurrency(total)).append("</p>");
-        html.append("<p><em>Hóa đơn tạm tính - Chưa thanh toán</em></p>");
-        html.append("</body></html>");
-
-        return html.toString();
+        
+        // Mở Activity hiển thị hóa đơn từ XML layout
+        Intent intent = new Intent(this, PrintBillActivity.class);
+        intent.putExtra("order", firstOrder);
+        intent.putExtra("tableNumber", tableNumber);
+        intent.putExtra("orderCode", generateOrderCode());
+        startActivity(intent);
     }
 
     /**
@@ -1198,7 +1128,7 @@ public class InvoiceActivity extends AppCompatActivity {
                     }
                 }
             }
-
+            
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy", Locale.getDefault());
             String year = sdf.format(new Date());
             return "HD" + year + "-" + suffix;
@@ -1274,7 +1204,11 @@ public class InvoiceActivity extends AppCompatActivity {
                             printTemporaryBillForOrder(order);
                             break;
                         case 3:
-                            processPaymentForSpecificOrder(order);
+                            // Chuyển sang màn hình thanh toán
+                            Intent intent = new Intent(InvoiceActivity.this, ThanhToanActivity.class);
+                            intent.putExtra("orderId", order.getId());
+                            intent.putExtra("tableNumber", tableNumber);
+                            startActivity(intent);
                             break;
                         case 4:
                             requestCheckItemsForOrder(order);
@@ -1298,69 +1232,35 @@ public class InvoiceActivity extends AppCompatActivity {
         }
 
         List<Order.OrderItem> items = order.getItems();
-
-        // Tạo ScrollView chứa các EditText để nhập số lượng tách
-        LinearLayout dialogLayout = new LinearLayout(this);
-        dialogLayout.setOrientation(LinearLayout.VERTICAL);
-        dialogLayout.setPadding(
-                (int) (24 * getResources().getDisplayMetrics().density),
-                (int) (16 * getResources().getDisplayMetrics().density),
-                (int) (24 * getResources().getDisplayMetrics().density),
-                (int) (16 * getResources().getDisplayMetrics().density)
-        );
-
-        // TextView hướng dẫn
-        TextView tvInstruction = new TextView(this);
-        tvInstruction.setText("Nhập số lượng muốn tách cho mỗi món (0 = không tách):");
-        tvInstruction.setTextColor(0xFF000000);
-        tvInstruction.setTextSize(14);
-        tvInstruction.setPadding(0, 0, 0, (int) (16 * getResources().getDisplayMetrics().density));
-        dialogLayout.addView(tvInstruction);
-
+        
+        // Inflate XML layout
+        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_split_invoice, null);
+        LinearLayout llItemsContainer = dialogView.findViewById(R.id.llItemsContainer);
+        
         // Map để lưu EditText cho mỗi item
         Map<Integer, EditText> qtyEditTextMap = new HashMap<>();
-
+        
         for (int i = 0; i < items.size(); i++) {
             Order.OrderItem item = items.get(i);
             if (item == null) continue;
 
-            // Container cho mỗi món
-            LinearLayout itemLayout = new LinearLayout(this);
-            itemLayout.setOrientation(LinearLayout.HORIZONTAL);
-            itemLayout.setPadding(0, 0, 0, (int) (12 * getResources().getDisplayMetrics().density));
-
+            // Inflate item layout
+            View itemView = LayoutInflater.from(this).inflate(R.layout.dialog_split_invoice_item, llItemsContainer, false);
+            
             // Tên món và số lượng hiện tại
-            TextView tvItemInfo = new TextView(this);
-            tvItemInfo.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+            TextView tvItemInfo = itemView.findViewById(R.id.tvItemInfo);
             tvItemInfo.setText(item.getName() + " (hiện có: x" + item.getQuantity() + ")");
-            tvItemInfo.setTextColor(0xFF000000);
-            tvItemInfo.setTextSize(14);
-            itemLayout.addView(tvItemInfo);
 
             // EditText để nhập số lượng tách
-            EditText etQty = new EditText(this);
-            etQty.setLayoutParams(new LinearLayout.LayoutParams(
-                    (int) (80 * getResources().getDisplayMetrics().density),
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-            ));
-            etQty.setHint("0");
-            etQty.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
-            etQty.setText("0");
-            etQty.setGravity(android.view.Gravity.CENTER);
-            itemLayout.addView(etQty);
-
+            EditText etQty = itemView.findViewById(R.id.etQty);
             qtyEditTextMap.put(i, etQty);
 
-            dialogLayout.addView(itemLayout);
+            llItemsContainer.addView(itemView);
         }
-
-        // Tạo ScrollView để cuộn nếu có nhiều món
-        android.widget.ScrollView scrollView = new android.widget.ScrollView(this);
-        scrollView.addView(dialogLayout);
 
         new AlertDialog.Builder(this)
                 .setTitle("Tách hóa đơn - Nhập số lượng")
-                .setView(scrollView)
+                .setView(dialogView)
                 .setPositiveButton("Tách", (dialog, which) -> {
                     // Lấy số lượng từ các EditText
                     Map<Integer, Integer> splitQuantities = new HashMap<>();
@@ -1380,12 +1280,12 @@ public class InvoiceActivity extends AppCompatActivity {
                             hasAnySplit = true;
                         }
                     }
-
+                    
                     if (!hasAnySplit) {
                         Toast.makeText(this, "Vui lòng nhập số lượng muốn tách (ít nhất 1 món)", Toast.LENGTH_SHORT).show();
                         return;
                     }
-
+                    
                     // Kiểm tra số lượng hợp lệ
                     boolean isValid = true;
                     for (Map.Entry<Integer, Integer> entry : splitQuantities.entrySet()) {
@@ -1398,7 +1298,7 @@ public class InvoiceActivity extends AppCompatActivity {
                             break;
                         }
                     }
-
+                    
                     if (isValid) {
                         splitInvoiceForOrderWithQuantities(order, splitQuantities);
                     }
@@ -1422,7 +1322,7 @@ public class InvoiceActivity extends AppCompatActivity {
         for (int i = 0; i < items.size(); i++) {
             Order.OrderItem item = items.get(i);
             if (item == null) continue;
-
+            
             Integer splitQty = splitQuantities.get(i);
             if (splitQty != null && splitQty > 0) {
                 // Tạo item mới cho phần tách
@@ -1432,7 +1332,7 @@ public class InvoiceActivity extends AppCompatActivity {
                 splitItem.setPrice(item.getPrice());
                 splitItem.setQuantity(splitQty);
                 itemsToSplit.add(splitItem);
-
+                
                 // Tạo item mới cho phần còn lại
                 int remainingQty = item.getQuantity() - splitQty;
                 if (remainingQty > 0) {
@@ -1460,7 +1360,7 @@ public class InvoiceActivity extends AppCompatActivity {
         String serverId = order.getServerId();
         String cashierId = order.getCashierId();
         String tableId = order.getTableId();
-
+        
         if (serverId == null || serverId.isEmpty()) {
             serverId = "64a7f3b2c9d1e2f3a4b5c6d7";
         }
@@ -1477,7 +1377,7 @@ public class InvoiceActivity extends AppCompatActivity {
         if (tableId != null && !tableId.isEmpty()) {
             newOrder.setTableId(tableId);
         }
-
+        
         double splitTotal = 0;
         for (Order.OrderItem item : itemsToSplit) {
             splitTotal += item.getPrice() * item.getQuantity();
@@ -1498,14 +1398,14 @@ public class InvoiceActivity extends AppCompatActivity {
                 if (result != null && result.getId() != null) {
                     newlySplitOrderId = result.getId();
                 }
-
+                
                 // Cập nhật order cũ với items còn lại
                 if (!remainingItems.isEmpty()) {
                     double remainingTotal = 0;
                     for (Order.OrderItem item : remainingItems) {
                         remainingTotal += item.getPrice() * item.getQuantity();
                     }
-
+                    
                     Map<String, Object> updates = new HashMap<>();
                     updates.put("items", remainingItems);
                     updates.put("totalAmount", remainingTotal);
@@ -1563,51 +1463,23 @@ public class InvoiceActivity extends AppCompatActivity {
     }
 
     /**
-     * In tạm tính cho một order cụ thể
+     * In tạm tính cho một order cụ thể - Mở Activity hiển thị hóa đơn từ XML layout
      */
     private void printTemporaryBillForOrder(Order order) {
-        // Tạo HTML cho hóa đơn tạm tính
-        String htmlContent = generateTemporaryBillHTMLForOrder(order);
-
-        // Sử dụng WebView để in
-        android.webkit.WebView webView = new android.webkit.WebView(this);
-        webView.setWebViewClient(new android.webkit.WebViewClient() {
-            @Override
-            public void onPageFinished(android.webkit.WebView view, String url) {
-                createPrintJob(webView);
-            }
-        });
-        webView.loadDataWithBaseURL(null, htmlContent, "text/html", "UTF-8", null);
-    }
-
-    /**
-     * Tạo HTML cho hóa đơn tạm tính của một order cụ thể
-     */
-    private String generateTemporaryBillHTMLForOrder(Order order) {
-        StringBuilder html = new StringBuilder();
-        html.append("<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Hóa đơn tạm tính</title></head><body>");
-        html.append("<h2>HÓA ĐƠN TẠM TÍNH</h2>");
-        html.append("<p>Bàn: ").append(String.format("%02d", tableNumber)).append("</p>");
-        html.append("<p>Mã đơn: ").append(order.getId() != null ? order.getId() : "N/A").append("</p>");
-        html.append("<table border='1' style='width:100%; border-collapse: collapse;'>");
-        html.append("<tr><th>Món ăn</th><th>SL</th><th>Giá</th></tr>");
-
-        if (order.getItems() != null) {
-            for (Order.OrderItem item : order.getItems()) {
-                html.append("<tr>");
-                html.append("<td>").append(item.getName() != null ? item.getName() : "").append("</td>");
-                html.append("<td>").append(item.getQuantity()).append("</td>");
-                html.append("<td>").append(formatCurrency(item.getPrice() * item.getQuantity())).append("</td>");
-                html.append("</tr>");
-            }
+        if (order == null) {
+            Toast.makeText(this, "Hóa đơn không hợp lệ", Toast.LENGTH_SHORT).show();
+            return;
         }
-
-        html.append("</table>");
-        html.append("<p><strong>Tổng cộng: ").append(formatCurrency(order.getTotalAmount())).append("</strong></p>");
-        html.append("<p><strong>Giảm giá: ").append(formatCurrency(order.getDiscount())).append("</strong></p>");
-        html.append("<p><strong>Thành tiền: ").append(formatCurrency(order.getFinalAmount())).append("</strong></p>");
-        html.append("</body></html>");
-        return html.toString();
+        
+        // Mở Activity hiển thị hóa đơn từ XML layout
+        Intent intent = new Intent(this, PrintBillActivity.class);
+        intent.putExtra("order", order);
+        intent.putExtra("tableNumber", tableNumber);
+        String orderCode = order.getId() != null 
+            ? (order.getId().length() > 12 ? "HD" + order.getId().substring(0, 12) : "HD" + order.getId())
+            : generateOrderCode();
+        intent.putExtra("orderCode", orderCode);
+        startActivity(intent);
     }
 
     /**
@@ -1626,24 +1498,22 @@ public class InvoiceActivity extends AppCompatActivity {
      * Hủy hóa đơn cho một order cụ thể
      */
     private void showCancelInvoiceDialogForOrder(Order order) {
-        EditText etReason = new EditText(this);
-        etReason.setHint("Nhập lý do hủy hóa đơn");
-        etReason.setMinLines(3);
+        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_cancel_invoice, null);
+        EditText etReason = dialogView.findViewById(R.id.etReason);
 
         new AlertDialog.Builder(this)
-                .setTitle("Hủy hóa đơn")
-                .setMessage("Vui lòng nhập lý do hủy:")
-                .setView(etReason)
-                .setPositiveButton("Hủy đơn", (dialog, which) -> {
-                    String reason = etReason.getText().toString().trim();
-                    if (reason.isEmpty()) {
-                        Toast.makeText(this, "Vui lòng nhập lý do hủy", Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-                    cancelInvoiceForOrder(order, reason);
-                })
-                .setNegativeButton("Không", null)
-                .show();
+            .setTitle("Hủy hóa đơn")
+            .setView(dialogView)
+            .setPositiveButton("Hủy đơn", (dialog, which) -> {
+                String reason = etReason.getText().toString().trim();
+                if (reason.isEmpty()) {
+                    Toast.makeText(this, "Vui lòng nhập lý do hủy", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                cancelInvoiceForOrder(order, reason);
+            })
+            .setNegativeButton("Không", null)
+            .show();
     }
 
     /**
@@ -1792,18 +1662,37 @@ public class InvoiceActivity extends AppCompatActivity {
                         Toast.makeText(InvoiceActivity.this, "Không có món ăn nào", Toast.LENGTH_SHORT).show();
                         return;
                     }
+                    
+                    // Inflate XML layout
+                    View dialogView = LayoutInflater.from(InvoiceActivity.this).inflate(R.layout.dialog_add_item, null);
+                    ListView lvMenuItems = dialogView.findViewById(R.id.lvMenuItems);
+                    
+                    // Tạo adapter cho ListView
                     String[] itemNames = new String[menuItems.size()];
                     for (int i = 0; i < menuItems.size(); i++) {
                         itemNames[i] = menuItems.get(i).getName() + " - " + formatCurrency(menuItems.get(i).getPrice());
                     }
-                    new AlertDialog.Builder(InvoiceActivity.this)
-                            .setTitle("Chọn món để thêm")
-                            .setItems(itemNames, (dialog, which) -> {
-                                MenuItem selectedMenu = menuItems.get(which);
-                                addItemToOrder(order, selectedMenu);
-                            })
+                    
+                    android.widget.ArrayAdapter<String> adapter = new android.widget.ArrayAdapter<>(
+                        InvoiceActivity.this,
+                        R.layout.item_menu_dialog,
+                        R.id.tvMenuItem,
+                        itemNames
+                    );
+                    lvMenuItems.setAdapter(adapter);
+                    
+                    AlertDialog dialog = new AlertDialog.Builder(InvoiceActivity.this)
+                            .setView(dialogView)
                             .setNegativeButton("Hủy", null)
-                            .show();
+                            .create();
+                    
+                    lvMenuItems.setOnItemClickListener((parent, view, position, id) -> {
+                        MenuItem selectedMenu = menuItems.get(position);
+                        addItemToOrder(order, selectedMenu);
+                        dialog.dismiss();
+                    });
+                    
+                    dialog.show();
                 });
             }
 

@@ -1,0 +1,9 @@
+<resources>
+    <!-- Dialog xác nhận chuyển trạng thái món -->
+    <string name="confirm_title">Xác nhận</string>
+    <string name="confirm_positive">Xác nhận</string>
+    <string name="confirm_negative">Hủy</string>
+    <!-- message format: %1$s = tên món, %2$s = trạng thái hiển thị -->
+    <string name="confirm_message">Bạn có chắc chắn muốn chuyển trạng thái món "%1$s" sang "%2$s"?</string>
+
+</resources>
