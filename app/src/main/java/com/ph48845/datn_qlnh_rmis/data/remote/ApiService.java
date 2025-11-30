@@ -1,6 +1,5 @@
 package com.ph48845.datn_qlnh_rmis.data.remote;
 
-
 import com.ph48845.datn_qlnh_rmis.data.model.Ingredient;
 import com.ph48845.datn_qlnh_rmis.data.model.LoginResponse;
 import com.ph48845.datn_qlnh_rmis.data.model.MenuItem;
@@ -23,6 +22,9 @@ import retrofit2.http.Query;
 
 /**
  * Retrofit API definitions.
+ *
+ * Added requestCancelItem(...) so client can send { requestedBy, reason } to server route
+ * POST /orders/{orderId}/items/{itemId}/request-cancel
  */
 public interface ApiService {
 
@@ -67,6 +69,14 @@ public interface ApiService {
             @Body StatusUpdate statusUpdate
     );
 
+    // NEW: request-cancel endpoint client can call with { requestedBy, reason }
+    @POST("orders/{orderId}/items/{itemId}/request-cancel")
+    Call<ApiResponse<Order>> requestCancelItem(
+            @Path("orderId") String orderId,
+            @Path("itemId") String itemId,
+            @Body Map<String, Object> body
+    );
+
     @POST("orders")
     Call<ApiResponse<Order>> createOrder(@Body Order order);
 
@@ -81,6 +91,10 @@ public interface ApiService {
 
     @DELETE("orders/{id}")
     Call<Void> deleteOrder(@Path("id") String orderId);
+
+    // --- NEW: Endpoint for requesting temporary calculation (matches your server) ---
+    @POST("orders/{id}/request-temp-calculation")
+    Call<ApiResponse<Order>> requestTempCalculation(@Path("id") String orderId, @Body Map<String, Object> body);
 
     // --- TABLE ENDPOINTS ---
     @GET("tables")
@@ -107,7 +121,7 @@ public interface ApiService {
      * This replaces OrderApi.StatusUpdate previously used.
      */
     class StatusUpdate {
-        // public field so Gson serializes it as {"status": "..."}
+        // public field so Gson serializes it as {"status": "..." }
         public String status;
 
         public StatusUpdate(String status) {

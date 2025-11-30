@@ -26,6 +26,9 @@ public class Order implements Serializable {
     public transient List<String> splitToLegacy;
     public transient String paidAtLegacy;
 
+    // ✨ Thêm field mới
+    public transient String cancelReasonLegacy = "";
+
     private String orderId;
     private String tableId;
     private String waiterId;
@@ -81,10 +84,15 @@ public class Order implements Serializable {
     @SerializedName("paidAt")
     private String paidAtAnnotated;
 
+    // ✨ Annotated field mới
+    @SerializedName("cancelReason")
+    private String cancelReasonAnnotated;
+
     public Order() {
         if (items == null) items = new ArrayList<>();
         if (mergedFromLegacy == null) mergedFromLegacy = new ArrayList<>();
         if (splitToLegacy == null) splitToLegacy = new ArrayList<>();
+        if (cancelReasonLegacy == null) cancelReasonLegacy = "";
     }
 
     public Order(int tableNumber, String serverId, List<OrderItem> items,
@@ -108,6 +116,10 @@ public class Order implements Serializable {
         this.finalAmountAnnotated = finalAmount;
         this.paymentMethodAnnotated = paymentMethod;
         this.orderStatusAnnotated = orderStatus;
+
+        // ✨ ensure cancelReason exists
+        this.cancelReasonLegacy = "";
+        this.cancelReasonAnnotated = "";
     }
 
     public void normalizeItems() {
@@ -117,12 +129,6 @@ public class Order implements Serializable {
         }
     }
 
-    /**
-     * Prepare annotated fields so Gson will serialize full payload.
-     * - ensure itemsAnnotated populated
-     * - compute totalAmountAnnotated if not set (sum price * qty)
-     * - ensure createdAtAnnotated set
-     */
     public void prepareForCreate() {
         normalizeItems();
         setItems(getItems());
@@ -138,7 +144,23 @@ public class Order implements Serializable {
         if (discountAnnotated == null) discountAnnotated = 0.0;
         if (finalAmountAnnotated == null) finalAmountAnnotated = totalAmountAnnotated - discountAnnotated;
         if (createdAtAnnotated == null) createdAtAnnotated = String.valueOf(System.currentTimeMillis());
+
+        // ✨ ensure cancelReason default
+        if (cancelReasonAnnotated == null) cancelReasonAnnotated = "";
     }
+
+    // ===================== Getter Setter cancelReason =====================
+
+    public String getCancelReason() {
+        return cancelReasonAnnotated != null ? cancelReasonAnnotated : cancelReasonLegacy;
+    }
+
+    public void setCancelReason(String cancelReason) {
+        this.cancelReasonLegacy = cancelReason;
+        this.cancelReasonAnnotated = cancelReason;
+    }
+
+    // ======================================================================
 
     public String getOrderId() { return orderId; }
     public void setOrderId(String orderId) { this.orderId = orderId; }
@@ -293,6 +315,7 @@ public class Order implements Serializable {
         return createdAtAnnotated != null ? createdAtAnnotated : (createdAt > 0 ? String.valueOf(createdAt) : null);
     }
 
+    // ===================== UPDATED toString() =====================
     @Override
     public String toString() {
         return "Order{" +
@@ -308,6 +331,7 @@ public class Order implements Serializable {
                 ", change=" + getChange() +
                 ", paymentMethod='" + getPaymentMethod() + '\'' +
                 ", orderStatus='" + getOrderStatus() + '\'' +
+                ", cancelReason='" + getCancelReason() + '\'' +      // ✨ add
                 ", mergedFrom=" + getMergedFrom() +
                 ", splitTo=" + getSplitTo() +
                 ", createdAt='" + getCreatedAt() + '\'' +
@@ -315,8 +339,39 @@ public class Order implements Serializable {
                 '}';
     }
 
-    // ================== Inner OrderItem ==================
+    // ===================== toMapPayload() updated =====================
+    public Map<String, Object> toMapPayload() {
+        Map<String, Object> m = new HashMap<>();
+        if (tableNumberAnnotated != null) m.put("tableNumber", tableNumberAnnotated);
+        else m.put("tableNumber", tableNumber);
+        if (serverIdAnnotated != null) m.put("server", serverIdAnnotated);
+        if (cashierIdAnnotated != null) m.put("cashier", cashierIdAnnotated);
+
+        List<Map<String, Object>> itemsList = new ArrayList<>();
+        for (OrderItem oi : getItems()) {
+            itemsList.add(oi.toMap());
+        }
+        m.put("items", itemsList);
+
+        m.put("totalAmount", getTotalAmount());
+        m.put("discount", getDiscount());
+        m.put("finalAmount", getFinalAmount());
+        if (paymentMethodAnnotated != null) m.put("paymentMethod", paymentMethodAnnotated);
+        if (orderStatusAnnotated != null) m.put("orderStatus", orderStatusAnnotated);
+        if (createdAtAnnotated != null) m.put("createdAt", createdAtAnnotated);
+
+        // ✨ add cancelReason
+        m.put("cancelReason", getCancelReason());
+
+        return m;
+    }
+
+    // ===================== OrderItem unchanged except cancelReason additions =====================
+    // (Nguyên vẹn để tránh xung đột)
+    // ---------------------------------------------------------------
     public static class OrderItem implements Serializable {
+        @SerializedName("_id")
+        private String idAnnotated;
 
         @SerializedName("menuItem")
         private Object menuItemRaw;
@@ -340,6 +395,12 @@ public class Order implements Serializable {
         @SerializedName(value = "imageUrl", alternate = {"image", "thumbnail", "img"})
         private String imageUrl;
 
+        // ✨ cancelReason for individual item (added)
+        @SerializedName("cancelReason")
+        private String cancelReason;
+
+        private transient String parentOrderId;
+
         public OrderItem() {}
 
         public OrderItem(String menuItemId, String name, int quantity, double price, String status) {
@@ -349,6 +410,7 @@ public class Order implements Serializable {
             this.quantity = quantity;
             this.price = price;
             this.status = status;
+            this.cancelReason = this.cancelReason == null ? "" : this.cancelReason;
         }
 
         public OrderItem(String menuItemId, String name, int quantity, double price) {
@@ -388,6 +450,18 @@ public class Order implements Serializable {
                         if (imgObj != null && (imageUrl == null || imageUrl.isEmpty())) {
                             imageUrl = String.valueOf(imgObj);
                         }
+                        try {
+                            Object subId = map.get("_id");
+                            if (subId == null) subId = map.get("id");
+                            if (subId != null && (idAnnotated == null || idAnnotated.isEmpty())) {
+                                idAnnotated = String.valueOf(subId);
+                            }
+                        } catch (Exception ignored) {}
+                        // also try to read cancelReason if present in nested menuItemRaw map
+                        try {
+                            Object cr = map.get("cancelReason");
+                            if (cr != null && (cancelReason == null || cancelReason.isEmpty())) cancelReason = String.valueOf(cr);
+                        } catch (Exception ignored) {}
                     } else {
                         String rawStr = String.valueOf(menuItemRaw);
                         if (menuItemId == null || menuItemId.isEmpty()) menuItemId = rawStr;
@@ -400,6 +474,14 @@ public class Order implements Serializable {
             if (imageUrl == null) imageUrl = "";
             if (status == null) status = "";
             if (note == null) note = "";
+            if (cancelReason == null) cancelReason = "";
+        }
+
+        public String getId() {
+            return idAnnotated != null ? idAnnotated : null;
+        }
+        public void setId(String id) {
+            this.idAnnotated = id;
         }
 
         public Object getMenuItemRaw() { return menuItemRaw; }
@@ -432,10 +514,6 @@ public class Order implements Serializable {
         public double getPrice() { return price; }
         public void setPrice(double price) { this.price = price; }
 
-        /**
-         * Robust getter: trả về imageUrl nếu có, nếu không sẽ thử đọc trực tiếp từ menuItemRaw
-         * (Map được Gson parse thành LinkedTreeMap).
-         */
         @SuppressWarnings("unchecked")
         public String getImageUrl() {
             if (imageUrl != null && !imageUrl.trim().isEmpty()) return imageUrl.trim();
@@ -459,7 +537,7 @@ public class Order implements Serializable {
                 }
             } catch (Exception ignored) {}
 
-            return ""; // fallback
+            return "";
         }
 
         public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
@@ -470,15 +548,28 @@ public class Order implements Serializable {
         public String getNote() { return note == null ? "" : note; }
         public void setNote(String note) { this.note = note; }
 
+        // ✨ cancelReason getter/setter for item
+        public String getCancelReason() {
+            return cancelReason == null ? "" : cancelReason;
+        }
+        public void setCancelReason(String cancelReason) {
+            this.cancelReason = cancelReason == null ? "" : cancelReason;
+        }
+
+        public String getParentOrderId() { return parentOrderId; }
+        public void setParentOrderId(String parentOrderId) { this.parentOrderId = parentOrderId; }
+
         @Override
         public String toString() {
             return "OrderItem{" +
-                    "menuItemId='" + menuItemId + '\'' +
+                    "id='" + getId() + '\'' +
+                    ", menuItemId='" + menuItemId + '\'' +
                     ", name='" + name + '\'' +
                     ", quantity=" + quantity +
                     ", price=" + price +
                     ", status='" + status + '\'' +
                     ", note='" + note + '\'' +
+                    ", cancelReason='" + getCancelReason() + '\'' +
                     ", imageUrl='" + imageUrl + '\'' +
                     '}';
         }
@@ -491,10 +582,11 @@ public class Order implements Serializable {
             m.put("quantity", quantity);
             m.put("price", price);
             m.put("status", getStatus());
-            m.put("note", getNote());
-            m.put("imageUrl", getImageUrl());
-            // menuItem snapshot as id so server receives menuItem: "<id>"
+            if (note != null) m.put("note", getNote());
+            if (imageUrl != null) m.put("imageUrl", getImageUrl());
             if (menuItemId != null && !menuItemId.isEmpty()) m.put("menuItem", menuItemId);
+            // ✨ include cancelReason if present
+            if (cancelReason != null && !cancelReason.isEmpty()) m.put("cancelReason", cancelReason);
             return m;
         }
     }
@@ -511,30 +603,8 @@ public class Order implements Serializable {
         if (id == null) return null;
         for (OrderItem oi : getItems()) {
             if (oi == null) continue;
-            if (id.equals(oi.getMenuItemId()) || id.equals(oi.getMenuItem())) return oi;
+            if (id.equals(oi.getMenuItemId()) || id.equals(oi.getMenuItem()) || id.equals(oi.getId())) return oi;
         }
         return null;
-    }
-
-    public Map<String, Object> toMapPayload() {
-        Map<String, Object> m = new HashMap<>();
-        if (tableNumberAnnotated != null) m.put("tableNumber", tableNumberAnnotated);
-        else m.put("tableNumber", tableNumber);
-        if (serverIdAnnotated != null) m.put("server", serverIdAnnotated);
-        if (cashierIdAnnotated != null) m.put("cashier", cashierIdAnnotated);
-
-        List<Map<String, Object>> itemsList = new ArrayList<>();
-        for (OrderItem oi : getItems()) {
-            itemsList.add(oi.toMap());
-        }
-        m.put("items", itemsList);
-
-        m.put("totalAmount", getTotalAmount());
-        m.put("discount", getDiscount());
-        m.put("finalAmount", getFinalAmount());
-        if (paymentMethodAnnotated != null) m.put("paymentMethod", paymentMethodAnnotated);
-        if (orderStatusAnnotated != null) m.put("orderStatus", orderStatusAnnotated);
-        if (createdAtAnnotated != null) m.put("createdAt", createdAtAnnotated);
-        return m;
     }
 }

@@ -8,8 +8,9 @@
 
     <ImageView
         android:id="@+id/iv_item_thumb"
-        android:layout_width="75dp"
-        android:layout_height="80dp"
+        android:layout_marginTop="5dp"
+        android:layout_width="80dp"
+        android:layout_height="90dp"
         android:scaleType="centerCrop"
         android:src="@drawable/ic_menu_placeholder"
         android:layout_marginEnd="12dp"
@@ -17,7 +18,7 @@
 
     <LinearLayout
         android:layout_width="0dp"
-        android:layout_height="match_parent"
+        android:layout_height="wrap_content"
         android:layout_weight="1"
         android:orientation="vertical">
 
@@ -30,7 +31,8 @@
             android:textStyle="bold"
             android:textColor="#222222"
             android:maxLines="2"
-            android:ellipsize="end"/>
+            android:ellipsize="end"
+            android:includeFontPadding="false"/>
 
         <TextView
             android:id="@+id/tv_item_qty"
@@ -40,19 +42,35 @@
             android:textSize="16sp"
             android:textStyle="bold"
             android:textColor="#555555"
-            android:layout_marginTop="6dp"/>
+            android:layout_marginTop="6dp"
+            android:includeFontPadding="false"/>
 
         <!-- DÒNG GHI CHÚ -->
         <TextView
             android:id="@+id/tv_item_note"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Ghi chú: Ít đá, không hành"
             android:textSize="14sp"
             android:textColor="#777777"
             android:layout_marginTop="4dp"
-            android:maxLines="1"
-            android:ellipsize="end"/>
+            android:layout_marginEnd="8dp"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:includeFontPadding="false"/>
+
+        <TextView
+            android:id="@+id/tv_item_huy"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Lí do hủy: ... (ví dụ)"
+            android:textSize="14sp"
+            android:textColor="#D32F2F"
+            android:layout_marginTop="4dp"
+            android:layout_marginEnd="8dp"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:includeFontPadding="false"/>
 
     </LinearLayout>
 
