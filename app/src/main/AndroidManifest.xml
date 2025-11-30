@@ -22,6 +22,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.DATN_QLNH_RMIS"
+
         android:usesCleartextTraffic="true">
 
         <activity android:name=".ui.thanhtoan.ThanhToanActivity" />
@@ -43,6 +44,7 @@
         <activity
             android:name=".ui.auth.OnboardingActivity"
             android:exported="true">
+
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -54,11 +56,11 @@
             android:exported="false" />
 
         <activity
-            android:name=".ui.MainActivity"
+            android:name=".ui.phucvu.OrderActivity"
             android:exported="false" />
 
         <activity
-            android:name=".ui.phucvu.OrderActivity"
+            android:name=".ui.MainActivity"
             android:exported="false" />
         <activity
             android:name=".ui.thungan.ThuNganActivity"
@@ -66,6 +68,7 @@
         <activity
             android:name=".ui.thungan.InvoiceActivity"
             android:exported="false" />
+
         <activity
             android:name=".ui.thungan.PrintBillActivity"
             android:exported="false" />
