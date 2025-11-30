@@ -117,24 +117,15 @@
             android:textStyle="bold"
             android:textSize="13sp" />
 
-        <!-- Buttons row (unchanged IDs) -->
+        <!-- Buttons row (chỉ còn 3 nút) -->
         <LinearLayout
             android:orientation="horizontal"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:weightSum="4"
+            android:weightSum="3"
             android:gravity="center_vertical">
 
-            <Button
-                android:id="@+id/btnDanNhan"
-                android:layout_width="0dp"
-                android:layout_height="40dp"
-                android:layout_weight="1"
-                android:text="Đã nhận"
-                android:textSize="10sp"
-                android:textColor="#FFFFFF"
-                android:textAllCaps="false"
-                android:backgroundTint="#FFB300" />
+            <!-- ĐÃ XÓA btnDanNhan -->
 
             <Button
                 android:id="@+id/btnDangLam"

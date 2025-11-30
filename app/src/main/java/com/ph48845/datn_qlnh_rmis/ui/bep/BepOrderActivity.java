@@ -173,12 +173,20 @@ public class BepOrderActivity extends AppCompatActivity implements OrderItemAdap
         Order.OrderItem item = wrapper.getItem();
         if (order == null || item == null) return;
 
-        final String oldStatus = item.getStatus() == null ? "" : item.getStatus();
         final String displayName = (item.getMenuItemName() != null && !item.getMenuItemName().isEmpty())
                 ? item.getMenuItemName() : item.getName();
 
-        String message = "Xác nhận chuyển trạng thái món\n\"" + displayName + "\"\n"
-                + "từ \"" + oldStatus + "\" → \"" + newStatus + "\" ?";
+        String message;
+        if ("ready".equals(newStatus)) {
+            message = "Xác nhận xong món?";
+        } else if ("soldout".equals(newStatus)) {
+            message = "Xác nhận hết món?";
+        } else if ("preparing".equals(newStatus)) {
+            message = "Xác nhận đang làm món?";
+        } else {
+            // fallback
+            message = "Xác nhận cập nhật trạng thái cho món \"" + displayName + "\"?";
+        }
 
         new AlertDialog.Builder(this)
                 .setTitle("Xác nhận")
@@ -208,7 +216,6 @@ public class BepOrderActivity extends AppCompatActivity implements OrderItemAdap
                                 runOnUiThread(() -> Toast.makeText(BepOrderActivity.this, "Cập nhật thất bại: HTTP " + response.code(), Toast.LENGTH_LONG).show());
                             }
                         }
-
                         @Override
                         public void onFailure(retrofit2.Call<Void> call, Throwable t) {
                             runOnUiThread(() -> {
