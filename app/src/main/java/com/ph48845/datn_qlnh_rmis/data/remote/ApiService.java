@@ -1,9 +1,11 @@
 package com.ph48845.datn_qlnh_rmis.data.remote;
 
+import com.ph48845.datn_qlnh_rmis.data.model.HistoryItem;
 import com.ph48845.datn_qlnh_rmis.data.model.Ingredient;
 import com.ph48845.datn_qlnh_rmis.data.model.LoginResponse;
 import com.ph48845.datn_qlnh_rmis.data.model.MenuItem;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
+import com.ph48845.datn_qlnh_rmis.data.model.ReportItem;
 import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
 import com.ph48845.datn_qlnh_rmis.data.model.User;
 
@@ -19,16 +21,17 @@ import retrofit2.http.POST;
 import retrofit2.http.PUT;
 import retrofit2.http.Path;
 import retrofit2.http.Query;
+import retrofit2.http.QueryMap;
 
 /**
- * Retrofit API definitions.
- *
- * Added requestCancelItem(...) so client can send { requestedBy, reason } to server route
- * POST /orders/{orderId}/items/{itemId}/request-cancel
+ * ApiService: Gộp tất cả endpoint cũ.
+ * Nhóm rõ ràng theo module: User / Menu / Order / Table / Ingredient / History / Report
  */
 public interface ApiService {
 
+    // ===========================
     // --- USER ENDPOINTS ---
+    // ===========================
     @GET("users")
     Call<List<User>> getAllUsers();
 
@@ -41,7 +44,9 @@ public interface ApiService {
     @PUT("users/{id}")
     Call<User> updateUser(@Path("id") String userId, @Body User user);
 
+    // ===========================
     // --- MENU ITEM ENDPOINTS ---
+    // ===========================
     @GET("menu")
     Call<ApiResponse<List<MenuItem>>> getAllMenuItems();
 
@@ -51,30 +56,16 @@ public interface ApiService {
     @DELETE("menu/{id}")
     Call<Void> deleteMenuItem(@Path("id") String itemId);
 
+    // ===========================
     // --- ORDER ENDPOINTS ---
+    // ===========================
     @GET("orders")
     Call<ApiResponse<List<Order>>> getAllOrders();
 
     @GET("orders")
-        // use wrapper to be consistent with other endpoints (menu / tables)
     Call<ApiResponse<List<Order>>> getOrdersByTable(
             @Query("tableNumber") Integer tableNumber,
             @Query("status") String status
-    );
-
-    @PATCH("orders/{orderId}/items/{itemId}/status")
-    Call<Void> updateOrderItemStatus(
-            @Path("orderId") String orderId,
-            @Path("itemId") String itemId,
-            @Body StatusUpdate statusUpdate
-    );
-
-    // NEW: request-cancel endpoint client can call with { requestedBy, reason }
-    @POST("orders/{orderId}/items/{itemId}/request-cancel")
-    Call<ApiResponse<Order>> requestCancelItem(
-            @Path("orderId") String orderId,
-            @Path("itemId") String itemId,
-            @Body Map<String, Object> body
     );
 
     @POST("orders")
@@ -83,20 +74,38 @@ public interface ApiService {
     @GET("orders/{id}")
     Call<ApiResponse<Order>> getOrderById(@Path("id") String orderId);
 
-    @PUT("orders/{id}/status")
-    Call<ApiResponse<Order>> updateOrderStatus(@Path("id") String orderId, @Body Map<String, Object> newStatusBody);
-
     @PUT("orders/{id}")
     Call<ApiResponse<Order>> updateOrder(@Path("id") String orderId, @Body Map<String, Object> updates);
+
+    @PUT("orders/{id}/status")
+    Call<ApiResponse<Order>> updateOrderStatus(@Path("id") String orderId, @Body Map<String, Object> newStatusBody);
 
     @DELETE("orders/{id}")
     Call<Void> deleteOrder(@Path("id") String orderId);
 
-    // --- NEW: Endpoint for requesting temporary calculation (matches your server) ---
+    @PATCH("orders/{orderId}/items/{itemId}/status")
+    Call<Void> updateOrderItemStatus(
+            @Path("orderId") String orderId,
+            @Path("itemId") String itemId,
+            @Body StatusUpdate statusUpdate
+    );
+
+    @POST("orders/{orderId}/items/{itemId}/request-cancel")
+    Call<ApiResponse<Order>> requestCancelItem(
+            @Path("orderId") String orderId,
+            @Path("itemId") String itemId,
+            @Body Map<String, Object> body
+    );
+
     @POST("orders/{id}/request-temp-calculation")
     Call<ApiResponse<Order>> requestTempCalculation(@Path("id") String orderId, @Body Map<String, Object> body);
 
+    @POST("orders/pay")
+    Call<ApiResponse<Order>> payOrder(@Body Map<String, Object> body);
+
+    // ===========================
     // --- TABLE ENDPOINTS ---
+    // ===========================
     @GET("tables")
     Call<ApiResponse<List<TableItem>>> getAllTables();
 
@@ -106,22 +115,49 @@ public interface ApiService {
     @POST("tables/{id}/merge")
     Call<TableItem> mergeTable(@Path("id") String targetTableId, @Body Map<String, String> body);
 
-
-    // --- INGREDIENTS (nguyên liệu) ---
-    // Lấy tất cả nguyên liệu (API trả về wrapper { success, data: [ingredient] })
+    // ===========================
+    // --- INGREDIENT ENDPOINTS ---
+    // ===========================
     @GET("ingredients")
     Call<ApiResponse<List<Ingredient>>> getAllIngredients(@Query("status") String status, @Query("tag") String tag);
 
-    // Bếp lấy nguyên liệu (POST /ingredients/{id}/take) body: { amount: number }
     @POST("ingredients/{id}/take")
     Call<ApiResponse<Ingredient>> takeIngredient(@Path("id") String ingredientId, @Body Map<String, Object> body);
 
-    /**
-     * Helper class for sending status updates to the server.
-     * This replaces OrderApi.StatusUpdate previously used.
-     */
+    // ===========================
+    // --- HISTORY ENDPOINTS ---
+    // ===========================
+    @GET("history")
+    Call<ApiResponse<List<HistoryItem>>> getAllHistory(@QueryMap Map<String, String> filters);
+
+    @GET("history/{id}")
+    Call<ApiResponse<HistoryItem>> getHistoryById(@Path("id") String historyId);
+
+    @GET("orders/historyod")
+    Call<ApiResponse<List<HistoryItem>>> getAllOrdersHistory();
+
+    // ===========================
+    // --- REPORT ENDPOINTS ---
+    // ===========================
+    @GET("reports")
+    Call<ApiResponse<List<ReportItem>>> getAllReports();
+
+    @GET("reports/byDate")
+    Call<ApiResponse<List<ReportItem>>> getReportsByDate(@QueryMap Map<String, String> params);
+
+    @GET("reports/{id}")
+    Call<ApiResponse<ReportItem>> getReportById(@Path("id") String reportId);
+
+    @POST("reports/daily")
+    Call<ApiResponse<ReportItem>> createDailyReport(@Body Map<String, String> body);
+
+    @POST("reports/weekly")
+    Call<ApiResponse<ReportItem>> createWeeklyReport(@Body Map<String, String> body);
+
+    // ===========================
+    // --- HELPER CLASSES ---
+    // ===========================
     class StatusUpdate {
-        // public field so Gson serializes it as {"status": "..." }
         public String status;
 
         public StatusUpdate(String status) {

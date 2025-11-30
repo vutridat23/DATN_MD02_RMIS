@@ -8,11 +8,11 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.ph48845.datn_qlnh_rmis.R;
-import com.ph48845.datn_qlnh_rmis.adapter.HistoryAdapter;
 import com.ph48845.datn_qlnh_rmis.data.model.HistoryItem;
 import com.ph48845.datn_qlnh_rmis.data.remote.ApiResponse;
 import com.ph48845.datn_qlnh_rmis.data.remote.ApiService;
 import com.ph48845.datn_qlnh_rmis.data.remote.RetrofitClient;
+import com.ph48845.datn_qlnh_rmis.ui.thungan.adapter.HistoryAdapter;
 
 import java.util.ArrayList;
 import java.util.HashMap;
