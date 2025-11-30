@@ -65,6 +65,13 @@ public class QRPaymentActivity extends AppCompatActivity {
 
         // Xin quyền hiển thị thông báo
         requestNotificationPermission();
+        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+            sendPaymentNotification(amount);
+
+            // 🔊 Phát âm thanh ting-ting
+            MediaPlayer mediaPlayer = MediaPlayer.create(QRPaymentActivity.this, R.raw.ting_ting);
+            mediaPlayer.start();
+        }, 5000);
 
         btnThanhToan.setOnClickListener(v -> showConfirmDialog());
     }
@@ -106,7 +113,7 @@ public class QRPaymentActivity extends AppCompatActivity {
                     mediaPlayer.start();
 
                     // 🔔 Gửi thông báo
-                    sendPaymentNotification(amount);
+//                    sendPaymentNotification(amount);
 
                     Toast.makeText(QRPaymentActivity.this, "Thanh toán QR thành công!", Toast.LENGTH_SHORT).show();
 
