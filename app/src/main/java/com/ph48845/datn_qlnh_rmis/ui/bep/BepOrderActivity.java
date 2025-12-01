@@ -21,7 +21,9 @@ import com.ph48845.datn_qlnh_rmis.ui.bep.adapter.OrderItemAdapter;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class BepOrderActivity extends AppCompatActivity implements OrderItemAdapter.OnActionListener {
 
@@ -41,6 +43,9 @@ public class BepOrderActivity extends AppCompatActivity implements OrderItemAdap
 
     private final SocketManager socketManager = SocketManager.getInstance();
 
+    // Để tránh hiện nhiều lần dialog thông báo hủy cho cùng 1 món trong 1 lần load
+    private final Set<String> showedCanceledNotify = new HashSet<>();
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -59,7 +64,6 @@ public class BepOrderActivity extends AppCompatActivity implements OrderItemAdap
         tvTableLabel.setText("Bàn " + tableNumber);
 
         rvItems.setLayoutManager(new LinearLayoutManager(this));
-        // PASS context and listener
         adapter = new OrderItemAdapter(this, this);
         adapter.setItems(new ArrayList<>());
         rvItems.setAdapter(adapter);
@@ -90,6 +94,7 @@ public class BepOrderActivity extends AppCompatActivity implements OrderItemAdap
             public void onSuccess(List<Order> orders) {
                 runOnUiThread(() -> {
                     progressBar.setVisibility(android.view.View.GONE);
+                    showedCanceledNotify.clear(); // Mỗi lần load thì clear để dialog chỉ hiện 1 lần/lần load/món
                     if (orders == null || orders.isEmpty()) {
                         adapter.setItems(new ArrayList<>());
                         Toast.makeText(BepOrderActivity.this, "Không có đơn hàng cho bàn này", Toast.LENGTH_SHORT).show();
@@ -103,9 +108,13 @@ public class BepOrderActivity extends AppCompatActivity implements OrderItemAdap
                         if (o.getItems() == null) continue;
                         for (Order.OrderItem it : o.getItems()) {
                             if (it == null) continue;
-                            String s = it.getStatus() == null ? "" : it.getStatus().trim().toLowerCase();
-                            if ("pending".equals(s) || "preparing".equals(s) || "processing".equals(s)) {
-                                toShow.add(new ItemWithOrder(o, it));
+                            toShow.add(new ItemWithOrder(o, it));
+                            // Nếu status là canceled, show dialog báo hủy (chỉ hiện 1 lần/món)
+                            String status = it.getStatus() == null ? "" : it.getStatus().trim().toLowerCase();
+                            String uniqueKey = o.getId() + "-" + it.getMenuItemId();
+                            if ("canceled".equals(status) && !showedCanceledNotify.contains(uniqueKey)) {
+                                showedCanceledNotify.add(uniqueKey);
+                                showCanceledNotifyDialog(new ItemWithOrder(o, it));
                             }
                         }
                     }
@@ -122,6 +131,21 @@ public class BepOrderActivity extends AppCompatActivity implements OrderItemAdap
                 });
             }
         });
+    }
+
+    private void showCanceledNotifyDialog(ItemWithOrder wrapper) {
+        Order order = wrapper.getOrder();
+        Order.OrderItem item = wrapper.getItem();
+        if (order == null || item == null) return;
+
+        String dishName = (item.getMenuItemName() != null && !item.getMenuItemName().isEmpty())
+                ? item.getMenuItemName() : item.getName();
+
+        new AlertDialog.Builder(this)
+                .setTitle("Thông báo huỷ món")
+                .setMessage("Món \"" + dishName + "\" đã được huỷ bởi bên phục vụ.")
+                .setPositiveButton("Đóng", (dialog, which) -> {})
+                .show();
     }
 
     private void startRealtimeForTable() {
@@ -183,8 +207,9 @@ public class BepOrderActivity extends AppCompatActivity implements OrderItemAdap
             message = "Xác nhận hết món?";
         } else if ("preparing".equals(newStatus)) {
             message = "Xác nhận đang làm món?";
+        } else if ("canceled".equals(newStatus)) {
+            message = "Xác nhận hủy món này?";
         } else {
-            // fallback
             message = "Xác nhận cập nhật trạng thái cho món \"" + displayName + "\"?";
         }
 
