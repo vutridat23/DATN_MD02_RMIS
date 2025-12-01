@@ -47,10 +47,10 @@
 
     <!-- Nút quay lại -->
     <Button
-        android:id="@+id/btnBack"
+        android:id="@+id/btnThanhToan"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Quay lại"
+        android:text="Thanh toán"
         android:textSize="18sp"
         android:layout_alignParentBottom="true"
         android:layout_centerHorizontal="true"
