@@ -39,6 +39,8 @@ public class TableRepository {
     private static final String TAG = "TableRepository";
     private final Gson gson = new Gson();
 
+
+
     public interface RepositoryCallback<T> {
         void onSuccess(T result);
         void onError(String message);
@@ -377,5 +379,30 @@ public class TableRepository {
     private String logFailure(String logMsg, Throwable t) {
         Log.e(TAG, logMsg, t);
         return t.getMessage() != null ? t.getMessage() : "Network error";
+    }
+    public void resetTableAfterPayment(String tableId, RepositoryCallback<TableItem> callback) {
+        if (tableId == null || tableId.trim().isEmpty()) {
+            callback.onError("Invalid table id");
+            return;
+        }
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("status", "available");
+        body.put("currentOrder", null);       // bắt buộc server cho phép null
+        body.put("reservationName", null);
+        body.put("reservationPhone", null);
+        body.put("reservationAt", null);
+
+        updateTable(tableId, body, new RepositoryCallback<TableItem>() {
+            @Override
+            public void onSuccess(TableItem result) {
+                callback.onSuccess(result);
+            }
+
+            @Override
+            public void onError(String message) {
+                callback.onError(message);
+            }
+        });
     }
 }

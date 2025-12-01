@@ -607,11 +607,27 @@ public class InvoiceActivity extends AppCompatActivity {
 
         // Nhấn giữ vào card để mở menu tùy chọn, chạm nhanh để thanh toán
         final Order currentOrder = order;
-        cardView.setOnClickListener(v -> processPaymentForOrder(currentOrder));
-        cardView.setOnLongClickListener(v -> {
-            showInvoiceOptionsDialogForOrder(currentOrder);
-            return true;
+        cardView.setOnClickListener(v -> {
+            // Kiểm tra order hiện tại có hợp lệ không
+            if (currentOrder == null || currentOrder.getId() == null) {
+                Toast.makeText(InvoiceActivity.this, "Hóa đơn không hợp lệ", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            // Log để debug
+            Log.d(TAG, "Opening payment - Order ID: " + currentOrder.getId());
+            Log.d(TAG, "Table Number: " + tableNumber);
+            Log.d(TAG, "Final Amount: " + currentOrder.getFinalAmount());
+
+            // Chuyển sang màn thanh toán
+            Intent intent = new Intent(InvoiceActivity.this, ThanhToanActivity.class);
+            intent.putExtra("orderId", currentOrder.getId());
+            intent.putExtra("tableNumber", tableNumber);  // QUAN TRỌNG: phải truyền tableNumber
+            intent.putExtra("finalAmount", currentOrder.getFinalAmount());
+
+            startActivity(intent);
         });
+
     }
 
     /**

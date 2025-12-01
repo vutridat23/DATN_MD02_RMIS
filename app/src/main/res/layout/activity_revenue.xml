@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.coordinatorlayout.widget.CoordinatorLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -9,6 +10,7 @@
     <com.google.android.material.appbar.AppBarLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:fitsSystemWindows="true"
         android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar">
 
         <androidx.appcompat.widget.Toolbar
@@ -16,11 +18,8 @@
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             android:background="#2BB673"
-            app:title="Thống kê doanh thu"
-            app:titleTextColor="#FFFFFF"
-            app:navigationIcon="?attr/homeAsUpIndicator"
-            app:navigationIconTint="#FFFFFF" />
-
+            app:title="Thống kê báo cáo"
+            app:titleTextColor="#FFFFFF"/>
     </com.google.android.material.appbar.AppBarLayout>
 
     <!-- Scrollable content -->
@@ -36,13 +35,48 @@
             android:orientation="vertical"
             android:padding="16dp">
 
-            <!-- Biểu đồ cột -->
-            <com.ph48845.datn_qlnh_rmis.ui.revenue.BarChartView
-                android:id="@+id/bar_chart"
+            <!-- Chọn ngày -->
+            <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="300dp"
-                android:layout_marginBottom="24dp"
-                android:background="#FFFFFF" />
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="16dp">
+
+                <EditText
+                    android:id="@+id/etFromDate"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:hint="Từ ngày"
+                    android:focusable="false"
+                    android:padding="8dp"/>
+
+                <View
+                    android:layout_width="8dp"
+                    android:layout_height="match_parent"/>
+
+                <EditText
+                    android:id="@+id/etToDate"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:hint="Đến ngày"
+                    android:focusable="false"
+                    android:padding="8dp"/>
+
+                <View
+                    android:layout_width="8dp"
+                    android:layout_height="match_parent"/>
+
+                <Button
+                    android:id="@+id/btnSearch"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Tìm"
+                    android:backgroundTint="#2BB673"
+                    android:textColor="#FFFFFF"/>
+            </LinearLayout>
 
             <!-- Thông tin tóm tắt -->
             <androidx.cardview.widget.CardView
@@ -63,78 +97,36 @@
                         android:id="@+id/tv_invoice_count"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Số lượng hóa đơn: 45"
+                        android:text="Số lượng hóa đơn: 0"
                         android:textColor="#000000"
                         android:textSize="16sp"
-                        android:layout_marginBottom="12dp" />
+                        android:layout_marginBottom="8dp"/>
 
                     <TextView
                         android:id="@+id/tv_total_revenue"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Tổng cộng doanh thu: 17.000.000₫"
+                        android:text="Tổng doanh thu: 0 VND"
                         android:textColor="#000000"
                         android:textSize="16sp"
-                        android:textStyle="bold" />
-
+                        android:textStyle="bold"/>
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
-            <!-- Spacer for bottom navigation -->
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="80dp" />
+            <!-- Danh sách chi tiết báo cáo -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Chi tiết báo cáo"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="#2BB673"
+                android:paddingBottom="8dp"/>
 
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvRevenueDetails"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"/>
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
-
-    <!-- Loading overlay -->
-    <ProgressBar
-        android:id="@+id/progress_bar_loading"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:layout_gravity="center"
-        android:visibility="gone" />
-
-    <!-- Bottom navigation bar -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="60dp"
-        android:layout_gravity="bottom"
-        android:background="#FFFFFF"
-        android:orientation="horizontal"
-        android:gravity="center"
-        android:elevation="8dp"
-        android:padding="8dp">
-
-        <ImageView
-            android:id="@+id/nav_home"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:layout_weight="1"
-            android:src="@drawable/baseline_menu_24"
-            android:contentDescription="Home"
-            android:tint="#808080" />
-
-        <ImageView
-            android:id="@+id/nav_list"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:layout_weight="1"
-            android:src="@drawable/baseline_menu_24"
-            android:contentDescription="List"
-            android:tint="#808080" />
-
-        <ImageView
-            android:id="@+id/nav_profile"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:layout_weight="1"
-            android:src="@drawable/baseline_account_circle_24"
-            android:contentDescription="Profile"
-            android:tint="#2BB673" />
-
-    </LinearLayout>
-
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
-

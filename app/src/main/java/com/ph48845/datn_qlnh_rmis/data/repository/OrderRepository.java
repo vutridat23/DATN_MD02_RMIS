@@ -5,7 +5,6 @@ import android.util.Log;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
 import com.ph48845.datn_qlnh_rmis.data.remote.ApiResponse;
 import com.ph48845.datn_qlnh_rmis.data.remote.ApiService;
-import com.ph48845.datn_qlnh_rmis.data.remote.OrderApi;
 import com.ph48845.datn_qlnh_rmis.data.remote.RetrofitClient;
 
 import java.io.IOException;
@@ -37,6 +36,7 @@ public class OrderRepository {
     // ===== Callback interface giữ nguyên =====
     public interface RepositoryCallback<T> {
         void onSuccess(T result);
+
         void onError(String message);
     }
 
@@ -94,7 +94,8 @@ public class OrderRepository {
                             callback.onSuccess(list);
                         } else {
                             String msg = "Server returned empty order list";
-                            if (apiResponse.getMessage() != null) msg += ": " + apiResponse.getMessage();
+                            if (apiResponse.getMessage() != null)
+                                msg += ": " + apiResponse.getMessage();
                             callback.onError(msg);
                         }
                     } else {
@@ -104,6 +105,7 @@ public class OrderRepository {
                     callback.onError(buildHttpError("getOrdersByTableNumber", response));
                 }
             }
+
             @Override
             public void onFailure(Call<ApiResponse<List<Order>>> call, Throwable t) {
                 callback.onError(logFailure("getOrdersByTableNumber onFailure", t));
@@ -125,6 +127,7 @@ public class OrderRepository {
                     callback.onError(buildHttpError("deleteOrder", response));
                 }
             }
+
             @Override
             public void onFailure(Call<Void> call, Throwable t) {
                 callback.onError(logFailure("deleteOrder onFailure", t));
@@ -188,7 +191,8 @@ public class OrderRepository {
                     if (o != null) {
                         try {
                             if (o.getTableNumber() == fromTableNumber) toMove.add(o);
-                        } catch (Exception ignored) {}
+                        } catch (Exception ignored) {
+                        }
                     }
                 }
 
@@ -254,7 +258,8 @@ public class OrderRepository {
         String msg = "HTTP " + response.code() + " - " + response.message();
         try {
             if (response.errorBody() != null) msg += " - " + response.errorBody().string();
-        } catch (IOException ignored) {}
+        } catch (IOException ignored) {
+        }
         Log.e(TAG, action + " error: " + msg);
         return msg;
     }
@@ -263,4 +268,74 @@ public class OrderRepository {
         Log.e(TAG, logMsg, t);
         return t.getMessage() != null ? t.getMessage() : "Network error";
     }
+
+    public void payOrder(String orderId,
+                         String paymentMethod,
+                         double amountCustomerGiven,
+                         RepositoryCallback<Order> callback) {
+
+        if (orderId == null || orderId.trim().isEmpty()) {
+            callback.onError("Invalid orderId");
+            return;
+        }
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("orderId", orderId);                       // ID hóa đơn
+        body.put("paymentMethod", paymentMethod != null ? paymentMethod : "Tiền mặt");
+        // gửi cả 2 trường paidAmount & amountCustomerGiven để backend ko bị thiếu dữ liệu
+        body.put("paidAmount", amountCustomerGiven);        // backend cũ có thể gọi là paidAmount
+        body.put("amountCustomerGiven", amountCustomerGiven);// backend mới có thể dùng amountCustomerGiven
+
+        api.payOrder(body).enqueue(new Callback<ApiResponse<Order>>() {
+            @Override
+            public void onResponse(Call<ApiResponse<Order>> call, Response<ApiResponse<Order>> response) {
+                try {
+                    if (response.isSuccessful()) {
+                        ApiResponse<Order> apiResp = response.body();
+                        if (apiResp != null) {
+                            if (apiResp.isSuccess()) {
+                                callback.onSuccess(apiResp.getData());
+                            } else {
+                                // server trả success=false kèm message
+                                String msg = apiResp.getMessage() != null ? apiResp.getMessage() : "Thanh toán thất bại";
+                                callback.onError(msg);
+                            }
+                        } else {
+                            // response successful nhưng body null (lỗi server)
+                            String err = "Server trả về body rỗng (200).";
+                            // Try read errorBody (rare on 200)
+                            callback.onError(err);
+                        }
+                    } else {
+                        // Không phải 2xx -> đọc errorBody nếu có để debug
+                        String errBody = null;
+                        try {
+                            if (response.errorBody() != null) {
+                                errBody = response.errorBody().string();
+                            }
+                        } catch (IOException ioe) {
+                            errBody = "Không thể đọc errorBody: " + ioe.getMessage();
+                        }
+                        String msg = "HTTP " + response.code() + " - " + response.message();
+                        if (errBody != null && !errBody.isEmpty()) msg += " - " + errBody;
+                        Log.e(TAG, "payOrder failed: " + msg);
+                        callback.onError(msg);
+                    }
+                } catch (Exception ex) {
+                    Log.e(TAG, "payOrder onResponse exception", ex);
+                    callback.onError("Lỗi xử lý response: " + ex.getMessage());
+                }
+            }
+
+            @Override
+            public void onFailure(Call<ApiResponse<Order>> call, Throwable t) {
+                String err = t != null && t.getMessage() != null ? t.getMessage() : "Lỗi kết nối";
+                Log.e(TAG, "payOrder onFailure", t);
+                callback.onError(err);
+            }
+        });
+    }
+
+
+
 }
