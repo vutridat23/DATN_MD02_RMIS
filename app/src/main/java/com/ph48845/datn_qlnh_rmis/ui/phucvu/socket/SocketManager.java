@@ -1,8 +1,7 @@
 package com.ph48845.datn_qlnh_rmis.ui.phucvu.socket;
 
-
-
-
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 
 import org.json.JSONArray;
@@ -11,12 +10,17 @@ import org.json.JSONObject;
 
 import java.net.URISyntaxException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.lang.reflect.Method;
 
 import io.socket.client.IO;
 import io.socket.client.Socket;
 
 /**
- * Robust Socket.IO manager: parses String/JSONObject/JSONArray payloads and provides emit/join helpers.
+ * SocketManager: use default transports (websocket + polling) by default to be robust in
+ * environments where websocket is blocked. Keeps detailed logging for connect errors.
+ *
+ * Note: when emitting table events to listener, we now inject "eventName" into payload
+ * so clients can distinguish between table_reserved / table_auto_released / table_status_changed.
  */
 public class SocketManager {
 
@@ -26,8 +30,11 @@ public class SocketManager {
     private String baseUrl;
     private final AtomicBoolean connected = new AtomicBoolean(false);
 
-    // remember last requested join table (optional convenience)
     private Integer lastJoinedTable = null;
+
+    private boolean attemptedFallback = false;
+    private int fallbackRetryAttempts = 0;
+    private static final int MAX_FALLBACK_RETRIES = 3;
 
     public interface OnEventListener {
         void onOrderCreated(JSONObject payload);
@@ -35,6 +42,7 @@ public class SocketManager {
         void onConnect();
         void onDisconnect();
         void onError(Exception e);
+        default void onTableUpdated(JSONObject payload) { /* no-op */ }
     }
 
     private OnEventListener listener;
@@ -46,23 +54,45 @@ public class SocketManager {
         return instance;
     }
 
-    /**
-     * Initialize socket with base URL (e.g. "http://192.168.1.84:3000")
-     */
     public synchronized void init(String baseUrl) {
         this.baseUrl = baseUrl;
+        attemptedFallback = false;
+        fallbackRetryAttempts = 0;
         Log.d(TAG, "init socket with baseUrl=" + baseUrl);
-        if (socket != null) {
-            try { socket.off(); socket.close(); } catch (Exception ignored) {}
-            socket = null;
-        }
+        closeExistingSocket();
+
         try {
-            IO.Options opts = new IO.Options();
+            IO.Options opts = buildDefaultOptions();
             socket = IO.socket(baseUrl, opts);
             setupListeners();
         } catch (URISyntaxException e) {
-            Log.e(TAG, "init socket failed: " + e.getMessage(), e);
+            Log.e(TAG, "init socket failed (URISyntaxException): " + e.getMessage(), e);
             if (listener != null) listener.onError(e);
+        } catch (Exception e) {
+            Log.e(TAG, "init socket failed (unexpected): " + e.getMessage(), e);
+            if (listener != null) listener.onError(e);
+        }
+    }
+
+    private IO.Options buildDefaultOptions() {
+        IO.Options opts = new IO.Options();
+        opts.transports = new String[] { "websocket", "polling" };
+        opts.reconnection = true;
+        opts.reconnectionAttempts = Integer.MAX_VALUE;
+        opts.reconnectionDelay = 1000;
+        opts.reconnectionDelayMax = 5000;
+        opts.timeout = 30000;
+        opts.forceNew = false;
+        return opts;
+    }
+
+    private void closeExistingSocket() {
+        if (socket != null) {
+            try {
+                socket.off();
+                socket.close();
+            } catch (Exception ignored) {}
+            socket = null;
         }
     }
 
@@ -71,22 +101,71 @@ public class SocketManager {
 
         socket.on(Socket.EVENT_CONNECT, args -> {
             connected.set(true);
-            Log.d(TAG, "socket connected");
+            String sid = safeSocketId();
+            Log.d(TAG, "socket connected, id=" + sid);
+            attemptedFallback = false;
+            fallbackRetryAttempts = 0;
             if (listener != null) listener.onConnect();
         });
 
         socket.on(Socket.EVENT_DISCONNECT, args -> {
             connected.set(false);
-            Log.d(TAG, "socket disconnected");
+            String sid = safeSocketId();
+            Log.d(TAG, "socket disconnected, id=" + sid);
             if (listener != null) listener.onDisconnect();
         });
 
         socket.on(Socket.EVENT_CONNECT_ERROR, args -> {
-            Log.w(TAG, "socket connect error: " + (args != null && args.length > 0 ? args[0] : "null"));
-            if (listener != null) listener.onError(new Exception(String.valueOf(args != null && args.length > 0 ? args[0] : "connect_error")));
+            Throwable t = null;
+            if (args != null && args.length > 0 && args[0] instanceof Throwable) t = (Throwable) args[0];
+
+            String provided = args != null && args.length > 0 ? String.valueOf(args[0]) : "null";
+            String sid = safeSocketId();
+            String summary = "socket connect error: " + provided + " | socketId=" + sid + " | connected=" + (socket != null && socket.connected());
+
+            if (t != null) {
+                Log.w(TAG, summary, t);
+                try { Log.w(TAG, "connect_error stacktrace: " + Log.getStackTraceString(t)); } catch (Exception ignored) {}
+            } else {
+                Log.w(TAG, summary);
+            }
+
+            if (listener != null) {
+                try { listener.onError(new Exception(summary, t)); } catch (Exception ignored) {}
+            }
+
+            if (!attemptedFallback) {
+                attemptedFallback = true;
+                Log.i(TAG, "first connect error seen - scheduling a short retry");
+                new Handler(Looper.getMainLooper()).postDelayed(this::attemptFallbackConnect, 700);
+                return;
+            }
+
+            if (attemptedFallback && fallbackRetryAttempts < MAX_FALLBACK_RETRIES) {
+                fallbackRetryAttempts++;
+                long delay = 700L * fallbackRetryAttempts;
+                Log.i(TAG, "scheduling retry #" + fallbackRetryAttempts + " after " + delay + "ms");
+                new Handler(Looper.getMainLooper()).postDelayed(this::attemptFallbackConnect, delay);
+            } else {
+                Log.w(TAG, "connect_error: retries exhausted or not attempting further");
+            }
         });
 
-        // Robust handlers for common order events
+        socket.on("connect_timeout", args -> {
+            String details = args != null && args.length > 0 ? String.valueOf(args[0]) : "connect_timeout";
+            Log.w(TAG, "socket connect timeout: " + details + " | socketId=" + safeSocketId());
+            if (listener != null) listener.onError(new Exception("connect_timeout: " + details));
+        });
+
+        socket.on("message", args -> {
+            try {
+                JSONObject p = parseArgsToJson(args);
+                Log.d(TAG, "\"message\" event received: " + (p != null ? p.toString() : "null"));
+            } catch (Exception e) {
+                Log.w(TAG, "\"message\" parse failed", e);
+            }
+        });
+
         socket.on("order_created", args -> {
             try {
                 JSONObject payload = parseArgsToJson(args);
@@ -107,7 +186,6 @@ public class SocketManager {
             }
         });
 
-        // Generic names some servers might use
         socket.on("order", args -> {
             try {
                 JSONObject payload = parseArgsToJson(args);
@@ -118,65 +196,74 @@ public class SocketManager {
             }
         });
 
-        // NOTE: Socket.EVENT_MESSAGE is package-private in some socket.io-client versions.
-        // Use the literal event name "message" instead to avoid "not public" access errors.
-        socket.on("message", args -> {
-            try {
-                JSONObject p = parseArgsToJson(args);
-                Log.d(TAG, "\"message\" event received: " + (p != null ? p.toString() : "null"));
-            } catch (Exception e) {
-                Log.w(TAG, "\"message\" parse failed", e);
-            }
-        });
+        socket.on("table_reserved", args -> handleTableEvent("table_reserved", args));
+        socket.on("table_auto_released", args -> handleTableEvent("table_auto_released", args));
+        socket.on("table_status_changed", args -> handleTableEvent("table_status_changed", args));
     }
 
-    /**
-     * Try to convert socket.io args[] into a JSONObject in a forgiving way:
-     * - If args[0] instanceof JSONObject => return it
-     * - If args[0] instanceof JSONArray => wrap in { "items": [...] }
-     * - If args[0] instanceof String => try to parse as JSON (object or array)
-     * - Otherwise -> null
-     */
+    private void handleTableEvent(String name, Object[] args) {
+        try {
+            JSONObject payload = parseArgsToJson(args);
+            if (payload == null) payload = new JSONObject();
+            try { payload.put("eventName", name); } catch (JSONException ignored) {}
+            Log.d(TAG, name + " received: " + (payload != null ? payload.toString() : "null") + " | socketId=" + safeSocketId());
+            if (listener != null) listener.onTableUpdated(payload);
+        } catch (Exception e) {
+            Log.w(TAG, name + " handle failed", e);
+        }
+    }
+
+    private void attemptFallbackConnect() {
+        try {
+            Log.i(TAG, "attemptFallbackConnect() - retrying connect with default transports");
+            closeExistingSocket();
+            IO.Options opts = buildDefaultOptions();
+            socket = IO.socket(baseUrl, opts);
+            setupListeners();
+            socket.connect();
+            Log.i(TAG, "attemptFallbackConnect: connect() called, socketId=" + safeSocketId());
+        } catch (Exception e) {
+            Log.w(TAG, "fallback connect attempt failed", e);
+            if (listener != null) listener.onError(e);
+        }
+    }
+
     private JSONObject parseArgsToJson(Object[] args) {
         if (args == null || args.length == 0 || args[0] == null) return null;
         Object a0 = args[0];
         try {
-            if (a0 instanceof JSONObject) {
-                return (JSONObject) a0;
-            } else if (a0 instanceof JSONArray) {
+            if (a0 instanceof JSONObject) return (JSONObject) a0;
+            if (a0 instanceof JSONArray) {
                 JSONObject wrapper = new JSONObject();
                 wrapper.put("items", (JSONArray) a0);
                 return wrapper;
-            } else if (a0 instanceof String) {
-                String s = (String) a0;
-                s = s.trim();
-                if (s.startsWith("{")) {
-                    return new JSONObject(s);
-                } else if (s.startsWith("[")) {
+            }
+            if (a0 instanceof String) {
+                String s = ((String) a0).trim();
+                if (s.startsWith("{")) return new JSONObject(s);
+                if (s.startsWith("[")) {
                     JSONArray arr = new JSONArray(s);
                     JSONObject wrapper = new JSONObject();
                     wrapper.put("items", arr);
                     return wrapper;
-                } else {
+                }
+                JSONObject wrapper = new JSONObject();
+                wrapper.put("raw", s);
+                return wrapper;
+            }
+            String s = String.valueOf(a0);
+            if (s != null) {
+                s = s.trim();
+                if (s.startsWith("{")) return new JSONObject(s);
+                if (s.startsWith("[")) {
+                    JSONArray arr = new JSONArray(s);
                     JSONObject wrapper = new JSONObject();
-                    wrapper.put("raw", s);
+                    wrapper.put("items", arr);
                     return wrapper;
                 }
-            } else {
-                // Could be a Map (Gson LinkedTreeMap) or POJO; try toString -> parse
-                try {
-                    String s = String.valueOf(a0);
-                    if (s != null) {
-                        s = s.trim();
-                        if (s.startsWith("{")) return new JSONObject(s);
-                        if (s.startsWith("[")) {
-                            JSONArray arr = new JSONArray(s);
-                            JSONObject wrapper = new JSONObject();
-                            wrapper.put("items", arr);
-                            return wrapper;
-                        }
-                    }
-                } catch (Exception ignored) {}
+                JSONObject wrapper = new JSONObject();
+                wrapper.put("raw", s);
+                return wrapper;
             }
         } catch (JSONException je) {
             Log.w(TAG, "parseArgsToJson JSONException", je);
@@ -190,13 +277,24 @@ public class SocketManager {
         Log.d(TAG, "connect() called, socket=" + socket + ", baseUrl=" + baseUrl + ", connected=" + connected.get());
         if (socket == null && baseUrl != null) init(baseUrl);
         if (socket != null && !socket.connected()) {
-            socket.connect();
-            Log.d(TAG, "socket.connect() called");
+            try {
+                socket.connect();
+                Log.d(TAG, "socket.connect() called, id=" + safeSocketId());
+            } catch (Exception e) {
+                Log.w(TAG, "socket.connect() threw", e);
+                if (listener != null) listener.onError(e);
+            }
         }
     }
 
     public synchronized void disconnect() {
-        if (socket != null && socket.connected()) socket.disconnect();
+        if (socket != null && socket.connected()) {
+            try {
+                socket.disconnect();
+            } catch (Exception e) {
+                Log.w(TAG, "socket.disconnect() threw", e);
+            }
+        }
     }
 
     public boolean isConnected() {
@@ -207,9 +305,6 @@ public class SocketManager {
         this.listener = listener;
     }
 
-    /**
-     * Generic emit helper - you can emit primitives, String, JSONObject, int, etc.
-     */
     public void emitEvent(String event, Object payload) {
         try {
             if (socket != null) {
@@ -223,11 +318,6 @@ public class SocketManager {
         }
     }
 
-    /**
-     * Convenience: request to join a table room.
-     * Server may expect different event names; this method emits a few common ones.
-     * Adjust according to your server implementation.
-     */
     public void joinTable(int tableNumber) {
         try {
             lastJoinedTable = tableNumber;
@@ -238,20 +328,41 @@ public class SocketManager {
             socket.emit("join_table", tableNumber);
             socket.emit("join", tableNumber);
             socket.emit("subscribeOrder", tableNumber);
-            Log.d(TAG, "joinTable: emitted join events for table=" + tableNumber);
+            Log.d(TAG, "joinTable: emitted join events for table=" + tableNumber + " | socketId=" + safeSocketId());
         } catch (Exception e) {
             Log.w(TAG, "joinTable failed", e);
         }
     }
 
-    /**
-     * Overload: use lastJoinedTable if available (convenience).
-     */
     public void joinTable() {
         if (lastJoinedTable == null) {
             Log.w(TAG, "joinTable(): no table set previously; nothing to do");
             return;
         }
         joinTable(lastJoinedTable);
+    }
+
+    private String safeSocketId() {
+        try {
+            if (socket == null) return "null";
+            String id = socket.id();
+            return id != null ? id : "null";
+        } catch (Throwable ignored) {
+            try {
+                if (socket == null) return "null";
+                Method m = socket.getClass().getMethod("id");
+                Object r = m.invoke(socket);
+                return r != null ? String.valueOf(r) : "null";
+            } catch (Throwable t) {
+                return "unknown";
+            }
+        }
+    }
+
+    private Throwable getRootCause(Throwable t) {
+        if (t == null) return null;
+        Throwable root = t;
+        while (root.getCause() != null && root.getCause() != root) root = root.getCause();
+        return root;
     }
 }

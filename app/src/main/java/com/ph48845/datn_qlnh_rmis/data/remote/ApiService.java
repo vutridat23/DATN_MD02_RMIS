@@ -97,6 +97,13 @@ public interface ApiService {
     Call<ApiResponse<Order>> requestTempCalculation(@Path("id") String orderId, @Body Map<String, Object> body);
 
     // --- TABLE ENDPOINTS ---
+
+    @POST("tables/{id}/reserve")
+    Call<TableItem> reserveTable(@Path("id") String id, @Body Map<String, Object> body);
+
+    // Tùy chọn: nếu bạn không có endpoint /tables/{id}/reserve, bạn có thể dùng updateTable:
+    // @PUT("tables/{id}")
+    // Call<TableItem> updateTable(@Path("id") String id, @Body Map<String, Object> body);
     @GET("tables")
     Call<ApiResponse<List<TableItem>>> getAllTables();
 

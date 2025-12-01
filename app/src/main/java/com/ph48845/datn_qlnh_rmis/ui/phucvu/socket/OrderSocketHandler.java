@@ -66,6 +66,40 @@ public class OrderSocketHandler {
                 public void onError(Exception e) {
                     Log.w(TAG, "socket error: " + (e != null ? e.getMessage() : "null"), e);
                 }
+
+                @Override
+                public void onTableUpdated(JSONObject payload) {
+                    // Handle table-related socket events (reserved / auto_released / status_changed).
+                    Log.d(TAG, "onTableUpdated received: " + (payload != null ? payload.toString() : "null"));
+                    try {
+                        if (payload == null) {
+                            if (listener != null) listener.onNoMatchReload();
+                            return;
+                        }
+
+                        int payloadTableNumber = -1;
+                        // payload may include tableNumber or table
+                        if (payload.has("tableNumber")) payloadTableNumber = payload.optInt("tableNumber", -1);
+                        else if (payload.has("table")) payloadTableNumber = payload.optInt("table", -1);
+
+                        // If server sends tableId instead of tableNumber, we cannot match by number here.
+                        // In that case, we trigger a reload to be safe.
+                        if (payloadTableNumber != -1) {
+                            if (payloadTableNumber == tableNumber) {
+                                if (listener != null) listener.onNoMatchReload();
+                            } else {
+                                // Not for this table -> ignore
+                                Log.d(TAG, "table update for other table: " + payloadTableNumber);
+                            }
+                        } else {
+                            // No tableNumber in payload -> best effort: ask client to reload
+                            if (listener != null) listener.onNoMatchReload();
+                        }
+                    } catch (Exception ex) {
+                        Log.w(TAG, "onTableUpdated handler failed", ex);
+                        if (listener != null) listener.onNoMatchReload();
+                    }
+                }
             });
             socketManager.connect();
         } catch (Exception e) {

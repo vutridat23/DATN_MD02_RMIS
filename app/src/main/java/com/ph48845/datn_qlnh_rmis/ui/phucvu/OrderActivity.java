@@ -113,7 +113,7 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
             });
         }
 
-        // load persisted notes (both normal notes and cancel notes) before anything
+        // load persisted notes (both normal notes and cancel notes)
         loadNotesFromPrefs();
 
         menuRepository = new MenuRepository();
@@ -128,7 +128,6 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         if (extraSocket != null && !extraSocket.trim().isEmpty()) socketUrl = extraSocket.trim();
 
         rvOrderedList.setLayoutManager(new LinearLayoutManager(this));
-        // Pass 'this' as NoteStore so adapter can prefill/save cancel reasons into cancelNotesMap via prefix "cancel:"
         orderedAdapter = new OrderAdapter(new ArrayList<>(), item -> {
             if (!isFinishing() && !isDestroyed()) {
                 runOnUiThread(() -> Toast.makeText(OrderActivity.this, "Món: " + item.getName(), Toast.LENGTH_SHORT).show());
@@ -140,7 +139,6 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         menuAdapter = new MenuAdapter(new ArrayList<>(), this);
         rvMenuList.setAdapter(menuAdapter);
 
-        // New handlers
         longPressHandler = new MenuLongPressHandler(this, rvMenuList, menuAdapter, this);
         longPressHandler.setup();
 
@@ -252,7 +250,6 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
                         return;
                     }
 
-                    // Flatten items from all orders, preserving parent order id on each OrderItem
                     List<OrderItem> flattened = new ArrayList<>();
                     for (Order o : filtered) {
                         if (o == null || o.getItems() == null) continue;
@@ -261,16 +258,14 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
                             if (oi == null) continue;
                             try {
                                 oi.normalize();
-                                // Ensure we extract cancelReason even if it's stored in nested raw map
                                 ensureCancelReasonFromRaw(oi);
                             } catch (Exception ignored) {}
-                            // preserve cancelReason and status because oi is the server object
                             oi.setParentOrderId(orderId);
                             flattened.add(oi);
                         }
                     }
 
-                    // Apply locally persisted cancelReasons (cancelNotesMap) if server didn't provide them
+                    // Apply locally persisted cancelReasons if server didn't provide them
                     try {
                         for (OrderItem oi : flattened) {
                             if (oi == null) continue;
@@ -308,19 +303,13 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         });
     }
 
-    /**
-     * Try to extract cancelReason from possible locations:
-     * - direct field (getCancelReason)
-     * - nested menuItemRaw map (key: cancelReason, cancel_reason, reason)
-     * - fallback: leave as-is
-     */
     @SuppressWarnings("unchecked")
     private void ensureCancelReasonFromRaw(OrderItem oi) {
         try {
             if (oi == null) return;
             String cr = null;
             try { cr = oi.getCancelReason(); } catch (Exception ignored) {}
-            if (cr != null && !cr.trim().isEmpty()) return; // already present
+            if (cr != null && !cr.trim().isEmpty()) return;
 
             Object raw = null;
             try { raw = oi.getMenuItemRaw(); } catch (Exception ignored) {}
@@ -338,7 +327,6 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
                 }
             }
 
-            // Also try reading a raw field on the OrderItem map itself via toString (heuristic)
             try {
                 String repr = oi.toString();
                 if (repr != null && repr.contains("cancelReason")) {
@@ -357,9 +345,6 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         } catch (Exception ignored) {}
     }
 
-    // MenuAdapter.OnMenuClickListener implementations (including overloads for compatibility)
-
-    @Override
     public void onAddMenuItem(MenuItem menu) {
         if (menu == null) return;
         int cur = addQtyMap.getOrDefault(menu.getId(), 0) + 1;
@@ -368,7 +353,6 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         if (btnConfirm != null) btnConfirm.setEnabled(!addQtyMap.isEmpty());
     }
 
-    @Override
     public void onRemoveMenuItem(MenuItem menu) {
         if (menu == null) return;
         int cur = addQtyMap.getOrDefault(menu.getId(), 0);
@@ -381,7 +365,6 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         if (btnConfirm != null) btnConfirm.setEnabled(!addQtyMap.isEmpty());
     }
 
-    // Compatibility overloads (NO @Override: prevents "does not override" if interface lacks these)
     public void onAddMenuItem(MenuItem menu, int qty) {
         if (menu == null) return;
         int cur = addQtyMap.getOrDefault(menu.getId(), 0) + qty;
@@ -422,7 +405,6 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
     private void confirmAddItems() {
         OrderHelper.showConfirmationDialog(this, addQtyMap, notesMap, menuAdapter, (confirmed) -> {
             if (!confirmed) return;
-            // proceed: fetch existing orders, then merge/create
             runOnUiThread(() -> {
                 if (progressBar != null) progressBar.setVisibility(View.VISIBLE);
                 if (btnConfirm != null) btnConfirm.setEnabled(false);
@@ -484,7 +466,6 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
 
                 @Override
                 public void onError(String message) {
-                    // couldn't fetch -> create new
                     OrderHelper.createNewOrderFromAddMap(addQtyMap, notesMap, menuAdapter, tableNumber, fakeServerId, fakeCashierId, orderRepository, new OrderHelper.OrderCallback() {
                         @Override
                         public void onSuccess() {
@@ -512,9 +493,6 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         });
     }
 
-    /**
-     * OrderSocketHandler.Listener implementations
-     */
     @Override
     public void onItemStatusMatched(String candidateId, String status) {
         try {
@@ -544,11 +522,6 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         Log.d(TAG, "socket disconnected (activity)");
     }
 
-    /**
-     * MenuLongPressHandler.NoteStore implementations
-     * (simple local map persisted to prefs). Accepts keys both plain (menu notes)
-     * and "cancel:<id>" (cancel reasons).
-     */
     @Override
     public String getNoteForMenu(String menuId) {
         if (menuId == null) return "";
@@ -584,66 +557,52 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
     private void loadNotesFromPrefs() {
         try {
             SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-            String json = prefs.getString(NOTES_KEY, null);
-            if (json != null && !json.isEmpty()) {
-                JSONObject o = new JSONObject(json);
-                Iterator<String> keys = o.keys();
-                while (keys.hasNext()) {
-                    String k = keys.next();
-                    String v = o.optString(k, "");
-                    if (k != null && !k.isEmpty() && v != null) notesMap.put(k, v);
-                }
-            }
-        } catch (JSONException e) {
-            Log.w(TAG, "loadNotesFromPrefs (notes) failed: " + e.getMessage());
-        } catch (Exception ignored) {}
+            loadMapFromPrefs(prefs, NOTES_KEY, notesMap);
+            loadMapFromPrefs(prefs, CANCEL_NOTES_KEY, cancelNotesMap);
+        } catch (Exception e) {
+            Log.w(TAG, "loadNotesFromPrefs failed: " + e.getMessage(), e);
+        }
+    }
 
+    private void loadMapFromPrefs(SharedPreferences prefs, String key, Map<String, String> dest) {
+        if (prefs == null || key == null || dest == null) return;
+        String json = prefs.getString(key, null);
+        if (json == null || json.isEmpty()) return;
         try {
-            SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-            String json = prefs.getString(CANCEL_NOTES_KEY, null);
-            if (json != null && !json.isEmpty()) {
-                JSONObject o = new JSONObject(json);
-                Iterator<String> keys = o.keys();
-                while (keys.hasNext()) {
-                    String k = keys.next();
-                    String v = o.optString(k, "");
-                    if (k != null && !k.isEmpty() && v != null) cancelNotesMap.put(k, v);
-                }
+            JSONObject o = new JSONObject(json);
+            Iterator<String> keys = o.keys();
+            while (keys.hasNext()) {
+                String k = keys.next();
+                String v = o.optString(k, "");
+                if (k != null && !k.isEmpty() && v != null) dest.put(k, v);
             }
-        } catch (JSONException e) {
-            Log.w(TAG, "loadNotesFromPrefs (cancel notes) failed: " + e.getMessage());
-        } catch (Exception ignored) {}
+        } catch (JSONException je) {
+            Log.w(TAG, "loadMapFromPrefs(" + key + ") failed: " + je.getMessage());
+        }
     }
 
     private void saveNotesToPrefs() {
         try {
-            JSONObject o = new JSONObject();
-            for (Map.Entry<String, String> e : notesMap.entrySet()) {
-                String k = e.getKey();
-                String v = e.getValue();
-                if (k != null && !k.isEmpty() && v != null) {
-                    o.put(k, v);
-                }
-            }
             SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-            prefs.edit().putString(NOTES_KEY, o.toString()).apply();
-        } catch (JSONException e) {
-            Log.w(TAG, "saveNotesToPrefs (notes) failed: " + e.getMessage());
-        } catch (Exception ignored) {}
+            saveMapToPrefs(prefs, NOTES_KEY, notesMap);
+            saveMapToPrefs(prefs, CANCEL_NOTES_KEY, cancelNotesMap);
+        } catch (Exception e) {
+            Log.w(TAG, "saveNotesToPrefs failed: " + e.getMessage(), e);
+        }
+    }
 
+    private void saveMapToPrefs(SharedPreferences prefs, String key, Map<String, String> src) {
+        if (prefs == null || key == null) return;
         try {
             JSONObject o = new JSONObject();
-            for (Map.Entry<String, String> e : cancelNotesMap.entrySet()) {
+            for (Map.Entry<String, String> e : src.entrySet()) {
                 String k = e.getKey();
                 String v = e.getValue();
-                if (k != null && !k.isEmpty() && v != null) {
-                    o.put(k, v);
-                }
+                if (k != null && !k.isEmpty() && v != null) o.put(k, v);
             }
-            SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-            prefs.edit().putString(CANCEL_NOTES_KEY, o.toString()).apply();
-        } catch (JSONException e) {
-            Log.w(TAG, "saveNotesToPrefs (cancel notes) failed: " + e.getMessage());
-        } catch (Exception ignored) {}
+            prefs.edit().putString(key, o.toString()).apply();
+        } catch (JSONException je) {
+            Log.w(TAG, "saveMapToPrefs(" + key + ") failed: " + je.getMessage());
+        }
     }
 }

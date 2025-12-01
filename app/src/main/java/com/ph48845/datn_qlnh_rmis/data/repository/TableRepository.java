@@ -33,6 +33,7 @@ import retrofit2.Response;
  * - Tất cả phương thức public nhận callback giờ tạo một safe callback (safeCb) khi caller truyền callback == null,
  *   để tránh NullPointerException khi repository gọi safeCb.onSuccess/onError.
  * - performFallbackMerge, mergeTables, updateTable, getAllTables, getTableById đều dùng safeCb.
+ * - Thêm reserveTable(...) để gọi endpoint POST /tables/{id}/reserve
  */
 public class TableRepository {
 
@@ -256,6 +257,125 @@ public class TableRepository {
             @Override
             public void onFailure(Call<TableItem> call, Throwable t) {
                 Log.e(TAG, "updateTable onFailure", t);
+                safeCb.onError(t.getMessage() != null ? t.getMessage() : "Network error");
+            }
+        });
+    }
+
+    /**
+     * NEW: reserveTable - gọi endpoint POST /tables/{id}/reserve
+     * body có thể chứa reservationName, reservationPhone, reservationAt
+     */
+    public void reserveTable(String tableId, Map<String, Object> body, RepositoryCallback<TableItem> callback) {
+        final RepositoryCallback<TableItem> safeCb = callback != null ? callback : new RepositoryCallback<TableItem>() {
+            @Override
+            public void onSuccess(TableItem result) { /* no-op */ }
+
+            @Override
+            public void onError(String message) {
+                Log.w(TAG, "reserveTable called without callback. Error: " + message);
+            }
+        };
+
+        if (tableId == null || tableId.trim().isEmpty()) {
+            safeCb.onError("Invalid table id");
+            return;
+        }
+
+        Call<TableItem> call = RetrofitClient.getInstance().getApiService().reserveTable(tableId, body);
+        call.enqueue(new Callback<TableItem>() {
+            @Override
+            public void onResponse(Call<TableItem> call, Response<TableItem> response) {
+                try {
+                    if (response.isSuccessful()) {
+                        TableItem t = response.body();
+                        if (t != null) {
+                            t.normalize();
+                            safeCb.onSuccess(t);
+                            return;
+                        }
+
+                        // success but body empty -> try to read raw
+                        String raw = null;
+                        try {
+                            okhttp3.Response rawResp = response.raw();
+                            if (rawResp != null && rawResp.body() != null) {
+                                raw = rawResp.body().string();
+                            }
+                        } catch (Exception ex) {
+                            Log.w(TAG, "Failed to read raw response body (reserve): " + ex.getMessage());
+                        }
+
+                        if (raw == null || raw.isEmpty()) {
+                            String msg = "Empty body on success (HTTP " + response.code() + ")";
+                            Log.w(TAG, "reserveTable empty body: " + msg);
+                            safeCb.onError(msg);
+                            return;
+                        }
+
+                        // Try parse as ApiResponse<TableItem>
+                        try {
+                            Type wrapperType = new TypeToken<ApiResponse<TableItem>>() {}.getType();
+                            ApiResponse<TableItem> apiResp = gson.fromJson(raw, wrapperType);
+                            if (apiResp != null && apiResp.getData() != null) {
+                                TableItem parsed = apiResp.getData();
+                                parsed.normalize();
+                                safeCb.onSuccess(parsed);
+                                return;
+                            }
+                        } catch (Exception ex) {
+                            Log.w(TAG, "Cannot parse reserve raw as ApiResponse<TableItem>: " + ex.getMessage());
+                        }
+
+                        // Try parse raw JSON object into TableItem directly
+                        try {
+                            TableItem parsedDirect = gson.fromJson(raw, TableItem.class);
+                            if (parsedDirect != null) {
+                                parsedDirect.normalize();
+                                safeCb.onSuccess(parsedDirect);
+                                return;
+                            }
+                        } catch (Exception ex) {
+                            Log.w(TAG, "Cannot parse reserve raw as TableItem: " + ex.getMessage());
+                        }
+
+                        safeCb.onError("Empty body on success but cannot parse payload (reserve)");
+                    } else {
+                        String err = "HTTP " + response.code() + " - " + response.message();
+                        String errBodyStr = null;
+                        try {
+                            ResponseBody eb = response.errorBody();
+                            if (eb != null) {
+                                errBodyStr = eb.string();
+                                err += " - " + errBodyStr;
+                            }
+                        } catch (IOException ignored) {}
+
+                        if (errBodyStr != null) {
+                            try {
+                                Type wrapperType = new TypeToken<ApiResponse<TableItem>>() {}.getType();
+                                ApiResponse<TableItem> apiResp = gson.fromJson(errBodyStr, wrapperType);
+                                if (apiResp != null) {
+                                    String serverMsg = apiResp.getMessage();
+                                    if (serverMsg != null && !serverMsg.isEmpty()) {
+                                        err += " | serverMessage: " + serverMsg;
+                                    }
+                                }
+                            } catch (Exception ignored) {}
+                        }
+
+                        Log.e(TAG, "reserveTable error: " + err);
+                        safeCb.onError(err);
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Exception handling reserveTable response", e);
+                    safeCb.onError("Response handling error: " + e.getMessage());
+                }
+            }
+
+            @Override
+            public void onFailure(Call<TableItem> call, Throwable t) {
+                Log.e(TAG, "reserveTable onFailure", t);
                 safeCb.onError(t.getMessage() != null ? t.getMessage() : "Network error");
             }
         });
