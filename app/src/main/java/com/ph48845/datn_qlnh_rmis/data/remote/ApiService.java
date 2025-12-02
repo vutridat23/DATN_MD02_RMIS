@@ -26,6 +26,11 @@ import retrofit2.http.QueryMap;
 /**
  * ApiService: Gộp tất cả endpoint cũ.
  * Nhóm rõ ràng theo module: User / Menu / Order / Table / Ingredient / History / Report
+ *
+ * LƯU Ý:
+ * - Giữ cả các endpoint reserveTable (POST /tables/{id}/reserve) và payOrder (POST /orders/pay)
+ *   vì các repository/logic trong app có thể sử dụng cả hai. Nếu backend không hỗ trợ một trong hai,
+ *   khi gọi sẽ trả lỗi HTTP từ server.
  */
 public interface ApiService {
 
@@ -100,6 +105,7 @@ public interface ApiService {
     @POST("orders/{id}/request-temp-calculation")
     Call<ApiResponse<Order>> requestTempCalculation(@Path("id") String orderId, @Body Map<String, Object> body);
 
+    // pay endpoint (file B had this)
     @POST("orders/pay")
     Call<ApiResponse<Order>> payOrder(@Body Map<String, Object> body);
 
@@ -112,8 +118,12 @@ public interface ApiService {
     @PUT("tables/{id}")
     Call<TableItem> updateTable(@Path("id") String tableId, @Body Map<String, Object> updates);
 
+    // Keep both: merge and reserve (reserve có ở file A)
     @POST("tables/{id}/merge")
     Call<TableItem> mergeTable(@Path("id") String targetTableId, @Body Map<String, String> body);
+
+    @POST("tables/{id}/reserve")
+    Call<TableItem> reserveTable(@Path("id") String id, @Body Map<String, Object> body);
 
     // ===========================
     // --- INGREDIENT ENDPOINTS ---

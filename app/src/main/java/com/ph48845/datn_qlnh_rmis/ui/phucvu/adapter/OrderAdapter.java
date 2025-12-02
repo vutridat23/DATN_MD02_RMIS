@@ -44,9 +44,8 @@ import retrofit2.Response;
  * OrderAdapter: hiển thị Order.OrderItem với ảnh, tên, số lượng, giá, trạng thái.
  *
  * Những thay đổi:
- * - Hiển thị "Lí do hủy" (tv_item_huy) tương tự phần ghi chú.
- * - Thêm method applyServerOrder(...) để áp dụng cập nhật item trả về từ server.
- * - Bổ sung hỗ trợ MenuLongPressHandler.NoteStore để prefill và lưu lý do hủy theo key "cancel:<menuId>".
+ * - Khi lưu/đọc lý do hủy vào NoteStore, dùng key composite có parentOrderId để tránh "lan" giữa bàn.
+ * - Chỉ hiển thị lí do hủy khi status chỉ rõ là hủy/yêu cầu hủy hoặc cancelReason khớp với noteStore của cùng order.
  */
 public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.VH> {
 
@@ -214,14 +213,7 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.VH> {
             holder.tvNote.setVisibility(View.GONE);
         }
 
-        // Hiển thị lí do hủy nếu có (tách biệt với phần ghi chú)
-        if (cancelReason != null && !cancelReason.isEmpty()) {
-            holder.tvNote2.setVisibility(View.VISIBLE);
-            holder.tvNote2.setText("Lí do hủy: " + cancelReason);
-        } else {
-            holder.tvNote2.setVisibility(View.GONE);
-        }
-
+        // Determine status first
         String s = oi.getStatus() != null ? oi.getStatus().toLowerCase() : "preparing";
         if (s.contains("done") || s.contains("ready") || s.contains("completed")) {
             holder.tvStatus.setText("Đã xong");
@@ -240,31 +232,57 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.VH> {
         final String itemSubId = safeString(oi.getId());
         final String fallbackMenuItemId = safeString(oi.getMenuItemId());
         final String resolvedItemId = !itemSubId.isEmpty() ? itemSubId : fallbackMenuItemId;
-        final String parentOrderId = oi.getParentOrderId();
+        final String parentOrderId = safeString(oi.getParentOrderId());
         final Context ctx = holder.itemView.getContext();
+
+        // Make composite key for noteStore: prefer parentOrderId if available to avoid cross-order leakage
+        String compositeKey = makeCancelNoteKey(parentOrderId, fallbackMenuItemId, resolvedItemId);
+
+        // Only display cancel reason if item status indicates cancellation/request OR the noteStore has the same saved reason for this order+item
+        boolean showCancelReason = false;
+        if (cancelReason != null && !cancelReason.isEmpty() && isCancelStatus(s)) {
+            showCancelReason = true;
+        } else {
+            try {
+                if (!compositeKey.isEmpty() && noteStore != null) {
+                    String saved = noteStore.getNoteForMenu(compositeKey);
+                    if (saved != null && !saved.isEmpty() && saved.equals(cancelReason) && !cancelReason.isEmpty()) {
+                        showCancelReason = true;
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+
+        if (showCancelReason) {
+            holder.tvNote2.setVisibility(View.VISIBLE);
+            holder.tvNote2.setText("Lí do hủy: " + cancelReason);
+        } else {
+            holder.tvNote2.setVisibility(View.GONE);
+        }
 
         holder.itemView.setOnLongClickListener(view -> {
             PopupMenu popup = new PopupMenu(ctx, view);
             popup.getMenu().add(0, 1, 0, "Yêu cầu hủy món");
             popup.setOnMenuItemClickListener((MenuItem menuItem) -> {
                 if (menuItem.getItemId() == 1) {
-                    final EditText input = new EditText(ctx);
+                    // Inflate dialog_cancel_reason.xml instead of programmatic EditText
+                    View vInput = LayoutInflater.from(ctx).inflate(R.layout.dialog_cancel_reason, null);
+                    final EditText input = vInput.findViewById(R.id.et_cancel_reason);
                     input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
                     input.setHint("Nhập lý do hủy (tuỳ chọn)");
 
-                    // Prefill từ noteStore nếu có (sử dụng key = menuItemId nếu có, fallback = resolvedItemId)
-                    String noteKey = !fallbackMenuItemId.isEmpty() ? fallbackMenuItemId : resolvedItemId;
+                    // Prefill từ noteStore nếu có (dùng composite key gồm parentOrderId nếu có)
+                    String noteKeyForRead = makeCancelNoteKey(parentOrderId, fallbackMenuItemId, resolvedItemId);
                     try {
-                        if (noteStore != null && noteKey != null && !noteKey.isEmpty()) {
-                            // Use cancel: prefix when reading cancel-specific saved text
-                            String prev = noteStore.getNoteForMenu("cancel:" + noteKey);
+                        if (noteStore != null && noteKeyForRead != null && !noteKeyForRead.isEmpty()) {
+                            String prev = noteStore.getNoteForMenu(noteKeyForRead);
                             if (prev != null && !prev.isEmpty()) input.setText(prev);
                         }
                     } catch (Exception ignored) {}
 
                     new AlertDialog.Builder(ctx)
                             .setTitle("Lý do hủy món")
-                            .setView(input)
+                            .setView(vInput)
                             .setPositiveButton("Xác nhận", (d1, w1) -> {
                                 String reason = input.getText() != null ? input.getText().toString().trim() : "";
                                 new AlertDialog.Builder(ctx)
@@ -337,12 +355,12 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.VH> {
                                                                 oi.setStatus("cancel_requested");
                                                             }
 
-                                                            // Lưu lại lý do hủy vào noteStore dưới key "cancel:<menuId or itemId>"
+                                                            // Lưu lại lý do hủy vào noteStore dưới composite key (parentOrderId + item/menu id)
                                                             try {
                                                                 if (noteStore != null) {
-                                                                    String nk = !fallbackMenuItemId.isEmpty() ? fallbackMenuItemId : resolvedItemId;
+                                                                    String nk = makeCancelNoteKey(parentOrderId, fallbackMenuItemId, resolvedItemId);
                                                                     if (nk != null && !nk.isEmpty()) {
-                                                                        noteStore.putNoteForMenu("cancel:" + nk, reason != null ? reason : "");
+                                                                        noteStore.putNoteForMenu(nk, reason != null ? reason : "");
                                                                     }
                                                                 }
                                                             } catch (Exception ignored) {}
@@ -354,9 +372,9 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.VH> {
                                                             // still try to save into noteStore
                                                             try {
                                                                 if (noteStore != null) {
-                                                                    String nk = !fallbackMenuItemId.isEmpty() ? fallbackMenuItemId : resolvedItemId;
+                                                                    String nk = makeCancelNoteKey(parentOrderId, fallbackMenuItemId, resolvedItemId);
                                                                     if (nk != null && !nk.isEmpty()) {
-                                                                        noteStore.putNoteForMenu("cancel:" + nk, reason != null ? reason : "");
+                                                                        noteStore.putNoteForMenu(nk, reason != null ? reason : "");
                                                                     }
                                                                 }
                                                             } catch (Exception ignored) {}
@@ -410,6 +428,24 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.VH> {
         if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) return imageUrl;
         if (!imageUrl.startsWith("/")) imageUrl = "/" + imageUrl;
         return FALLBACK_BASE + imageUrl;
+    }
+
+    // Helper to determine whether a status string indicates cancellation/request-cancel
+    private boolean isCancelStatus(String status) {
+        if (status == null) return false;
+        String l = status.toLowerCase();
+        return l.contains("cancel") || l.contains("huy") || l.contains("cancel_requested") || l.contains("requested_cancel");
+    }
+
+    // Create composite cancel key: prefer parentOrderId if available to avoid cross-order leakage
+    private String makeCancelNoteKey(String parentOrderId, String menuItemId, String resolvedItemId) {
+        String id = (menuItemId != null && !menuItemId.trim().isEmpty()) ? menuItemId.trim() : (resolvedItemId != null ? resolvedItemId.trim() : "");
+        if (id.isEmpty()) return "";
+        if (parentOrderId != null && !parentOrderId.trim().isEmpty()) {
+            return "cancel:" + parentOrderId.trim() + ":" + id;
+        } else {
+            return "cancel:" + id;
+        }
     }
 
     static class VH extends RecyclerView.ViewHolder {

@@ -1,6 +1,5 @@
 package com.ph48845.datn_qlnh_rmis.ui.table;
 
-
 import android.app.AlertDialog;
 import android.app.DatePickerDialog;
 import android.app.TimePickerDialog;
@@ -12,10 +11,13 @@ import android.widget.LinearLayout;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.ProgressBar;
 import android.widget.Toast;
+import android.content.Context;
+import android.view.LayoutInflater;
 
 import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
 import com.ph48845.datn_qlnh_rmis.data.repository.OrderRepository;
 import com.ph48845.datn_qlnh_rmis.data.repository.TableRepository;
+import com.ph48845.datn_qlnh_rmis.R;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -116,21 +118,21 @@ public class TransferManager {
     }
 
     public void showTransferReservationDialog(final TableItem fromTable, final TableItem targetTable) {
-        // Dialog giống code gốc (nhập tên, phone, date, time) - tạo body và gọi updateTable cho target + clear source
-        LinearLayout layout = new LinearLayout(host);
-        layout.setOrientation(LinearLayout.VERTICAL);
-        int pad = (int) (16 * host.getResources().getDisplayMetrics().density);
-        layout.setPadding(pad, pad, pad, pad);
+        // Inflate dialog_reservation.xml (reusing same layout as ReservationHelper)
+        LayoutInflater inflater = LayoutInflater.from(host);
+        View layout = inflater.inflate(R.layout.dialog_reservation, null);
 
-        final EditText etName = new EditText(host); etName.setHint("Tên khách"); layout.addView(etName, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        final EditText etPhone = new EditText(host); etPhone.setHint("Số điện thoại"); etPhone.setInputType(android.text.InputType.TYPE_CLASS_PHONE); layout.addView(etPhone, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        final EditText etDate = new EditText(host); etDate.setHint("Chọn ngày (yyyy-MM-dd)"); etDate.setFocusable(false); etDate.setClickable(true); layout.addView(etDate, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        final EditText etTime = new EditText(host); etTime.setHint("Chọn giờ (HH:mm)"); etTime.setFocusable(false); etTime.setClickable(true); layout.addView(etTime, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        final EditText etName = layout.findViewById(R.id.et_res_name);
+        final EditText etPhone = layout.findViewById(R.id.et_res_phone);
+        final EditText etDate = layout.findViewById(R.id.et_res_date);
+        final EditText etTime = layout.findViewById(R.id.et_res_time);
 
         final Calendar selectedCal = Calendar.getInstance();
         final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
         final SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm", Locale.getDefault());
 
+        etDate.setFocusable(false);
+        etDate.setClickable(true);
         etDate.setOnClickListener(v -> {
             InputMethodManager imm = (InputMethodManager) host.getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
             if (imm != null) imm.hideSoftInputFromWindow(v.getWindowToken(), 0);
@@ -140,6 +142,8 @@ public class TransferManager {
             }, selectedCal.get(Calendar.YEAR), selectedCal.get(Calendar.MONTH), selectedCal.get(Calendar.DAY_OF_MONTH)).show();
         });
 
+        etTime.setFocusable(false);
+        etTime.setClickable(true);
         etTime.setOnClickListener(v -> {
             InputMethodManager imm = (InputMethodManager) host.getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
             if (imm != null) imm.hideSoftInputFromWindow(v.getWindowToken(), 0);
@@ -365,24 +369,7 @@ public class TransferManager {
                     }
                     @Override
                     public void onError(String message) {
-                        tableRepository.updateTableStatus(targetTable.getId(), "available", new TableRepository.RepositoryCallback<TableItem>() {
-                            @Override
-                            public void onSuccess(TableItem rollbackTable) {
-                                host.runOnUiThread(() -> {
-                                    progressBar.setVisibility(View.GONE);
-                                    Toast.makeText(host, "Không thể chuyển: " + message + " (đã rollback)", Toast.LENGTH_LONG).show();
-                                    if (host instanceof com.ph48845.datn_qlnh_rmis.ui.MainActivity) ((com.ph48845.datn_qlnh_rmis.ui.MainActivity) host).fetchTablesFromServer();
-                                });
-                            }
-                            @Override
-                            public void onError(String rbMsg) {
-                                host.runOnUiThread(() -> {
-                                    progressBar.setVisibility(View.GONE);
-                                    Toast.makeText(host, "Không thể chuyển: " + message + " ; rollback thất bại: " + rbMsg, Toast.LENGTH_LONG).show();
-                                    if (host instanceof com.ph48845.datn_qlnh_rmis.ui.MainActivity) ((com.ph48845.datn_qlnh_rmis.ui.MainActivity) host).fetchTablesFromServer();
-                                });
-                            }
-                        });
+                        table_repository_updateTargetRollback(message, targetTable);
                     }
                 });
             }
@@ -391,6 +378,28 @@ public class TransferManager {
                 host.runOnUiThread(() -> {
                     progressBar.setVisibility(View.GONE);
                     Toast.makeText(host, "Không thể đặt bàn đích là occupied: " + message, Toast.LENGTH_LONG).show();
+                    if (host instanceof com.ph48845.datn_qlnh_rmis.ui.MainActivity) ((com.ph48845.datn_qlnh_rmis.ui.MainActivity) host).fetchTablesFromServer();
+                });
+            }
+        });
+    }
+
+    // extracted small helper to keep previous behavior (rollback target->available if source update fails)
+    private void table_repository_updateTargetRollback(String message, TableItem targetTable) {
+        tableRepository.updateTableStatus(targetTable.getId(), "available", new TableRepository.RepositoryCallback<TableItem>() {
+            @Override
+            public void onSuccess(TableItem rollbackTable) {
+                host.runOnUiThread(() -> {
+                    progressBar.setVisibility(View.GONE);
+                    Toast.makeText(host, "Không thể chuyển: " + message + " (đã rollback)", Toast.LENGTH_LONG).show();
+                    if (host instanceof com.ph48845.datn_qlnh_rmis.ui.MainActivity) ((com.ph48845.datn_qlnh_rmis.ui.MainActivity) host).fetchTablesFromServer();
+                });
+            }
+            @Override
+            public void onError(String rbMsg) {
+                host.runOnUiThread(() -> {
+                    progressBar.setVisibility(View.GONE);
+                    Toast.makeText(host, "Không thể chuyển: " + message + " ; rollback thất bại: " + rbMsg, Toast.LENGTH_LONG).show();
                     if (host instanceof com.ph48845.datn_qlnh_rmis.ui.MainActivity) ((com.ph48845.datn_qlnh_rmis.ui.MainActivity) host).fetchTablesFromServer();
                 });
             }

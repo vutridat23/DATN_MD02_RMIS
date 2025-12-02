@@ -3,6 +3,7 @@ package com.ph48845.datn_qlnh_rmis.ui;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.os.Build;
 import android.text.SpannableString;
 import android.text.style.RelativeSizeSpan;
 import android.util.Log;
@@ -14,6 +15,7 @@ import android.widget.PopupMenu;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.widget.Toolbar;
 import androidx.core.view.GravityCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
@@ -35,6 +37,9 @@ import com.ph48845.datn_qlnh_rmis.ui.table.TableActionsHandler;
 import com.ph48845.datn_qlnh_rmis.ui.table.TransferManager;
 import com.ph48845.datn_qlnh_rmis.ui.table.TemporaryBillDialogFragment;
 import com.ph48845.datn_qlnh_rmis.ui.thungan.ThuNganActivity;
+import com.ph48845.datn_qlnh_rmis.ui.phucvu.socket.SocketManager;
+
+import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -45,16 +50,14 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * MainActivity (rút gọn): chỉ còn setup UI, tải dữ liệu và ủy quyền các hành động cho helpers.
- *
- * Sửa đổi chính trong file này:
- * - Khi long-press trên bàn gọi showTableActionsMenuForLongPress(...) để bàn trống chỉ hiển thị "Đặt trước".
+ * MainActivity (rút gọn): setup UI, load data and listen for socket table events.
+ * Shows a modal dialog when server emits table_auto_released.
  */
 public class MainActivity extends BaseMenuActivity {
 
     private static final String TAG = "MainActivityHome";
 
-    ProgressBar progressBar; // package-visible so helpers can reuse if needed
+    ProgressBar progressBar;
     private RecyclerView rvFloor1;
     private RecyclerView rvFloor2;
     private TableAdapter adapterFloor1;
@@ -62,7 +65,6 @@ public class MainActivity extends BaseMenuActivity {
     TableRepository tableRepository;
     OrderRepository orderRepository;
 
-    // helpers
     private TransferManager transferManager;
     private MergeManager mergeManager;
     private ReservationHelper reservationHelper;
@@ -71,6 +73,9 @@ public class MainActivity extends BaseMenuActivity {
     NavigationView navigationView;
     private View redDot;
 
+    private SocketManager socketManager;
+    // Default socket URL: your server IP
+    private String defaultSocketUrl = "http://192.168.1.140:3000";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -87,17 +92,12 @@ public class MainActivity extends BaseMenuActivity {
         rvFloor1.setNestedScrollingEnabled(false);
         rvFloor2.setNestedScrollingEnabled(false);
 
-        // Use ids that exist in activity_main.xml
         drawerLayout = findViewById(R.id.drawerLayout_order);
         Toolbar toolbar = findViewById(R.id.toolbar);
         navigationView = findViewById(R.id.navigationView_order);
 
-        redDot = findViewById(R.id.redDot);   // lấy view từ layout (id redDot trong toolbar)
-
-        // Show/hide redDot safely
-        if (redDot != null) {
-            redDot.setVisibility(View.VISIBLE);   // hiển thị khi cần
-        }
+        redDot = findViewById(R.id.redDot);
+        if (redDot != null) redDot.setVisibility(View.VISIBLE);
 
         ImageView navIcon = findViewById(R.id.nav_icon);
         if (navIcon != null && drawerLayout != null) {
@@ -105,12 +105,10 @@ public class MainActivity extends BaseMenuActivity {
         }
 
         if (toolbar != null && drawerLayout != null) {
-            toolbar.setNavigationOnClickListener(v -> {
-                drawerLayout.openDrawer(GravityCompat.START);
-            });
+            toolbar.setNavigationOnClickListener(v -> drawerLayout.openDrawer(GravityCompat.START));
         }
 
-        // Defensive: only access navigationView if it was found
+        // navigation menu style
         if (navigationView != null) {
             try {
                 for (int i = 0; i < navigationView.getMenu().size(); i++) {
@@ -125,7 +123,6 @@ public class MainActivity extends BaseMenuActivity {
 
             navigationView.setNavigationItemSelectedListener(item -> {
                 int id = item.getItemId();
-
                 if (id == R.id.nav_mood) {
                     showMoodDialog();
                 } else if (id == R.id.nav_contact) {
@@ -133,7 +130,6 @@ public class MainActivity extends BaseMenuActivity {
                 } else if (id == R.id.nav_logout) {
                     logout();
                 }
-
                 if (drawerLayout != null) drawerLayout.closeDrawer(GravityCompat.START);
                 return true;
             });
@@ -143,11 +139,10 @@ public class MainActivity extends BaseMenuActivity {
 
         updateNavHeaderInfo();
 
-
         tableRepository = new TableRepository();
         orderRepository = new OrderRepository();
 
-        // adapters
+        // adapters and helpers
         TableAdapter.OnTableClickListener listener = new TableAdapter.OnTableClickListener() {
             @Override
             public void onTableClick(View v, TableItem table) {
@@ -155,7 +150,6 @@ public class MainActivity extends BaseMenuActivity {
                 Intent intent = new Intent(MainActivity.this, OrderActivity.class);
                 intent.putExtra("tableId", table.getId());
                 intent.putExtra("tableNumber", table.getTableNumber());
-                // If table has customer (occupied / pending payment) -> force OrderActivity to show orders and start polling
                 boolean isCustomerPresent = false;
                 try {
                     TableItem.Status st = table.getStatus();
@@ -164,11 +158,9 @@ public class MainActivity extends BaseMenuActivity {
                 intent.putExtra("forceShowOrders", isCustomerPresent);
                 startActivity(intent);
             }
-
             @Override
             public void onTableLongClick(View v, TableItem table) {
                 if (table == null) return;
-                // Use long-press specific menu (this method only shows "Đặt trước" for empty/available tables)
                 tableActionsHandler.showTableActionsMenuForLongPress(v, table);
             }
         };
@@ -178,36 +170,115 @@ public class MainActivity extends BaseMenuActivity {
         rvFloor1.setAdapter(adapterFloor1);
         rvFloor2.setAdapter(adapterFloor2);
 
-        // helpers init
         transferManager = new TransferManager(this, tableRepository, orderRepository, progressBar);
         mergeManager = new MergeManager(this, tableRepository, orderRepository, progressBar);
         reservationHelper = new ReservationHelper(this, tableRepository, progressBar);
         tableActionsHandler = new TableActionsHandler(this, transferManager, mergeManager, reservationHelper);
 
-        // --- NEW: register TemporaryBillRequester to open TemporaryBillDialogFragment ---
         tableActionsHandler.setTemporaryBillRequester(table -> {
             if (table == null) return;
-            TemporaryBillDialogFragment f = TemporaryBillDialogFragment.newInstance(table, new TemporaryBillDialogFragment.Listener() {
-                @Override
-                public void onTemporaryBillRequested(Order order) {
-                    // refresh UI after successful request
-                    fetchTablesFromServer();
-                }
-            });
+            TemporaryBillDialogFragment f = TemporaryBillDialogFragment.newInstance(table, updatedOrder -> fetchTablesFromServer());
             f.show(getSupportFragmentManager(), "tempBill");
         });
-        // --- end TemporaryBillRequester registration ---
 
-        // avatar menu
-        ImageView avatar = findViewById(R.id.imageViewAvatar);
-        if (avatar != null) avatar.setOnClickListener(v -> showMenu(v));
+        // Determine socket URL (intent override possible)
+        String socketUrl = getIntent().getStringExtra("socketUrl");
+        if (socketUrl == null || socketUrl.trim().isEmpty()) socketUrl = defaultSocketUrl;
+
+        // If running on emulator, try the special emulator host (10.0.2.2)
+        if (isProbablyEmulator()) {
+            try {
+                String replaced = replaceHostForEmulator(socketUrl);
+                Log.i(TAG, "Emulator detected - using socket URL: " + replaced + " (original: " + socketUrl + ")");
+                socketUrl = replaced;
+            } catch (Exception e) {
+                Log.w(TAG, "Failed to adapt socketUrl for emulator: " + e.getMessage(), e);
+            }
+        } else {
+            Log.i(TAG, "Using socket URL: " + socketUrl);
+        }
+
+        // Initialize socket to receive live table updates
+        try {
+            socketManager = SocketManager.getInstance();
+            socketManager.init(socketUrl);
+            socketManager.setOnEventListener(new SocketManager.OnEventListener() {
+                @Override public void onOrderCreated(JSONObject payload) {}
+                @Override public void onOrderUpdated(JSONObject payload) {}
+                @Override public void onConnect() { Log.d(TAG, "socket connected (main)"); }
+                @Override public void onDisconnect() { Log.d(TAG, "socket disconnected (main)"); }
+                @Override public void onError(Exception e) { Log.w(TAG, "socket error (main): " + (e != null ? e.getMessage() : "null")); }
+                @Override
+                public void onTableUpdated(JSONObject payload) {
+                    if (payload != null) {
+                        String evt = payload.optString("eventName", "");
+                        if ("table_auto_released".equals(evt)) {
+                            int tblNum = -1;
+                            if (payload.has("tableNumber")) tblNum = payload.optInt("tableNumber", -1);
+                            else if (payload.has("table")) tblNum = payload.optInt("table", -1);
+                            final int shownNum = tblNum;
+                            runOnUiThread(() -> {
+                                try {
+                                    String msg = "Bàn " + (shownNum > 0 ? shownNum : "") + " đã tự động hủy đặt trước.";
+                                    new AlertDialog.Builder(MainActivity.this)
+                                            .setTitle("Thông báo")
+                                            .setMessage(msg)
+                                            .setCancelable(false)
+                                            .setPositiveButton("OK", (d, w) -> {
+                                                d.dismiss();
+                                                fetchTablesFromServer();
+                                            })
+                                            .show();
+                                } catch (Exception ex) {
+                                    Log.w(TAG, "show auto-release dialog failed", ex);
+                                    fetchTablesFromServer();
+                                }
+                            });
+                            return;
+                        }
+                    }
+                    // default: refresh list
+                    runOnUiThread(() -> fetchTablesFromServer());
+                }
+            });
+            socketManager.connect();
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to init socket in MainActivity: " + e.getMessage(), e);
+        }
 
         // initial load
         fetchTablesFromServer();
     }
 
+    private boolean isProbablyEmulator() {
+        String fingerprint = Build.FINGERPRINT;
+        String model = Build.MODEL;
+        String product = Build.PRODUCT;
+        return fingerprint != null && (fingerprint.contains("generic") || fingerprint.contains("emulator"))
+                || model != null && model.contains("Emulator")
+                || product != null && product.contains("sdk");
+    }
+
+    private String replaceHostForEmulator(String url) {
+        try {
+            java.net.URI uri = new java.net.URI(url);
+            String scheme = uri.getScheme() != null ? uri.getScheme() : "http";
+            int port = uri.getPort();
+            String path = uri.getRawPath() != null ? uri.getRawPath() : "";
+            String query = uri.getRawQuery() != null ? "?" + uri.getRawQuery() : "";
+            String newHost = "10.0.2.2";
+            String newUrl;
+            if (port > 0) newUrl = scheme + "://" + newHost + ":" + port + path + query;
+            else newUrl = scheme + "://" + newHost + path + query;
+            return newUrl;
+        } catch (Exception e) {
+            if (url.startsWith("http://localhost")) return url.replace("localhost", "10.0.2.2");
+            if (url.startsWith("http://127.0.0.1")) return url.replace("127.0.0.1", "10.0.2.2");
+            return url;
+        }
+    }
+
     private void updateNavHeaderInfo() {
-        // Use the field navigationView (already found) and check null
         if (navigationView == null) {
             Log.w(TAG, "updateNavHeaderInfo: navigationView is null, skip updating header");
             return;
@@ -225,17 +296,16 @@ public class MainActivity extends BaseMenuActivity {
 
             SharedPreferences prefs = getSharedPreferences("RestaurantPrefs", MODE_PRIVATE);
 
-            String savedName = prefs.getString("fullName", "Người dùng"); // "Người dùng" là giá trị mặc định
+            String savedName = prefs.getString("fullName", "Người dùng");
             String savedRole = prefs.getString("userRole", "");
 
             if (tvName != null) tvName.setText(savedName);
-            if (tvRole != null) tvRole.setText(getVietnameseRole(savedRole)); // Hàm chuyển đổi role sang tiếng Việt
+            if (tvRole != null) tvRole.setText(getVietnameseRole(savedRole));
         } catch (Exception e) {
             Log.w(TAG, "updateNavHeaderInfo failed: " + e.getMessage(), e);
         }
     }
 
-    // Hàm phụ trợ chuyển đổi Role (giữ nguyên logic cũ cho đồng bộ)
     private String getVietnameseRole(String roleKey) {
         if (roleKey == null) return "";
         switch (roleKey.toLowerCase()) {
@@ -272,12 +342,16 @@ public class MainActivity extends BaseMenuActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        try { if (socketManager != null) socketManager.connect(); } catch (Exception e) { Log.w(TAG, "socket connect onResume failed", e); }
         fetchTablesFromServer();
     }
 
-    /**
-     * Fetch tables and update adapters. Sắp xếp theo floor + tableNumber.
-     */
+    @Override
+    protected void onPause() {
+        super.onPause();
+        try { if (socketManager != null) socketManager.disconnect(); } catch (Exception e) { Log.w(TAG, "socket disconnect onPause failed", e); }
+    }
+
     public void fetchTablesFromServer() {
         if (progressBar != null) progressBar.setVisibility(ProgressBar.VISIBLE);
         tableRepository.getAllTables(new TableRepository.RepositoryCallback<List<TableItem>>() {
@@ -313,14 +387,12 @@ public class MainActivity extends BaseMenuActivity {
                     adapterFloor1.updateList(floor1);
                     adapterFloor2.updateList(floor2);
 
-                    // đồng bộ trạng thái theo orders
                     List<TableItem> all = new ArrayList<>();
                     all.addAll(floor1);
                     all.addAll(floor2);
                     syncTableStatusesWithOrders(all);
                 });
             }
-
             @Override
             public void onError(String message) {
                 runOnUiThread(() -> {
@@ -343,7 +415,6 @@ public class MainActivity extends BaseMenuActivity {
     }
 
     private void syncTableStatusesWithOrders(List<TableItem> tables) {
-        // giữ nguyên logic cũ
         if (tables == null || tables.isEmpty()) return;
         orderRepository.getOrdersByTableNumber(null, null, new OrderRepository.RepositoryCallback<List<Order>>() {
             @Override

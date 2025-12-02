@@ -69,7 +69,7 @@ dependencies {
 // Hoặc phiên bản mới hơn
     implementation("androidx.appcompat:appcompat:1.6.1")
 // Hoặc phiên bản mới hơn
-
+    implementation("androidx.work:work-runtime:2.8.1")
     // ... các dependencies hiện có
     implementation ("androidx.multidex:multidex:2.0.1")
 
