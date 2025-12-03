@@ -9,6 +9,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.CALL_PHONE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+
 
 
     <application
@@ -20,7 +22,19 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.DATN_QLNH_RMIS"
+
         android:usesCleartextTraffic="true">
+
+        <activity android:name=".ui.thanhtoan.ThanhToanActivity" />
+        <activity android:name=".ui.thanhtoan.QRPaymentActivity"/>
+        <activity android:name=".ui.revenue.ReportActivity"/>
+
+        <activity
+            android:name=".ui.thungan.HistoryActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.thungan.ProfileActivity"
+            android:exported="false" />
         <activity
             android:name=".ui.bep.BepOrderActivity"
             android:exported="false" />
@@ -30,9 +44,9 @@
         <activity
             android:name=".ui.auth.OnboardingActivity"
             android:exported="true">
+
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
@@ -42,17 +56,21 @@
             android:exported="false" />
 
         <activity
-            android:name=".ui.MainActivity"
+            android:name=".ui.phucvu.OrderActivity"
             android:exported="false" />
 
         <activity
-            android:name=".ui.phucvu.OrderActivity"
+            android:name=".ui.MainActivity"
             android:exported="false" />
         <activity
             android:name=".ui.thungan.ThuNganActivity"
             android:exported="false" />
         <activity
             android:name=".ui.thungan.InvoiceActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".ui.thungan.PrintBillActivity"
             android:exported="false" />
         <activity
             android:name=".ui.thungan.PrintBillActivity"

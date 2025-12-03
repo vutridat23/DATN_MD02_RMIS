@@ -34,6 +34,7 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+
     }
 }
 
@@ -46,6 +47,9 @@ dependencies {
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
+    implementation("androidx.core:core:1.12.0")
+    implementation("androidx.core:core-ktx:1.12.0")
+    implementation("androidx.appcompat:appcompat:1.6.1")
 
     // ✅ Retrofit + Gson (nếu sau này gọi API)
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
@@ -65,9 +69,11 @@ dependencies {
 // Hoặc phiên bản mới hơn
     implementation("androidx.appcompat:appcompat:1.6.1")
 // Hoặc phiên bản mới hơn
-
+    implementation("androidx.work:work-runtime:2.8.1")
     // ... các dependencies hiện có
     implementation ("androidx.multidex:multidex:2.0.1")
+
+    implementation("io.socket:socket.io-client:2.0.1")
 
 
     // OkHttp + logging

@@ -9,20 +9,18 @@
     <androidx.cardview.widget.CardView
         android:id="@+id/card_table"
         android:layout_width="0dp"
-        android:layout_height="0dp"
+        android:layout_height="wrap_content"
         app:cardCornerRadius="6dp"
         app:cardUseCompatPadding="true"
         app:cardPreventCornerOverlap="true"
         app:cardElevation="2dp"
-        app:layout_constraintDimensionRatio="1:1"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
+            android:layout_height="wrap_content"
             android:orientation="vertical"
             android:padding="8dp">
 
@@ -53,14 +51,7 @@
                 android:textSize="12sp"
                 android:layout_marginTop="6dp" />
 
-            <TextView
-                android:id="@+id/tv_table_sub"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text=""
-                android:textColor="#ffffff"
-                android:textSize="11sp"
-                android:layout_marginTop="6dp" />
+            <!-- Đã xóa TextView hiển thị tầng (tv_table_sub) theo yêu cầu -->
         </LinearLayout>
     </androidx.cardview.widget.CardView>
 
