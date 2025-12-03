@@ -250,9 +250,7 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
 
         holder.setButtonsEnabled(true);
 
-        holder.btnDanNhan.setOnClickListener(v -> {
-            if (listener != null) listener.onChangeStatus(wrapper, "pending");
-        });
+
         holder.btnDangLam.setOnClickListener(v -> {
             if (listener != null) listener.onChangeStatus(wrapper, "preparing");
         });
@@ -363,7 +361,7 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
     static class VH extends RecyclerView.ViewHolder {
         ImageView imgThumb;
         TextView txtTenMon, txtTableInfo, txtNote, txtQty, txtPrice, txtTrangThai;
-        Button btnDanNhan, btnDangLam, btnXongMon, btnHetMon;
+        Button  btnDangLam, btnXongMon, btnHetMon;
 
         VH(@NonNull View itemView) {
             super(itemView);
@@ -376,19 +374,19 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
             txtQty = itemView.findViewById(R.id.txtQty);
             txtPrice = itemView.findViewById(R.id.txtPrice);
             txtTrangThai = itemView.findViewById(R.id.txtTrangThai);
-            btnDanNhan = itemView.findViewById(R.id.btnDanNhan);
+
             btnDangLam = itemView.findViewById(R.id.btnDangLam);
             btnXongMon = itemView.findViewById(R.id.btnXongMon);
             btnHetMon = itemView.findViewById(R.id.btnHetMon);
         }
 
         void setButtonsEnabled(boolean enabled) {
-            btnDanNhan.setEnabled(enabled);
+
             btnDangLam.setEnabled(enabled);
             btnXongMon.setEnabled(enabled);
             btnHetMon.setEnabled(enabled);
             float alpha = enabled ? 1f : 0.5f;
-            btnDanNhan.setAlpha(alpha);
+
             btnDangLam.setAlpha(alpha);
             btnXongMon.setAlpha(alpha);
             btnHetMon.setAlpha(alpha);

@@ -18,13 +18,26 @@ import java.util.List;
 
 /**
  * Adapter cho danh sách bàn đang hoạt động trong hệ thống thu ngân.
- * Hiển thị trạng thái phục vụ: "Đang phục vụ lên món" (xanh) hoặc "Đã phục vụ đủ món" (đỏ).
+ * Có thể ẩn dòng trạng thái phục vụ theo từng màn hình sử dụng.
  */
 public class ThuNganAdapter extends RecyclerView.Adapter<ThuNganAdapter.TableViewHolder> {
 
     private final Context context;
     private List<TableItem> tableList;
     private OnTableClickListener listener;
+
+    // New flag: Ẩn/hiện dòng trạng thái phục vụ
+    private boolean showServingStatus = true;
+
+    public void setShowServingStatus(boolean showServingStatus) {
+        this.showServingStatus = showServingStatus;
+    }
+
+    // Nếu bạn muốn ẩn cả "Đã có khách", giữ nguyên flag sau:
+    private boolean showDaCoKhach = true;
+    public void setShowDaCoKhach(boolean showDaCoKhach) {
+        this.showDaCoKhach = showDaCoKhach;
+    }
 
     public interface OnTableClickListener {
         void onTableClick(TableItem table);
@@ -50,42 +63,38 @@ public class ThuNganAdapter extends RecyclerView.Adapter<ThuNganAdapter.TableVie
 
         // Set tên bàn
         holder.tvTableNumber.setText("Bàn " + table.getTableNumber());
-        
-        // Set trạng thái "Đã có khách"
-        holder.tvStatus.setText("Đã có khách");
+        holder.tvTableNumber.setTextColor(Color.WHITE);
 
-        // Xác định trạng thái phục vụ và màu sắc
+        // Xác định trạng thái phục vụ để luôn có màu nền cho bàn
         ServingStatus servingStatus = getServingStatus(table);
-        holder.tvServingStatus.setText(servingStatus.text);
-        
-        // Đặt màu nền theo trạng thái phục vụ
-        int bgColor;
-        if (servingStatus.isServing) {
-            // Xanh lá cây: Đang phục vụ lên món
-            bgColor = Color.parseColor("#2BB673");
-        } else {
-            // Đỏ: Đã phục vụ đủ món
-            bgColor = Color.parseColor("#D2544C");
-        }
+        int bgColor = servingStatus.isServing ? Color.parseColor("#2BB673") : Color.parseColor("#D2544C");
         holder.cardView.setCardBackgroundColor(bgColor);
 
-        // Text màu trắng
-        holder.tvTableNumber.setTextColor(Color.WHITE);
-        holder.tvStatus.setTextColor(Color.WHITE);
-        holder.tvServingStatus.setTextColor(Color.WHITE);
+        // Ẩn/hiện "Đã có khách" linh hoạt (nếu cần)
+        if (showDaCoKhach) {
+            holder.tvStatus.setText("Đã có khách");
+            holder.tvStatus.setVisibility(View.VISIBLE);
+            holder.tvStatus.setTextColor(Color.WHITE);
+        } else {
+            holder.tvStatus.setVisibility(View.GONE);
+        }
 
-        // Click listener
+        // Hiện hoặc ẩn trạng thái phục vụ
+        if (showServingStatus) {
+            holder.tvServingStatus.setText(servingStatus.text);
+            holder.tvServingStatus.setVisibility(View.VISIBLE);
+            holder.tvServingStatus.setTextColor(Color.WHITE);
+        } else {
+            holder.tvServingStatus.setVisibility(View.GONE);
+        }
+
+        // Bắt sự kiện bấm chọn bàn
         holder.itemView.setOnClickListener(v -> {
             if (listener != null) listener.onTableClick(table);
         });
     }
 
-    /**
-     * Xác định trạng thái phục vụ dựa trên table.
-     * - Nếu table có status FINISH_SERVE -> "Đã phục vụ đủ món" (đỏ)
-     * - Nếu table có status PENDING_PAYMENT -> "Chờ thanh toán" (có thể xanh hoặc vàng)
-     * - Ngược lại (OCCUPIED) -> "Đang phục vụ lên món" (xanh)
-     */
+    // Helper xác định trạng thái phục vụ (không thay đổi)
     private ServingStatus getServingStatus(TableItem table) {
         TableItem.Status status = table.getStatus();
         if (status == TableItem.Status.FINISH_SERVE) {
@@ -105,9 +114,7 @@ public class ThuNganAdapter extends RecyclerView.Adapter<ThuNganAdapter.TableVie
         notifyDataSetChanged();
     }
 
-    /**
-     * Helper class để lưu trạng thái phục vụ
-     */
+    // Helper class để lưu trạng thái phục vụ
     private static class ServingStatus {
         String text;
         boolean isServing;
@@ -118,9 +125,7 @@ public class ThuNganAdapter extends RecyclerView.Adapter<ThuNganAdapter.TableVie
         }
     }
 
-    /**
-     * ViewHolder
-     */
+    // ViewHolder (layout của bạn cần 3 TextView: tv_table_name, tv_table_status, tv_serving_status)
     public static class TableViewHolder extends RecyclerView.ViewHolder {
         CardView cardView;
         TextView tvTableNumber;

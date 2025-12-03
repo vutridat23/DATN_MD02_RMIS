@@ -51,7 +51,7 @@ import java.util.Set;
 public class BepActivity extends BaseMenuActivity {
 
     private static final String TAG = "BepActivity";
-    private static final String SOCKET_URL = "http://192.168.1.84:3000"; // cập nhật nếu cần
+    private static final String SOCKET_URL = "http://192.168.25.2:3000"; // cập nhật nếu cần
 
     private RecyclerView rvTables;
     private ProgressBar progressBar;
@@ -72,7 +72,7 @@ public class BepActivity extends BaseMenuActivity {
 
     // Polling handler: chạy fallback refresh mỗi POLL_INTERVAL_MS khi activity visible
     private final Handler pollHandler = new Handler(Looper.getMainLooper());
-    private final long POLL_INTERVAL_MS = 5000L; // 5 giây (tùy chỉnh)
+    private final long POLL_INTERVAL_MS = 10000L; // 5 giây (tùy chỉnh)
     private boolean pollingActive = false;
 
     private final Runnable pollRunnable = new Runnable() {
@@ -111,7 +111,7 @@ public class BepActivity extends BaseMenuActivity {
         redDot = findViewById(R.id.redDot);   // lấy view từ layout
 
         //thay đổi trạng thái thông báo đặt điều kiện và chuyển View.GONE sang View.VISIBLE)
-        redDot.setVisibility(View.GONE);   // hiển thị khi cần
+        redDot.setVisibility(View.GONE);
 
         navIcon.setOnClickListener(v -> drawerLayout.openDrawer(GravityCompat.START));
 
@@ -185,6 +185,8 @@ public class BepActivity extends BaseMenuActivity {
                 it.putExtra("tableNumber", table.getTableNumber());
                 startActivity(it);
             });
+            adapter.setShowDaCoKhach(false);
+            adapter.setShowServingStatus(false);
             rvTables.setAdapter(adapter);
         } else {
             // rvTables null là trường hợp layout khác; log để debug
