@@ -344,6 +344,9 @@ public class Order implements Serializable {
     // ================== Inner OrderItem ==================
     public static class OrderItem implements Serializable {
 
+        @SerializedName("_id")
+        private String id;
+
         @SerializedName("menuItem")
         private Object menuItemRaw;
 
@@ -354,6 +357,12 @@ public class Order implements Serializable {
         private String status;
         @SerializedName("note")
         private String note;
+        @SerializedName("cancelReason")
+        private String cancelReason;
+        @SerializedName("cancelRequestedBy")
+        private String cancelRequestedBy;
+        @SerializedName("parentOrderId")
+        private String parentOrderId;
         @SerializedName("menuItemName")
         private String menuItemName;
 
@@ -426,11 +435,20 @@ public class Order implements Serializable {
             if (imageUrl == null) imageUrl = "";
             if (status == null) status = "";
             if (note == null) note = "";
+            if (cancelReason == null) cancelReason = "";
+            if (cancelRequestedBy == null) cancelRequestedBy = "";
+            if (parentOrderId == null) parentOrderId = "";
         }
 
         // ---------- Getters / Setters ----------
 
+        public String getId() {
+            return id == null ? "" : id;
+        }
 
+        public void setId(String id) {
+            this.id = id;
+        }
 
         public Object getMenuItemRaw() { return menuItemRaw; }
         public void setMenuItemRaw(Object menuItemRaw) { this.menuItemRaw = menuItemRaw; }
@@ -471,6 +489,15 @@ public class Order implements Serializable {
 
         public String getNote() { return note == null ? "" : note; }
         public void setNote(String note) { this.note = note; }
+
+        public String getCancelReason() { return cancelReason == null ? "" : cancelReason; }
+        public void setCancelReason(String cancelReason) { this.cancelReason = cancelReason; }
+
+        public String getCancelRequestedBy() { return cancelRequestedBy == null ? "" : cancelRequestedBy; }
+        public void setCancelRequestedBy(String cancelRequestedBy) { this.cancelRequestedBy = cancelRequestedBy; }
+
+        public String getParentOrderId() { return parentOrderId == null ? "" : parentOrderId; }
+        public void setParentOrderId(String parentOrderId) { this.parentOrderId = parentOrderId; }
 
         @Override
         public String toString() {

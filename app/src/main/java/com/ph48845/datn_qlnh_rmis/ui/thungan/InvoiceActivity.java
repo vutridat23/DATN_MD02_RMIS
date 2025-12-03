@@ -1,5 +1,7 @@
 package com.ph48845.datn_qlnh_rmis.ui.thungan;
 
+import static android.content.Intent.getIntent;
+
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -177,6 +179,35 @@ public class InvoiceActivity extends AppCompatActivity {
                     // Lọc bỏ các đơn đã thanh toán
                     orders = filterUnpaidOrders(orderList);
                     
+                    // Nếu đang ở chế độ chỉnh sửa, thay thế order trong danh sách bằng editingOrder
+                    if (editingOrder != null && editingOrder.getId() != null && orders != null) {
+                        String editingId = editingOrder.getId().trim();
+                        Log.d(TAG, "Looking for editingOrder with ID: '" + editingId + "' in " + orders.size() + " orders");
+                        boolean found = false;
+                        for (int i = 0; i < orders.size(); i++) {
+                            Order o = orders.get(i);
+                            if (o != null && o.getId() != null) {
+                                String orderId = o.getId().trim();
+                                Log.d(TAG, "Comparing order[" + i + "] ID: '" + orderId + "' with editingId: '" + editingId + "'");
+                                if (orderId.equals(editingId)) {
+                                    Log.d(TAG, "FOUND! Replacing order in list with editingOrder at index " + i);
+                                    orders.set(i, editingOrder);
+                                    found = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if (!found) {
+                            Log.w(TAG, "editingOrder ID not found in orders list! This might cause buttons not to show.");
+                            runOnUiThread(() -> {
+                                Toast.makeText(InvoiceActivity.this, "Warning: Editing order not found in list", Toast.LENGTH_LONG).show();
+                            });
+                        }
+                    } else {
+                        Log.d(TAG, "No editingOrder to replace - editingOrder: " + (editingOrder != null) + 
+                              ", orders: " + (orders != null));
+                    }
+                    
                     if (orders == null || orders.isEmpty()) {
                         Toast.makeText(InvoiceActivity.this, "Không có đơn hàng chưa thanh toán cho bàn này", Toast.LENGTH_SHORT).show();
                         return;
@@ -289,8 +320,55 @@ public class InvoiceActivity extends AppCompatActivity {
 
         // Hiển thị các món ăn
         List<Order.OrderItem> orderItems = order.getItems();
-        boolean isEditingThisOrder = (editingOrder != null && editingOrder.getId() != null && 
-                                     order.getId() != null && editingOrder.getId().equals(order.getId()));
+        
+        // Kiểm tra xem order này có đang được chỉnh sửa không
+        // CÁCH 1: So sánh ID
+        boolean isEditingThisOrder = false;
+        if (editingOrder != null && editingOrder.getId() != null && order.getId() != null) {
+            String editingId = editingOrder.getId().trim();
+            String orderId = order.getId().trim();
+            isEditingThisOrder = editingId.equals(orderId);
+            Log.d(TAG, "=== Checking edit mode ===");
+            Log.d(TAG, "editingOrderId: '" + editingId + "' (length: " + editingId.length() + ")");
+            Log.d(TAG, "orderId: '" + orderId + "' (length: " + orderId.length() + ")");
+            Log.d(TAG, "isEditingThisOrder: " + isEditingThisOrder);
+            
+            if (!isEditingThisOrder) {
+                Log.w(TAG, "ID mismatch! Comparing character by character:");
+                int minLen = Math.min(editingId.length(), orderId.length());
+                for (int i = 0; i < minLen; i++) {
+                    if (editingId.charAt(i) != orderId.charAt(i)) {
+                        Log.w(TAG, "Difference at position " + i + ": editingId='" + editingId.charAt(i) + 
+                              "' (" + (int)editingId.charAt(i) + "), orderId='" + orderId.charAt(i) + 
+                              "' (" + (int)orderId.charAt(i) + ")");
+                        break;
+                    }
+                }
+            }
+        } else {
+            Log.d(TAG, "Edit mode check failed - editingOrder: " + (editingOrder != null) + 
+                  ", editingOrderId: " + (editingOrder != null ? editingOrder.getId() : "null") +
+                  ", orderId: " + (order.getId() != null ? order.getId() : "null"));
+        }
+        
+        // CÁCH 2: So sánh object reference (fallback)
+        if (!isEditingThisOrder && editingOrder != null && order == editingOrder) {
+            Log.d(TAG, "Objects are the same reference, forcing isEditingThisOrder = true");
+            isEditingThisOrder = true;
+        }
+        
+        // CÁCH 3: Kiểm tra lại một lần nữa trước khi tạo items
+        // Nếu editingOrder != null và có cùng tableNumber thì kiểm tra lại ID
+        if (!isEditingThisOrder && editingOrder != null && editingOrder.getTableNumber() == order.getTableNumber()) {
+            if (editingOrder.getId() != null && order.getId() != null) {
+                String editingId = editingOrder.getId().trim();
+                String orderId = order.getId().trim();
+                if (editingId.equals(orderId)) {
+                    isEditingThisOrder = true;
+                    Log.d(TAG, "Re-check before creating items: Force isEditingThisOrder = true based on ID match");
+                }
+            }
+        }
         
         llItemsContainer.removeAllViews();
         if (orderItems != null && !orderItems.isEmpty()) {
@@ -302,20 +380,47 @@ public class InvoiceActivity extends AppCompatActivity {
                 // Sử dụng layout khác nhau cho edit mode và view mode
                 View itemRow;
                 if (isEditingThisOrder) {
+                    Log.d(TAG, "Using edit layout for item: " + item.getName() + " at index: " + itemIndex);
                     itemRow = LayoutInflater.from(this).inflate(R.layout.item_invoice_row_edit, llItemsContainer, false);
                     
                     Button btnMinus = itemRow.findViewById(R.id.btnMinus);
                     Button btnPlus = itemRow.findViewById(R.id.btnPlus);
                     TextView tvQty = itemRow.findViewById(R.id.tvItemQuantity);
                     
-                    btnMinus.setOnClickListener(v -> decreaseItemQuantity(order, itemIndex));
-                    btnPlus.setOnClickListener(v -> increaseItemQuantity(order, itemIndex));
-                    tvQty.setText(String.valueOf(item.getQuantity()));
+                    if (btnMinus != null && btnPlus != null && tvQty != null) {
+                        // Hiển thị số lượng
+                        tvQty.setText(String.valueOf(item.getQuantity()));
+                        
+                        // Setup click listeners
+                        btnMinus.setOnClickListener(v -> {
+                            Log.d(TAG, "Minus button clicked for item index: " + itemIndex);
+                            decreaseItemQuantity(order, itemIndex);
+                        });
+                        
+                        btnPlus.setOnClickListener(v -> {
+                            Log.d(TAG, "Plus button clicked for item index: " + itemIndex);
+                            increaseItemQuantity(order, itemIndex);
+                        });
+                        
+                        // Đảm bảo buttons hiển thị
+                        btnMinus.setVisibility(View.VISIBLE);
+                        btnPlus.setVisibility(View.VISIBLE);
+                        btnMinus.setEnabled(true);
+                        btnPlus.setEnabled(true);
+                        
+                        Log.d(TAG, "Edit buttons set up successfully for item: " + item.getName());
+                    } else {
+                        Log.e(TAG, "Edit layout buttons not found!");
+                    }
                 } else {
+                    // Không ở chế độ chỉnh sửa - chỉ hiển thị số lượng
                     itemRow = LayoutInflater.from(this).inflate(R.layout.item_invoice_row, llItemsContainer, false);
                     TextView tvQty = itemRow.findViewById(R.id.tvItemQuantity);
-                    tvQty.setText("x" + item.getQuantity());
+                    if (tvQty != null) {
+                        tvQty.setText("x" + item.getQuantity());
+                    }
                 }
+                
                 
                 TextView tvItemName = itemRow.findViewById(R.id.tvItemName);
                 TextView tvItemPrice = itemRow.findViewById(R.id.tvItemPrice);
@@ -330,19 +435,49 @@ public class InvoiceActivity extends AppCompatActivity {
 
         // Nút thêm món và action buttons (chỉ hiển thị khi đang chỉnh sửa)
         if (isEditingThisOrder) {
+            Log.d(TAG, "Adding action buttons for editing order: " + order.getId());
             View actionLayout = LayoutInflater.from(this).inflate(R.layout.layout_invoice_actions, llItemsContainer, false);
             Button btnAddItem = actionLayout.findViewById(R.id.btnAddItem);
             Button btnSave = actionLayout.findViewById(R.id.btnSave);
             Button btnCancel = actionLayout.findViewById(R.id.btnCancel);
             
-            btnAddItem.setOnClickListener(v -> showAddItemDialog(order));
-            btnSave.setOnClickListener(v -> saveOrderChanges(order));
-            btnCancel.setOnClickListener(v -> {
-                editingOrder = null;
-                loadInvoiceData();
-            });
+            if (btnAddItem != null) {
+                btnAddItem.setOnClickListener(v -> {
+                    Log.d(TAG, "btnAddItem clicked");
+                    showAddItemDialog(order);
+                });
+            } else {
+                Log.e(TAG, "btnAddItem not found in layout!");
+            }
+            
+            if (btnSave != null) {
+                btnSave.setOnClickListener(v -> {
+                    Log.d(TAG, "btnSave clicked");
+                    saveOrderChanges(order);
+                });
+            } else {
+                Log.e(TAG, "btnSave not found in layout!");
+            }
+            
+            if (btnCancel != null) {
+                btnCancel.setOnClickListener(v -> {
+                    Log.d(TAG, "btnCancel clicked");
+                    editingOrder = null;
+                    loadInvoiceData();
+                });
+            } else {
+                Log.e(TAG, "btnCancel not found in layout!");
+            }
             
             llItemsContainer.addView(actionLayout);
+            
+            // Nếu items đã được tạo với layout thường, rebuild lại với edit layout
+            if (!isEditingThisOrder) {
+                Log.w(TAG, "Action buttons added but items were created with normal layout, rebuilding...");
+                // Items đã được add ở trên, không cần rebuild lại
+            }
+        } else {
+            Log.d(TAG, "Not in edit mode for order: " + order.getId());
         }
 
         // Tổng kết thanh toán - Sử dụng XML layout
@@ -1492,7 +1627,71 @@ public class InvoiceActivity extends AppCompatActivity {
             Toast.makeText(this, "Hóa đơn không hợp lệ", Toast.LENGTH_SHORT).show();
             return;
         }
-        editingOrder = order;
+        if (order.getId() == null) {
+            Toast.makeText(this, "Hóa đơn chưa có ID", Toast.LENGTH_SHORT).show();
+            Log.e(TAG, "Order has no ID!");
+            return;
+        }
+        Log.d(TAG, "Starting edit mode for order: " + order.getId());
+        
+        // Tìm order trong danh sách orders hiện tại để giữ reference
+        Order orderToEdit = null;
+        String orderIdToFind = order.getId() != null ? order.getId().trim() : null;
+        if (orderIdToFind != null && orders != null) {
+            for (Order o : orders) {
+                if (o != null && o.getId() != null && o.getId().trim().equals(orderIdToFind)) {
+                    orderToEdit = o;
+                    break;
+                }
+            }
+        }
+        
+        if (orderToEdit == null) {
+            // Nếu không tìm thấy trong danh sách, dùng order được truyền vào
+            orderToEdit = order;
+            Log.d(TAG, "Order not found in list, using passed order");
+        }
+        
+        // Tạo một bản copy của order để tránh thay đổi trực tiếp cho đến khi lưu
+        editingOrder = new Order();
+        editingOrder.setId(orderToEdit.getId());
+        editingOrder.setTableNumber(orderToEdit.getTableNumber());
+        if (orderToEdit.getItems() != null) {
+            List<Order.OrderItem> copiedItems = new ArrayList<>();
+            for (Order.OrderItem item : orderToEdit.getItems()) {
+                if (item != null) {
+                    Order.OrderItem copiedItem = new Order.OrderItem();
+                    copiedItem.setMenuItemId(item.getMenuItemId());
+                    copiedItem.setName(item.getName());
+                    copiedItem.setPrice(item.getPrice());
+                    copiedItem.setQuantity(item.getQuantity());
+                    copiedItem.setStatus(item.getStatus());
+                    copiedItem.setNote(item.getNote());
+                    copiedItems.add(copiedItem);
+                }
+            }
+            editingOrder.setItems(copiedItems);
+        }
+        editingOrder.setTotalAmount(orderToEdit.getTotalAmount());
+        editingOrder.setDiscount(orderToEdit.getDiscount());
+        editingOrder.setFinalAmount(orderToEdit.getFinalAmount());
+        
+        Log.d(TAG, "editingOrder set with ID: '" + editingOrder.getId() + "'" + 
+              ", items count: " + (editingOrder.getItems() != null ? editingOrder.getItems().size() : 0));
+        
+        // Cập nhật order trong danh sách orders để khi reload, nó sẽ dùng editingOrder
+        if (orders != null && editingOrder.getId() != null) {
+            String editingId = editingOrder.getId().trim();
+            for (int i = 0; i < orders.size(); i++) {
+                Order o = orders.get(i);
+                if (o != null && o.getId() != null && o.getId().trim().equals(editingId)) {
+                    Log.d(TAG, "Updating order in list at index " + i);
+                    orders.set(i, editingOrder);
+                    break;
+                }
+            }
+        }
+        
         loadInvoiceData(); // Reload để hiển thị nút +/-
         Toast.makeText(this, "Đang ở chế độ chỉnh sửa", Toast.LENGTH_SHORT).show();
     }

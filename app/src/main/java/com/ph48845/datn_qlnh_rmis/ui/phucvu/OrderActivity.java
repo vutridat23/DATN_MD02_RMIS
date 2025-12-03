@@ -26,8 +26,8 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView; // <-- SỬA Ở ĐÂY: sử dụng androidx.recyclerview.widget.RecyclerView
 
 import com.ph48845.datn_qlnh_rmis.R;
-import com.ph48845.datn_qlnh_rmis.adapter.MenuAdapter;
-import com.ph48845.datn_qlnh_rmis.adapter.OrderAdapter;
+import com.ph48845.datn_qlnh_rmis.ui.phucvu.adapter.MenuAdapter;
+import com.ph48845.datn_qlnh_rmis.ui.phucvu.adapter.OrderAdapter;
 import com.ph48845.datn_qlnh_rmis.data.model.MenuItem;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
 import com.ph48845.datn_qlnh_rmis.data.model.Order.OrderItem;
@@ -123,7 +123,7 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         orderedAdapter = new OrderAdapter(new ArrayList<>(), item -> {
             // optional: show item details or allow marking status
             Toast.makeText(OrderActivity.this, "Món: " + item.getName(), Toast.LENGTH_SHORT).show();
-        });
+        }, null); // NoteStore: có thể truyền null nếu không cần
         rvOrderedList.setAdapter(orderedAdapter);
 
         // menu list setup (for adding)
@@ -131,8 +131,23 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         menuAdapter = new MenuAdapter(new ArrayList<>(), this);
         rvMenuList.setAdapter(menuAdapter);
 
-        btnAddMore.setOnClickListener(v -> showMenuView());
-        btnConfirm.setOnClickListener(v -> confirmAddItems());
+        if (btnAddMore != null) {
+            btnAddMore.setOnClickListener(v -> {
+                Log.d(TAG, "btnAddMore clicked");
+                showMenuView();
+            });
+        } else {
+            Log.e(TAG, "btnAddMore is null!");
+        }
+        
+        if (btnConfirm != null) {
+            btnConfirm.setOnClickListener(v -> {
+                Log.d(TAG, "btnConfirm clicked");
+                confirmAddItems();
+            });
+        } else {
+            Log.e(TAG, "btnConfirm is null!");
+        }
 
         // Load menu and existing orders (so previously-ordered items get preloaded)
         loadMenuItems();
@@ -575,9 +590,18 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
     }
 
     private void showMenuView() {
-        findViewById(R.id.ordered_container).setVisibility(View.GONE);
-        findViewById(R.id.order_summary).setVisibility(View.GONE);
-        findViewById(R.id.menu_container).setVisibility(View.VISIBLE);
+        View orderedContainer = findViewById(R.id.ordered_container);
+        View orderSummary = findViewById(R.id.order_summary);
+        View menuContainer = findViewById(R.id.menu_container);
+        
+        if (orderedContainer != null) orderedContainer.setVisibility(View.GONE);
+        if (orderSummary != null) orderSummary.setVisibility(View.GONE);
+        if (menuContainer != null) {
+            menuContainer.setVisibility(View.VISIBLE);
+            Log.d(TAG, "Menu view shown");
+        } else {
+            Log.e(TAG, "menu_container not found!");
+        }
     }
 
     private void hideMenuView() {
