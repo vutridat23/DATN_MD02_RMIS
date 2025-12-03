@@ -1,16 +1,11 @@
 package com.ph48845.datn_qlnh_rmis.data.remote;
 
-
-
-
-
+import android.util.Log;
 import com.google.gson.annotations.SerializedName;
 
-/**
- * Generic response wrapper để map JSON có dạng:
- * { "data": ..., "success": true, "message": "..." }
- */
 public class ApiResponse<T> {
+
+    private static final String TAG = "ApiResponse";
 
     @SerializedName("data")
     private T data;
@@ -28,6 +23,7 @@ public class ApiResponse<T> {
     }
 
     public void setData(T data) {
+        Log.d(TAG, "setData: " + (data != null ? data.toString() : "null"));
         this.data = data;
     }
 
@@ -36,6 +32,7 @@ public class ApiResponse<T> {
     }
 
     public void setSuccess(boolean success) {
+        Log.d(TAG, "setSuccess: " + success);
         this.success = success;
     }
 
@@ -44,6 +41,7 @@ public class ApiResponse<T> {
     }
 
     public void setMessage(String message) {
+        Log.d(TAG, "setMessage: " + message);
         this.message = message;
     }
 }

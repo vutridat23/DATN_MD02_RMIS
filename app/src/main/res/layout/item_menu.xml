@@ -1,67 +1,63 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:id="@+id/card_menu_item"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginTop="8dp"
-    android:layout_marginBottom="8dp"
-    android:layout_marginStart="4dp"
-    android:layout_marginEnd="4dp"
-    app:cardCornerRadius="8dp"
-    app:cardElevation="2dp"
-    app:cardUseCompatPadding="true">
+    android:layout_margin="8dp"
+    app:cardCornerRadius="12dp"
+    app:cardElevation="4dp">
 
-    <RelativeLayout
+    <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
-        android:layout_height="96dp"
-        android:padding="8dp">
+        android:layout_height="wrap_content"
+        android:padding="10dp">
 
         <!-- Thumbnail -->
         <ImageView
             android:id="@+id/iv_menu_thumb"
-            android:layout_width="80dp"
-            android:layout_height="80dp"
+            android:layout_width="84dp"
+            android:layout_height="84dp"
             android:scaleType="centerCrop"
             android:src="@drawable/ic_menu_placeholder"
-            android:layout_alignParentStart="true"
-            android:layout_centerVertical="true"
-            android:contentDescription="thumb" />
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"/>
 
-        <!-- Availability badge (declare early so other views can reference it) -->
+        <!-- Badge trạng thái - nằm giữa theo chiều dọc -->
         <TextView
             android:id="@+id/tv_badge"
             android:layout_width="wrap_content"
-            android:layout_height="24dp"
-            android:layout_alignParentTop="true"
-            android:layout_alignParentEnd="true"
+            android:layout_height="26dp"
+            android:paddingLeft="12dp"
+            android:paddingRight="12dp"
             android:background="@drawable/badge_green_bg"
-            android:paddingLeft="8dp"
-            android:paddingRight="8dp"
             android:text="Còn món"
             android:textColor="#FFFFFF"
-            android:textSize="12sp"
-            android:layout_marginTop="6dp"
-            android:layout_marginEnd="8dp" />
+            android:textSize="13sp"
+            android:gravity="center"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"/>
 
-        <!-- Name and price - occupies space between thumbnail and badge -->
+        <!-- Tên + Giá -->
         <LinearLayout
             android:id="@+id/ll_text"
             android:orientation="vertical"
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_toEndOf="@id/iv_menu_thumb"
-            android:layout_toStartOf="@id/tv_badge"
-            android:layout_alignParentTop="true"
-            android:layout_marginStart="10dp"
-            android:layout_marginEnd="8dp">
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="12dp"
+            app:layout_constraintStart_toEndOf="@id/iv_menu_thumb"
+            app:layout_constraintEnd_toStartOf="@id/tv_badge"
+            app:layout_constraintTop_toTopOf="@id/iv_menu_thumb">
 
             <TextView
                 android:id="@+id/tv_menu_name"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="Tên món"
-                android:textSize="15sp"
+                android:textSize="20sp"
+                android:textStyle="bold"
                 android:textColor="#222222"
                 android:maxLines="2"
                 android:ellipsize="end" />
@@ -71,48 +67,47 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="0 VND"
-                android:textSize="13sp"
+                android:textSize="16sp"
+                android:textStyle="bold"
                 android:textColor="#555555"
                 android:layout_marginTop="6dp" />
         </LinearLayout>
 
-        <!-- Quantity controls: positioned at bottom-right, to the start of badge -->
+        <!-- Nút tăng giảm nằm dưới tên & giá -->
         <LinearLayout
             android:id="@+id/ll_qty"
+            android:orientation="horizontal"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_alignParentBottom="true"
-            android:layout_toStartOf="@id/tv_badge"
-            android:layout_marginEnd="8dp"
-            android:layout_marginBottom="8dp"
-            android:gravity="center_vertical">
+            android:gravity="center"
+            android:layout_marginTop="6dp"
+            app:layout_constraintStart_toStartOf="@id/ll_text"
+            app:layout_constraintTop_toBottomOf="@id/ll_text">
 
-            <Button
+            <ImageView
                 android:id="@+id/btn_minus_menu"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
-                android:backgroundTint="#DDDDDD"
-                android:text="-"
-                android:textColor="@android:color/black"
-                android:textStyle="bold"/>
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:src="@drawable/img_4" />
 
             <TextView
                 android:id="@+id/tv_qty"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
                 android:gravity="center"
+                android:textSize="18sp"
+                android:textStyle="bold"
                 android:text="0"
                 android:textColor="#333333" />
 
-            <Button
+            <ImageView
                 android:id="@+id/btn_add_menu"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
-                android:text="+"
-                android:backgroundTint="#2DB06A"
-                android:textColor="#FFFFFF" />
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:src="@drawable/img_3"
+                android:backgroundTint="#2DB06A"/>
         </LinearLayout>
 
-    </RelativeLayout>
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
 </androidx.cardview.widget.CardView>
