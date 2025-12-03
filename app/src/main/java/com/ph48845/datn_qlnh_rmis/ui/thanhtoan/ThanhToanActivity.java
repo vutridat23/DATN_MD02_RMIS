@@ -7,6 +7,8 @@ import android.widget.ImageButton;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.cardview.widget.CardView;
 
@@ -14,12 +16,10 @@ import com.ph48845.datn_qlnh_rmis.R;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
 import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
 import com.ph48845.datn_qlnh_rmis.data.repository.OrderRepository;
-import com.ph48845.datn_qlnh_rmis.data.repository.RevenueRepository;
 import com.ph48845.datn_qlnh_rmis.data.repository.TableRepository;
+import com.ph48845.datn_qlnh_rmis.ui.thungan.ThuNganActivity;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 public class ThanhToanActivity extends AppCompatActivity {
 
@@ -30,9 +30,16 @@ public class ThanhToanActivity extends AppCompatActivity {
     private Order currentOrder;
     private double totalAmount;
 
-    private RevenueRepository revenueRepository;
     private OrderRepository orderRepository;
     private TableRepository tableRepository;
+
+    // Launcher QR payment
+    private final ActivityResultLauncher<Intent> qrLauncher =
+            registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
+                if (result.getResultCode() == RESULT_OK) {
+                    processPayment("QR");
+                }
+            });
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -41,7 +48,6 @@ public class ThanhToanActivity extends AppCompatActivity {
 
         initViews();
 
-        revenueRepository = new RevenueRepository();
         orderRepository = new OrderRepository();
         tableRepository = new TableRepository();
 
@@ -66,16 +72,11 @@ public class ThanhToanActivity extends AppCompatActivity {
     }
 
     private void fetchOrder(String orderId) {
-        // Lấy tableNumber từ Intent hoặc từ order trước
-        int tableNumber = getIntent().getIntExtra("tableNumber", -1);
-
-        orderRepository.getOrdersByTableNumber(tableNumber, null, new OrderRepository.RepositoryCallback<List<Order>>() {
+        orderRepository.getOrdersByTableNumber(null, null, new OrderRepository.RepositoryCallback<List<Order>>() {
             @Override
             public void onSuccess(List<Order> orders) {
-                currentOrder = null;
-
                 for (Order order : orders) {
-                    if (order != null && order.getId().equals(orderId)) {
+                    if (order.getId().equals(orderId)) {
                         currentOrder = order;
                         break;
                     }
@@ -95,44 +96,35 @@ public class ThanhToanActivity extends AppCompatActivity {
 
             @Override
             public void onError(String message) {
-                runOnUiThread(() ->
-                        Toast.makeText(ThanhToanActivity.this, "Lỗi khi lấy đơn hàng: " + message, Toast.LENGTH_SHORT).show()
-                );
-                finish();
+                runOnUiThread(() -> {
+                    Toast.makeText(ThanhToanActivity.this, "Lỗi khi lấy đơn hàng: " + message, Toast.LENGTH_SHORT).show();
+                    finish();
+                });
             }
         });
     }
 
-
     private void setupPaymentButtons() {
-        // Card Cash
+        // TIỀN MẶT
         cardCash.setOnClickListener(v -> new AlertDialog.Builder(this)
                 .setTitle("Xác nhận thanh toán")
-                .setMessage("Đã nhận tiền chưa?")
+                .setMessage("Đã nhận tiền khách chưa?")
                 .setPositiveButton("Đã nhận", (dialog, which) -> processPayment("Tiền mặt"))
                 .setNegativeButton("Hủy", null)
                 .show()
         );
 
-        // Card QR - đặt trong đây để chắc chắn currentOrder != null
+        // QR
         cardQR.setOnClickListener(v -> {
-            if (currentOrder == null) {
-                Toast.makeText(ThanhToanActivity.this, "Đang tải đơn hàng, vui lòng thử lại", Toast.LENGTH_SHORT).show();
-                return;
-            }
-
             Intent intent = new Intent(ThanhToanActivity.this, QRPaymentActivity.class);
             intent.putExtra("amount", totalAmount);
             intent.putExtra("orderId", currentOrder.getId());
-            startActivity(intent);
+            qrLauncher.launch(intent);
         });
 
-        // Card Card
-        cardCard.setOnClickListener(v ->
-                processPayment("Thẻ ngân hàng")
-        );
+        // THẺ NGÂN HÀNG
+        cardCard.setOnClickListener(v -> processPayment("Thẻ ngân hàng"));
     }
-
 
     private void processPayment(String method) {
         if (currentOrder == null) {
@@ -141,69 +133,12 @@ public class ThanhToanActivity extends AppCompatActivity {
             return;
         }
 
-        long now = System.currentTimeMillis();
+        double amountCustomerGiven = method.equals("Tiền mặt") ? totalAmount : 0;
 
-        Map<String, Object> updates = new HashMap<>();
-        updates.put("paid", true);
-        updates.put("paymentMethod", method);
-        updates.put("paidAt", now);
-        updates.put("orderStatus", "paid");
-
-        orderRepository.updateOrder(currentOrder.getId(), updates, new OrderRepository.RepositoryCallback<Order>() {
+        orderRepository.payOrder(currentOrder.getId(), method, amountCustomerGiven, new OrderRepository.RepositoryCallback<Order>() {
             @Override
             public void onSuccess(Order updatedOrder) {
-                // Đẩy doanh thu
-                revenueRepository.addRevenue(updatedOrder);
-
-                // Lấy danh sách bàn và tìm bàn trùng tableNumber
-                tableRepository.getAllTables(new TableRepository.RepositoryCallback<List<TableItem>>() {
-                    @Override
-                    public void onSuccess(List<TableItem> tables) {
-                        TableItem matchedTable = null;
-                        int orderTableNumber = updatedOrder.getTableNumber();
-                        for (TableItem t : tables) {
-                            if (t != null && t.getTableNumber() == orderTableNumber) {
-                                matchedTable = t;
-                                break;
-                            }
-                        }
-
-                        if (matchedTable != null) {
-                            // Reset bàn về available
-                            tableRepository.updateTableStatus(
-                                    currentOrder.getTableId(), // dùng trực tiếp tableId từ order
-                                    "available",
-                                    new TableRepository.RepositoryCallback<TableItem>() {
-                                        @Override
-                                        public void onSuccess(TableItem result) {
-                                            finishSuccess(updatedOrder);
-                                        }
-
-                                        @Override
-                                        public void onError(String error) {
-                                            Toast.makeText(ThanhToanActivity.this,
-                                                    "Thanh toán xong nhưng không clear bàn: " + error,
-                                                    Toast.LENGTH_SHORT).show();
-                                            finishSuccess(updatedOrder);
-                                        }
-                                    });
-
-                        } else {
-                            Toast.makeText(ThanhToanActivity.this,
-                                    "Không tìm thấy bàn để reset",
-                                    Toast.LENGTH_SHORT).show();
-                            finishSuccess(updatedOrder);
-                        }
-                    }
-
-                    @Override
-                    public void onError(String message) {
-                        Toast.makeText(ThanhToanActivity.this,
-                                "Lấy danh sách bàn thất bại: " + message,
-                                Toast.LENGTH_SHORT).show();
-                        finishSuccess(updatedOrder);
-                    }
-                });
+                resetTableAndFinish(updatedOrder);
             }
 
             @Override
@@ -213,10 +148,32 @@ public class ThanhToanActivity extends AppCompatActivity {
         });
     }
 
+    private void resetTableAndFinish(Order updatedOrder) {
+        String tableId = updatedOrder.getTableId();
+        if (tableId != null) {
+            tableRepository.resetTableAfterPayment(tableId, new TableRepository.RepositoryCallback<TableItem>() {
+                @Override
+                public void onSuccess(TableItem table) {
+                    Toast.makeText(ThanhToanActivity.this, "Thanh toán thành công", Toast.LENGTH_SHORT).show();
+                    finishSuccess(updatedOrder);
+                }
+
+                @Override
+                public void onError(String message) {
+                    Toast.makeText(ThanhToanActivity.this, "Thanh toán xong nhưng không reset bàn: " + message, Toast.LENGTH_SHORT).show();
+                    finishSuccess(updatedOrder);
+                }
+            });
+        } else {
+            finishSuccess(updatedOrder);
+        }
+    }
+
     private void finishSuccess(Order order) {
-        Intent result = new Intent();
-        result.putExtra("order", order);
-        setResult(RESULT_OK, result);
+        Intent intent = new Intent(this, ThuNganActivity.class);
+        intent.putExtra("paidOrder", order);
+        intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        startActivity(intent);
         finish();
     }
 }

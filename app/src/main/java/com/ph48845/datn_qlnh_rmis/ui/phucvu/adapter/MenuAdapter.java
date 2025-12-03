@@ -1,10 +1,9 @@
-package com.ph48845.datn_qlnh_rmis.adapter;
+package com.ph48845.datn_qlnh_rmis.ui.phucvu.adapter;
 
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.TextView;
 
@@ -12,9 +11,7 @@ import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
-import com.bumptech.glide.load.DataSource;
 import com.bumptech.glide.load.engine.DiskCacheStrategy;
-import com.bumptech.glide.load.engine.GlideException;
 import com.bumptech.glide.request.RequestListener;
 import com.bumptech.glide.request.target.Target;
 import com.ph48845.datn_qlnh_rmis.R;
@@ -26,11 +23,13 @@ import java.util.List;
 
 /**
  * MenuAdapter with Glide, URL normalization and debug logs.
+ *
+ * Added:
+ *  - getItems() and findById(String) helpers so activities can lookup menu info without reflection.
  */
 public class MenuAdapter extends RecyclerView.Adapter<MenuAdapter.MenuViewHolder> {
 
     private static final String TAG = "MenuAdapter";
-    // Adjust FALLBACK_BASE to match your Retrofit base URL if running on local network
     private static final String FALLBACK_BASE = "http://192.168.1.84:3000";
 
     private List<MenuItem> items = new ArrayList<>();
@@ -51,6 +50,19 @@ public class MenuAdapter extends RecyclerView.Adapter<MenuAdapter.MenuViewHolder
             }
         }
         this.listener = listener;
+    }
+
+    public List<MenuItem> getItems() {
+        return items;
+    }
+
+    public MenuItem findById(String id) {
+        if (id == null) return null;
+        for (MenuItem m : items) {
+            if (m == null) continue;
+            if (id.equals(m.getId())) return m;
+        }
+        return null;
     }
 
     public void setItems(List<MenuItem> newItems) {
@@ -86,17 +98,13 @@ public class MenuAdapter extends RecyclerView.Adapter<MenuAdapter.MenuViewHolder
             return;
         }
 
-        // Debug log
-        Log.d(TAG, "Binding menu pos=" + position + " id=" + m.getId() + " name=\"" + m.getName() + "\" price=" + m.getPrice() + " imageUrl=\"" + m.getImageUrl() + "\"");
+        Log.d(TAG, "Binding menu pos=" + position + " id=" + m.getId() + " name=\"" + m.getName() + "\" price=" + m.getPrice());
 
-        // Name
         String name = m.getName();
         holder.tvName.setText(name == null || name.trim().isEmpty() ? "(Không tên)" : name);
 
-        // Price formatted
         holder.tvPrice.setText(PRICE_FMT.format(m.getPrice()) + " VND");
 
-        // Image handling: normalize relative URL and load with Glide
         String imageUrl = m.getImageUrl();
         if (imageUrl != null) imageUrl = imageUrl.trim();
         if (imageUrl == null || imageUrl.isEmpty()) {
@@ -115,24 +123,21 @@ public class MenuAdapter extends RecyclerView.Adapter<MenuAdapter.MenuViewHolder
                     .error(R.drawable.ic_menu_placeholder)
                     .listener(new RequestListener<android.graphics.drawable.Drawable>() {
                         @Override
-                        public boolean onLoadFailed(GlideException e, Object model, Target<android.graphics.drawable.Drawable> target, boolean isFirstResource) {
+                        public boolean onLoadFailed(com.bumptech.glide.load.engine.GlideException e, Object model, Target<android.graphics.drawable.Drawable> target, boolean isFirstResource) {
                             Log.w(TAG, "Glide load failed for model=" + model + " err=" + (e != null ? e.getMessage() : "null"));
-                            return false; // allow placeholder
+                            return false;
                         }
-
                         @Override
-                        public boolean onResourceReady(android.graphics.drawable.Drawable resource, Object model, Target<android.graphics.drawable.Drawable> target, DataSource dataSource, boolean isFirstResource) {
+                        public boolean onResourceReady(android.graphics.drawable.Drawable resource, Object model, Target<android.graphics.drawable.Drawable> target, com.bumptech.glide.load.DataSource dataSource, boolean isFirstResource) {
                             return false;
                         }
                     })
                     .into(holder.ivThumb);
         }
 
-        // Badge default
         holder.tvBadge.setText("Còn món");
         holder.tvBadge.setBackgroundResource(R.drawable.badge_green_bg);
 
-        // Quantity UI
         Integer q = qtyMap.get(m.getId());
         if (q == null) q = 0;
         holder.tvQty.setText(String.valueOf(q));
@@ -163,7 +168,7 @@ public class MenuAdapter extends RecyclerView.Adapter<MenuAdapter.MenuViewHolder
     static class MenuViewHolder extends RecyclerView.ViewHolder {
         ImageView ivThumb;
         TextView tvName, tvPrice, tvBadge, tvQty;
-        Button btnAdd, btnMinus;
+        ImageView btnAdd, btnMinus;
 
         public MenuViewHolder(@NonNull View itemView) {
             super(itemView);

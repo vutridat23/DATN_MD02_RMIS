@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="horizontal"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingBottom="12dp"
+    android:gravity="center_vertical">
+
+    <TextView
+        android:id="@+id/tvItemInfo"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:text="Tên món (hiện có: x1)"
+        android:textSize="14sp"
+        android:textColor="#000000" />
+
+    <EditText
+        android:id="@+id/etQty"
+        android:layout_width="80dp"
+        android:layout_height="wrap_content"
+        android:hint="0"
+        android:inputType="number"
+        android:text="0"
+        android:gravity="center"
+        android:textSize="14sp"
+        android:padding="8dp" />
+
+</LinearLayout>
+
