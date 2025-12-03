@@ -200,4 +200,49 @@ public class SocketManager {
             if (listener != null) listener.onError(e);
         }
     }
+
+    /**
+     * Gửi request kiểm tra món ăn lên server
+     * @param tableNumber Số bàn cần kiểm tra
+     * @param orderIds Danh sách ID các order cần kiểm tra
+     */
+    public void emitCheckItemsRequest(int tableNumber, String[] orderIds) {
+        if (tableNumber <= 0) {
+            Log.w(TAG, "emitCheckItemsRequest: invalid tableNumber");
+            return;
+        }
+        try {
+            JSONObject payload = new JSONObject();
+            payload.put("tableNumber", tableNumber);
+            
+            // Thêm danh sách orderIds vào payload
+            if (orderIds != null && orderIds.length > 0) {
+                org.json.JSONArray orderIdsArray = new org.json.JSONArray();
+                for (String orderId : orderIds) {
+                    if (orderId != null && !orderId.trim().isEmpty()) {
+                        orderIdsArray.put(orderId);
+                    }
+                }
+                payload.put("orderIds", orderIdsArray);
+            }
+
+            if (socket != null && socket.connected()) {
+                socket.emit("check_items_request", payload);
+                Log.d(TAG, "emit check_items_request: " + payload.toString());
+            } else {
+                Log.w(TAG, "socket not connected, attempting to connect and emit check_items_request");
+                connect();
+                if (socket != null) {
+                    socket.emit("check_items_request", payload);
+                    Log.d(TAG, "emit check_items_request (after connect attempt): " + payload.toString());
+                }
+            }
+        } catch (JSONException e) {
+            Log.e(TAG, "emitCheckItemsRequest JSON error: " + e.getMessage(), e);
+            if (listener != null) listener.onError(e);
+        } catch (Exception e) {
+            Log.e(TAG, "emitCheckItemsRequest error: " + e.getMessage(), e);
+            if (listener != null) listener.onError(e);
+        }
+    }
 }
