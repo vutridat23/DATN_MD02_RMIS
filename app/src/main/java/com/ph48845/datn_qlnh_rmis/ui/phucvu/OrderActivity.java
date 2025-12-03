@@ -3,8 +3,11 @@ package com.ph48845.datn_qlnh_rmis.ui.phucvu;
 import android.app.AlertDialog;
 import android.app.DatePickerDialog;
 import android.app.TimePickerDialog;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
@@ -90,6 +93,10 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
     private final SocketManager socketManager = SocketManager.getInstance();
     private final String SOCKET_URL = "http://192.168.1.84:3000"; // đổi theo server của bạn
 
+    // BroadcastReceiver để nhận request kiểm tra món từ thu ngân
+    private BroadcastReceiver checkItemsReceiver;
+    private static final String ACTION_CHECK_ITEMS = "com.ph48845.datn_qlnh_rmis.ACTION_CHECK_ITEMS";
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -133,6 +140,12 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
 
         // Start socket realtime and join room 'phucvu' so this client receives updates
         startRealtimeSocket();
+
+        // Đăng ký BroadcastReceiver để nhận request kiểm tra món từ thu ngân
+        registerCheckItemsReceiver();
+        
+        // Load các yêu cầu kiểm tra từ server
+        loadCheckItemsRequestsFromServer();
     }
 
     private void startRealtimeSocket() {
@@ -150,7 +163,11 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
                 public void onOrderUpdated(org.json.JSONObject payload) {
                     Log.d(TAG, "Socket onOrderUpdated: " + (payload != null ? payload.toString() : "null"));
                     // Reload orders for current table (quick and safe)
-                    runOnUiThread(() -> loadExistingOrdersForTable());
+                    runOnUiThread(() -> {
+                        loadExistingOrdersForTable();
+                        // Kiểm tra lại yêu cầu kiểm tra từ server
+                        loadCheckItemsRequestsFromServer();
+                    });
                 }
 
                 @Override
@@ -158,6 +175,8 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
                     Log.d(TAG, "Socket connected (phucvu)");
                     // join room 'phucvu' so server can broadcast only to phục vụ clients
                     socketManager.emitJoinRoom("phucvu");
+                    // Đăng ký listener cho event check_items_request từ server
+                    registerSocketCheckItemsListener();
                 }
 
                 @Override
@@ -176,12 +195,169 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         }
     }
 
+    /**
+     * Đăng ký listener cho socket event "check_items_request" từ server
+     */
+    private void registerSocketCheckItemsListener() {
+        try {
+            // Khi order được update với checkItemsRequestedAt từ server,
+            // event order_updated sẽ được trigger và loadCheckItemsRequestsFromServer() sẽ được gọi
+            // Nếu server gửi event riêng "check_items_request", có thể thêm listener ở đây
+            Log.d(TAG, "Socket listener for check_items_request ready (via order_updated event)");
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to register socket check items listener: " + e.getMessage());
+        }
+    }
+    
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Reload yêu cầu kiểm tra khi quay lại màn hình
+        loadCheckItemsRequestsFromServer();
+    }
+
     @Override
     protected void onDestroy() {
         try {
             socketManager.disconnect();
         } catch (Exception ignored) {}
+        // Hủy đăng ký BroadcastReceiver
+        unregisterCheckItemsReceiver();
         super.onDestroy();
+    }
+
+    /**
+     * Đăng ký BroadcastReceiver để nhận request kiểm tra món từ thu ngân
+     */
+    private void registerCheckItemsReceiver() {
+        checkItemsReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (ACTION_CHECK_ITEMS.equals(intent.getAction())) {
+                    int requestTableNumber = intent.getIntExtra("tableNumber", 0);
+                    String[] orderIds = intent.getStringArrayExtra("orderIds");
+                    
+                    Log.d(TAG, "Received check items request for table " + requestTableNumber);
+                    
+                    // Nếu request là cho bàn hiện tại, hiển thị thông báo và reload orders
+                    if (requestTableNumber == tableNumber) {
+                        runOnUiThread(() -> {
+                            Toast.makeText(OrderActivity.this, 
+                                "Yêu cầu kiểm tra lại món ăn cho bàn " + tableNumber, 
+                                Toast.LENGTH_LONG).show();
+                            
+                            // Reload orders để cập nhật danh sách món
+                            loadExistingOrdersForTable();
+                        });
+                    } else {
+                        // Nếu request là cho bàn khác, chỉ log (có thể mở rộng để hiển thị thông báo chung)
+                        Log.d(TAG, "Check items request for different table: " + requestTableNumber + 
+                            " (current: " + tableNumber + ")");
+                    }
+                }
+            }
+        };
+        
+        IntentFilter filter = new IntentFilter(ACTION_CHECK_ITEMS);
+        registerReceiver(checkItemsReceiver, filter);
+        Log.d(TAG, "Registered check items receiver");
+    }
+
+    /**
+     * Hủy đăng ký BroadcastReceiver
+     */
+    private void unregisterCheckItemsReceiver() {
+        if (checkItemsReceiver != null) {
+            try {
+                unregisterReceiver(checkItemsReceiver);
+                Log.d(TAG, "Unregistered check items receiver");
+            } catch (IllegalArgumentException e) {
+                // Receiver chưa được đăng ký, bỏ qua
+                Log.w(TAG, "Receiver not registered: " + e.getMessage());
+            }
+            checkItemsReceiver = null;
+        }
+    }
+
+    /**
+     * Load các yêu cầu kiểm tra từ server (orders có checkItemsRequestedAt)
+     */
+    private void loadCheckItemsRequestsFromServer() {
+        // Lấy tất cả orders để tìm các yêu cầu kiểm tra
+        orderRepository.getOrdersByTableNumber(null, null, new OrderRepository.RepositoryCallback<List<Order>>() {
+            @Override
+            public void onSuccess(List<Order> allOrders) {
+                runOnUiThread(() -> {
+                    if (allOrders == null || allOrders.isEmpty()) {
+                        return;
+                    }
+                    
+                    // Lọc các orders có checkItemsRequestedAt
+                    List<Order> checkRequests = new ArrayList<>();
+                    for (Order order : allOrders) {
+                        if (order != null && order.getCheckItemsRequestedAt() != null 
+                            && !order.getCheckItemsRequestedAt().trim().isEmpty()) {
+                            checkRequests.add(order);
+                        }
+                    }
+                    
+                    // Nếu có yêu cầu kiểm tra cho bàn hiện tại, hiển thị thông báo
+                    for (Order requestOrder : checkRequests) {
+                        if (requestOrder.getTableNumber() == tableNumber) {
+                            showCheckItemsRequestNotification(requestOrder);
+                            break; // Chỉ hiển thị một lần
+                        }
+                    }
+                    
+                    // Nếu có yêu cầu cho các bàn khác, có thể hiển thị tổng số
+                    if (!checkRequests.isEmpty()) {
+                        int otherTableRequests = 0;
+                        for (Order requestOrder : checkRequests) {
+                            if (requestOrder.getTableNumber() != tableNumber) {
+                                otherTableRequests++;
+                            }
+                        }
+                        if (otherTableRequests > 0) {
+                            Log.d(TAG, "Có " + otherTableRequests + " yêu cầu kiểm tra cho các bàn khác");
+                        }
+                    }
+                });
+            }
+
+            @Override
+            public void onError(String message) {
+                Log.w(TAG, "Error loading check items requests: " + message);
+            }
+        });
+    }
+
+    /**
+     * Hiển thị thông báo yêu cầu kiểm tra món
+     */
+    private void showCheckItemsRequestNotification(Order order) {
+        if (order == null) {
+            return;
+        }
+        
+        String timeInfo = "";
+        if (order.getCheckItemsRequestedAt() != null) {
+            try {
+                // Parse ISO date và format lại
+                java.text.SimpleDateFormat inputFormat = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US);
+                java.text.SimpleDateFormat outputFormat = new java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault());
+                java.util.Date date = inputFormat.parse(order.getCheckItemsRequestedAt());
+                timeInfo = " lúc " + outputFormat.format(date);
+            } catch (Exception e) {
+                timeInfo = "";
+            }
+        }
+        
+        Toast.makeText(this, 
+            "Yêu cầu kiểm tra lại món ăn cho bàn " + order.getTableNumber() + timeInfo, 
+            Toast.LENGTH_LONG).show();
+        
+        // Reload orders để cập nhật
+        loadExistingOrdersForTable();
     }
 
     private void loadMenuItems() {

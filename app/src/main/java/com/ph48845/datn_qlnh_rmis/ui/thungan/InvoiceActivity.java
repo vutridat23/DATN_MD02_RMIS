@@ -2,6 +2,7 @@ package com.ph48845.datn_qlnh_rmis.ui.thungan;
 
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.print.PrintAttributes;
 import android.print.PrintDocumentAdapter;
@@ -29,6 +30,7 @@ import com.ph48845.datn_qlnh_rmis.data.model.MenuItem;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
 import com.ph48845.datn_qlnh_rmis.data.repository.MenuRepository;
 import com.ph48845.datn_qlnh_rmis.data.repository.OrderRepository;
+import com.ph48845.datn_qlnh_rmis.ui.bep.SocketManager;
 import com.ph48845.datn_qlnh_rmis.ui.thanhtoan.ThanhToanActivity;
 
 import java.text.DecimalFormat;
@@ -67,6 +69,10 @@ public class InvoiceActivity extends AppCompatActivity {
     private Order editingOrder = null; // Order đang được chỉnh sửa
     private Map<String, CardView> orderCardMap = new ConcurrentHashMap<>(); // Map order ID -> CardView
     private String newlySplitOrderId = null; // ID của hóa đơn mới vừa tách (để highlight)
+    
+    // Socket để gửi request lên server
+    private final SocketManager socketManager = SocketManager.getInstance();
+    private final String SOCKET_URL = "http://192.168.1.84:3000"; // đổi theo server của bạn
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -87,8 +93,51 @@ public class InvoiceActivity extends AppCompatActivity {
         orderRepository = new OrderRepository();
         menuRepository = new MenuRepository();
 
+        // Khởi tạo socket để gửi request lên server
+        initSocket();
+
         // Load dữ liệu từ API
         loadInvoiceData();
+    }
+
+    /**
+     * Khởi tạo socket connection
+     */
+    private void initSocket() {
+        try {
+            socketManager.init(SOCKET_URL);
+            socketManager.setOnEventListener(new SocketManager.OnEventListener() {
+                @Override
+                public void onOrderCreated(org.json.JSONObject payload) {
+                    // Không cần xử lý
+                }
+
+                @Override
+                public void onOrderUpdated(org.json.JSONObject payload) {
+                    // Không cần xử lý
+                }
+
+                @Override
+                public void onConnect() {
+                    Log.d(TAG, "Socket connected in InvoiceActivity");
+                }
+
+                @Override
+                public void onDisconnect() {
+                    Log.d(TAG, "Socket disconnected in InvoiceActivity");
+                }
+
+                @Override
+                public void onError(Exception e) {
+                    Log.e(TAG, "Socket error in InvoiceActivity: " + (e != null ? e.getMessage() : "unknown"));
+                }
+            });
+            socketManager.connect();
+            Log.d(TAG, "Socket initialized for InvoiceActivity, URL: " + SOCKET_URL);
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to initialize socket: " + e.getMessage(), e);
+            Toast.makeText(this, "Lỗi kết nối socket: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void initViews() {
@@ -725,17 +774,132 @@ public class InvoiceActivity extends AppCompatActivity {
      * Yêu cầu kiểm tra lại món ăn
      */
     private void requestCheckItems() {
-        // Tạo request gửi sang màn phục vụ
-        Intent intent = new Intent();
-        intent.setAction("com.ph48845.datn_qlnh_rmis.ACTION_CHECK_ITEMS");
-        intent.putExtra("tableNumber", tableNumber);
-        intent.putExtra("orderIds", getOrderIds());
+        String[] orderIds = getOrderIds();
+        if (orderIds == null || orderIds.length == 0) {
+            Toast.makeText(this, "Không có hóa đơn để kiểm tra", Toast.LENGTH_SHORT).show();
+            return;
+        }
         
-        // Có thể sử dụng BroadcastReceiver hoặc Notification
-        sendBroadcast(intent);
+        progressBar.setVisibility(View.VISIBLE);
         
-        Toast.makeText(this, "Đã gửi yêu cầu kiểm tra lại món ăn cho bàn " + tableNumber, Toast.LENGTH_LONG).show();
-        Log.d(TAG, "Request check items for table " + tableNumber);
+        // Lấy user ID từ SharedPreferences
+        SharedPreferences prefs = getSharedPreferences("RestaurantPrefs", MODE_PRIVATE);
+        String userId = prefs.getString("userId", null);
+        
+        Log.d(TAG, "Starting check items request for table " + tableNumber + ", orders: " + java.util.Arrays.toString(orderIds));
+        
+        // Lưu request vào database cho từng order
+        saveCheckItemsRequestToDatabase(orderIds, userId, new Runnable() {
+            @Override
+            public void run() {
+                // Sau khi lưu vào database thành công, gửi socket event
+                runOnUiThread(() -> {
+                    // Đảm bảo socket đã được init và connect
+                    if (!socketManager.isConnected()) {
+                        Log.w(TAG, "Socket not connected, initializing...");
+                        initSocket();
+                        // Đợi một chút để socket kết nối
+                        new android.os.Handler().postDelayed(() -> {
+                            socketManager.emitCheckItemsRequest(tableNumber, orderIds);
+                        }, 1000);
+                    } else {
+                        socketManager.emitCheckItemsRequest(tableNumber, orderIds);
+                    }
+                    
+                    // Gửi broadcast trong app để màn phục vụ nhận được ngay (nếu đang mở)
+                    Intent intent = new Intent();
+                    intent.setAction("com.ph48845.datn_qlnh_rmis.ACTION_CHECK_ITEMS");
+                    intent.putExtra("tableNumber", tableNumber);
+                    intent.putExtra("orderIds", orderIds);
+                    sendBroadcast(intent);
+                    
+                    progressBar.setVisibility(View.GONE);
+                    Toast.makeText(InvoiceActivity.this, "Đã gửi yêu cầu kiểm tra lại món ăn cho bàn " + tableNumber, Toast.LENGTH_LONG).show();
+                    Log.d(TAG, "Request check items for table " + tableNumber + " sent to server and broadcast");
+                });
+            }
+        });
+    }
+
+    /**
+     * Lưu request kiểm tra món vào database cho các order
+     */
+    private void saveCheckItemsRequestToDatabase(String[] orderIds, String userId, Runnable onComplete) {
+        if (orderIds == null || orderIds.length == 0) {
+            if (onComplete != null) onComplete.run();
+            return;
+        }
+        
+        String currentTime = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).format(new Date());
+        
+        final java.util.concurrent.atomic.AtomicInteger successCount = new java.util.concurrent.atomic.AtomicInteger(0);
+        final java.util.concurrent.atomic.AtomicInteger totalCount = new java.util.concurrent.atomic.AtomicInteger(0);
+        final java.util.concurrent.atomic.AtomicBoolean callbackCalled = new java.util.concurrent.atomic.AtomicBoolean(false);
+        
+        // Đếm số order hợp lệ
+        for (String orderId : orderIds) {
+            if (orderId != null && !orderId.trim().isEmpty()) {
+                totalCount.incrementAndGet();
+            }
+        }
+        
+        if (totalCount.get() == 0) {
+            if (onComplete != null) onComplete.run();
+            return;
+        }
+        
+        // Cập nhật từng order với checkItemsRequestedBy và checkItemsRequestedAt
+        for (String orderId : orderIds) {
+            if (orderId == null || orderId.trim().isEmpty()) {
+                continue;
+            }
+            
+            Map<String, Object> updates = new HashMap<>();
+            if (userId != null && !userId.trim().isEmpty()) {
+                updates.put("checkItemsRequestedBy", userId);
+            }
+            updates.put("checkItemsRequestedAt", currentTime);
+            
+            Log.d(TAG, "Updating order " + orderId + " with checkItemsRequestedAt: " + currentTime);
+            
+            orderRepository.updateOrder(orderId, updates, new OrderRepository.RepositoryCallback<Order>() {
+                @Override
+                public void onSuccess(Order result) {
+                    int current = successCount.incrementAndGet();
+                    Log.d(TAG, "Check items request saved to database for order: " + orderId + " (" + current + "/" + totalCount.get() + ")");
+                    
+                    // Log chi tiết response từ server
+                    if (result != null) {
+                        Log.d(TAG, "Order response - checkItemsRequestedAt: " + result.getCheckItemsRequestedAt());
+                        Log.d(TAG, "Order response - checkItemsRequestedBy: " + result.getCheckItemsRequestedBy());
+                        if (result.getCheckItemsRequestedAt() == null || result.getCheckItemsRequestedAt().trim().isEmpty()) {
+                            Log.w(TAG, "WARNING: Server response does not contain checkItemsRequestedAt field!");
+                        }
+                    } else {
+                        Log.w(TAG, "WARNING: Server returned null order object!");
+                    }
+                    
+                    // Nếu tất cả đã thành công, gọi callback (chỉ gọi một lần)
+                    if (current >= totalCount.get() && onComplete != null && !callbackCalled.getAndSet(true)) {
+                        onComplete.run();
+                    }
+                }
+
+                @Override
+                public void onError(String message) {
+                    Log.e(TAG, "Failed to save check items request to database for order " + orderId + ": " + message);
+                    int current = successCount.incrementAndGet();
+                    
+                    // Nếu đã xử lý hết (dù thành công hay thất bại), gọi callback
+                    if (current >= totalCount.get() && onComplete != null && !callbackCalled.getAndSet(true)) {
+                        runOnUiThread(() -> {
+                            Toast.makeText(InvoiceActivity.this, "Một số yêu cầu không thể lưu, nhưng đã gửi qua socket", Toast.LENGTH_LONG).show();
+                        });
+                        onComplete.run();
+                    }
+                }
+            });
+        }
     }
 
     /**
@@ -1219,12 +1383,52 @@ public class InvoiceActivity extends AppCompatActivity {
      * Yêu cầu kiểm tra cho một order cụ thể
      */
     private void requestCheckItemsForOrder(Order order) {
-        Intent intent = new Intent();
-        intent.setAction("com.ph48845.datn_qlnh_rmis.ACTION_CHECK_ITEMS");
-        intent.putExtra("tableNumber", tableNumber);
-        intent.putExtra("orderIds", new String[]{order.getId()});
-        sendBroadcast(intent);
-        Toast.makeText(this, "Đã gửi yêu cầu kiểm tra lại món ăn", Toast.LENGTH_LONG).show();
+        if (order == null || order.getId() == null) {
+            Toast.makeText(this, "Hóa đơn không hợp lệ", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        String[] orderIds = new String[]{order.getId()};
+        
+        progressBar.setVisibility(View.VISIBLE);
+        
+        // Lấy user ID từ SharedPreferences
+        SharedPreferences prefs = getSharedPreferences("RestaurantPrefs", MODE_PRIVATE);
+        String userId = prefs.getString("userId", null);
+        
+        Log.d(TAG, "Starting check items request for order " + order.getId());
+        
+        // Lưu request vào database
+        saveCheckItemsRequestToDatabase(orderIds, userId, new Runnable() {
+            @Override
+            public void run() {
+                // Sau khi lưu vào database thành công, gửi socket event
+                runOnUiThread(() -> {
+                    // Đảm bảo socket đã được init và connect
+                    if (!socketManager.isConnected()) {
+                        Log.w(TAG, "Socket not connected, initializing...");
+                        initSocket();
+                        // Đợi một chút để socket kết nối
+                        new android.os.Handler().postDelayed(() -> {
+                            socketManager.emitCheckItemsRequest(tableNumber, orderIds);
+                        }, 1000);
+                    } else {
+                        socketManager.emitCheckItemsRequest(tableNumber, orderIds);
+                    }
+                    
+                    // Gửi broadcast trong app để màn phục vụ nhận được ngay (nếu đang mở)
+                    Intent intent = new Intent();
+                    intent.setAction("com.ph48845.datn_qlnh_rmis.ACTION_CHECK_ITEMS");
+                    intent.putExtra("tableNumber", tableNumber);
+                    intent.putExtra("orderIds", orderIds);
+                    sendBroadcast(intent);
+                    
+                    progressBar.setVisibility(View.GONE);
+                    Toast.makeText(InvoiceActivity.this, "Đã gửi yêu cầu kiểm tra lại món ăn", Toast.LENGTH_LONG).show();
+                    Log.d(TAG, "Request check items for order " + order.getId() + " sent to server and broadcast");
+                });
+            }
+        });
     }
 
     /**

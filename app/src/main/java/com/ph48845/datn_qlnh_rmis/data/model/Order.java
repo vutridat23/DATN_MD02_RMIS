@@ -85,6 +85,18 @@ public class Order implements Serializable {
     @SerializedName("paidAt")
     private String paidAtAnnotated;
 
+    @SerializedName("tempCalculationRequestedBy")
+    private String tempCalculationRequestedByAnnotated;
+
+    @SerializedName("tempCalculationRequestedAt")
+    private String tempCalculationRequestedAtAnnotated;
+
+    @SerializedName("checkItemsRequestedBy")
+    private String checkItemsRequestedByAnnotated;
+
+    @SerializedName("checkItemsRequestedAt")
+    private String checkItemsRequestedAtAnnotated;
+
     // ================== Constructors ==================
     public Order() {
         if (items == null) items = new ArrayList<>();
@@ -273,6 +285,34 @@ public class Order implements Serializable {
     public void setPaidAt(String paidAt) {
         this.paidAtLegacy = paidAt;
         this.paidAtAnnotated = paidAt;
+    }
+
+    public String getTempCalculationRequestedBy() {
+        return tempCalculationRequestedByAnnotated;
+    }
+    public void setTempCalculationRequestedBy(String tempCalculationRequestedBy) {
+        this.tempCalculationRequestedByAnnotated = tempCalculationRequestedBy;
+    }
+
+    public String getTempCalculationRequestedAt() {
+        return tempCalculationRequestedAtAnnotated;
+    }
+    public void setTempCalculationRequestedAt(String tempCalculationRequestedAt) {
+        this.tempCalculationRequestedAtAnnotated = tempCalculationRequestedAt;
+    }
+
+    public String getCheckItemsRequestedBy() {
+        return checkItemsRequestedByAnnotated;
+    }
+    public void setCheckItemsRequestedBy(String checkItemsRequestedBy) {
+        this.checkItemsRequestedByAnnotated = checkItemsRequestedBy;
+    }
+
+    public String getCheckItemsRequestedAt() {
+        return checkItemsRequestedAtAnnotated;
+    }
+    public void setCheckItemsRequestedAt(String checkItemsRequestedAt) {
+        this.checkItemsRequestedAtAnnotated = checkItemsRequestedAt;
     }
 
     private String createdAtEpochToString() {

@@ -59,6 +59,7 @@ import com.ph48845.datn_qlnh_rmis.core.base.BaseMenuActivity;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -145,6 +146,8 @@ public class MainActivity extends BaseMenuActivity {
                 showMoodDialog();
             } else if (id == R.id.nav_contact) {
                 showContactDialog();
+            } else if (id == R.id.nav_check_items_requests) {
+                showCheckItemsRequests();
             } else if (id == R.id.nav_logout) {
                 logout();
             }
@@ -154,6 +157,9 @@ public class MainActivity extends BaseMenuActivity {
         });
 
         updateNavHeaderInfo();
+        
+        // Load và hiển thị số lượng yêu cầu kiểm tra
+        loadCheckItemsRequestsCount();
 
         //padding camera nếu cần
 
@@ -246,6 +252,8 @@ public class MainActivity extends BaseMenuActivity {
         super.onResume();
         // refresh on resume to reflect any changes
         fetchTablesFromServer();
+        // Refresh số lượng yêu cầu kiểm tra
+        loadCheckItemsRequestsCount();
     }
 
     /**
@@ -1197,5 +1205,137 @@ public class MainActivity extends BaseMenuActivity {
                 });
             }
         });
+    }
+
+    /**
+     * Load số lượng yêu cầu kiểm tra và hiển thị trên menu
+     */
+    private void loadCheckItemsRequestsCount() {
+        orderRepository.getOrdersByTableNumber(null, null, new OrderRepository.RepositoryCallback<List<Order>>() {
+            @Override
+            public void onSuccess(List<Order> allOrders) {
+                runOnUiThread(() -> {
+                    // Lọc các orders có checkItemsRequestedAt
+                    int count = 0;
+                    if (allOrders != null) {
+                        for (Order order : allOrders) {
+                            if (order != null && order.getCheckItemsRequestedAt() != null 
+                                && !order.getCheckItemsRequestedAt().trim().isEmpty()) {
+                                count++;
+                            }
+                        }
+                    }
+                    
+                    // Cập nhật menu item với số lượng
+                    updateCheckItemsMenuBadge(count);
+                });
+            }
+
+            @Override
+            public void onError(String message) {
+                Log.w(TAG, "Error loading check items requests: " + message);
+                // Hiển thị 0 nếu có lỗi
+                runOnUiThread(() -> updateCheckItemsMenuBadge(0));
+            }
+        });
+    }
+
+    /**
+     * Cập nhật badge số lượng trên menu item
+     */
+    private void updateCheckItemsMenuBadge(int count) {
+        MenuItem menuItem = navigationView.getMenu().findItem(R.id.nav_check_items_requests);
+        if (menuItem != null) {
+            String title = "Yêu cầu kiểm tra bàn";
+            if (count > 0) {
+                title += " (" + count + ")";
+            }
+            SpannableString spanString = new SpannableString(title);
+            spanString.setSpan(new RelativeSizeSpan(1.1f), 0, spanString.length(), 0);
+            menuItem.setTitle(spanString);
+        }
+    }
+
+    /**
+     * Hiển thị danh sách yêu cầu kiểm tra bàn
+     */
+    private void showCheckItemsRequests() {
+        progressBar.setVisibility(View.VISIBLE);
+        
+        orderRepository.getOrdersByTableNumber(null, null, new OrderRepository.RepositoryCallback<List<Order>>() {
+            @Override
+            public void onSuccess(List<Order> allOrders) {
+                runOnUiThread(() -> {
+                    progressBar.setVisibility(View.GONE);
+                    
+                    // Lọc các orders có checkItemsRequestedAt
+                    List<Order> checkRequests = new ArrayList<>();
+                    if (allOrders != null) {
+                        for (Order order : allOrders) {
+                            if (order != null && order.getCheckItemsRequestedAt() != null 
+                                && !order.getCheckItemsRequestedAt().trim().isEmpty()) {
+                                checkRequests.add(order);
+                            }
+                        }
+                    }
+                    
+                    if (checkRequests.isEmpty()) {
+                        Toast.makeText(MainActivity.this, "Không có yêu cầu kiểm tra bàn nào", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    
+                    // Hiển thị dialog với danh sách yêu cầu
+                    showCheckItemsRequestsDialog(checkRequests);
+                });
+            }
+
+            @Override
+            public void onError(String message) {
+                runOnUiThread(() -> {
+                    progressBar.setVisibility(View.GONE);
+                    Toast.makeText(MainActivity.this, "Lỗi tải yêu cầu kiểm tra: " + message, Toast.LENGTH_LONG).show();
+                });
+            }
+        });
+    }
+
+    /**
+     * Hiển thị dialog danh sách yêu cầu kiểm tra bàn
+     */
+    private void showCheckItemsRequestsDialog(List<Order> orders) {
+        // Tạo danh sách hiển thị
+        String[] items = new String[orders.size()];
+        for (int i = 0; i < orders.size(); i++) {
+            Order order = orders.get(i);
+            String tableInfo = "Bàn " + order.getTableNumber();
+            String timeInfo = "";
+            if (order.getCheckItemsRequestedAt() != null) {
+                try {
+                    // Parse ISO date và format lại
+                    SimpleDateFormat inputFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US);
+                    SimpleDateFormat outputFormat = new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault());
+                    Date date = inputFormat.parse(order.getCheckItemsRequestedAt());
+                    timeInfo = " - " + outputFormat.format(date);
+                } catch (Exception e) {
+                    timeInfo = " - " + order.getCheckItemsRequestedAt();
+                }
+            }
+            items[i] = tableInfo + timeInfo;
+        }
+        
+        new AlertDialog.Builder(this)
+            .setTitle("Yêu cầu kiểm tra bàn (" + orders.size() + ")")
+            .setItems(items, (dialog, which) -> {
+                // Mở màn hình OrderActivity cho bàn được chọn
+                Order selectedOrder = orders.get(which);
+                Intent intent = new Intent(MainActivity.this, OrderActivity.class);
+                intent.putExtra("tableNumber", selectedOrder.getTableNumber());
+                if (selectedOrder.getTableId() != null) {
+                    intent.putExtra("tableId", selectedOrder.getTableId());
+                }
+                startActivity(intent);
+            })
+            .setNegativeButton("Đóng", null)
+            .show();
     }
 }
