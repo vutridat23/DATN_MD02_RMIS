@@ -6,16 +6,56 @@
     android:background="#ffffff">
 
     <com.google.android.material.appbar.AppBarLayout
+        android:id="@+id/appBarLayout"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="wrap_content"
+        android:fitsSystemWindows="true"
+        android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar">
 
         <androidx.appcompat.widget.Toolbar
-            android:id="@+id/toolbar_bep_order"
+            android:id="@+id/toolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
-            android:background="#2BB673"
-            app:navigationIcon="?attr/homeAsUpIndicator"
-            app:titleTextColor="#FFFFFF" />
+            android:background="#32B768">
+
+            <FrameLayout
+                android:id="@+id/nav_icon_container"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_gravity="start|center_vertical">
+
+                <androidx.appcompat.widget.Toolbar
+                    android:id="@+id/toolbar_bep_order"
+                    android:layout_width="match_parent"
+                    android:layout_height="?attr/actionBarSize"
+                    app:navigationIcon="?attr/homeAsUpIndicator"
+                    app:title=""
+                    app:titleTextColor="#FFFFFF" />
+
+                <View
+                    android:id="@+id/redDot"
+                    android:layout_width="10dp"
+                    android:layout_height="10dp"
+                    android:layout_gravity="top|end"
+                    android:layout_marginTop="9dp"
+                    android:background="@drawable/red_dot"
+                    android:visibility="gone" />
+            </FrameLayout>
+
+            <TextView
+                android:id="@+id/toolbar_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_vertical"
+                android:layout_marginEnd="70dp"
+                android:gravity="center"
+                android:text="DANH SÁCH CHẾ BIẾN"
+                android:textColor="#FFFFFF"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+
+        </androidx.appcompat.widget.Toolbar>
+
     </com.google.android.material.appbar.AppBarLayout>
 
     <LinearLayout
@@ -26,13 +66,18 @@
 
         <TextView
             android:id="@+id/tv_bep_table_label"
-            android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:gravity="center_vertical"
-            android:paddingStart="16dp"
-            android:paddingEnd="16dp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_margin="12dp"
+            android:background="@drawable/bg_table_label"
+            android:paddingLeft="14dp"
+            android:paddingRight="14dp"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp"
             android:textColor="#222222"
-            android:textSize="16sp" />
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
 
         <ProgressBar
             android:id="@+id/progress_bep_order"
@@ -49,4 +94,5 @@
             android:padding="12dp"
             android:clipToPadding="false" />
     </LinearLayout>
+
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

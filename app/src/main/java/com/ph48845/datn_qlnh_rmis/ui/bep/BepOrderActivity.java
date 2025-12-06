@@ -57,7 +57,12 @@ public class BepOrderActivity extends AppCompatActivity implements OrderItemAdap
         rvItems = findViewById(R.id.recycler_table_orders);
 
         setSupportActionBar(toolbar);
-        if (getSupportActionBar() != null) getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+            getSupportActionBar().setDisplayShowTitleEnabled(false);  // TẮT TITLE
+            getSupportActionBar().setTitle("");                       // XÓA TITLE
+        }
 
         tableNumber = getIntent().getIntExtra("tableNumber", 0);
         tableId = getIntent().getStringExtra("tableId");
