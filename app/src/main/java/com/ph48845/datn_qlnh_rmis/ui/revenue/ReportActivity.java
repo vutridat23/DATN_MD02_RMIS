@@ -86,6 +86,8 @@ public class ReportActivity extends AppCompatActivity {
         if (getSupportActionBar() != null) {
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
             getSupportActionBar().setDisplayShowHomeEnabled(true);
+            // Ẩn title mặc định để chỉ hiển thị TextView custom
+            getSupportActionBar().setDisplayShowTitleEnabled(false);
         }
         // Đảm bảo nút back hoạt động
         toolbar.setNavigationOnClickListener(v -> finish());
@@ -95,6 +97,7 @@ public class ReportActivity extends AppCompatActivity {
             if (getSupportActionBar() != null) {
                 getSupportActionBar().setDisplayHomeAsUpEnabled(true);
                 getSupportActionBar().setDisplayShowHomeEnabled(true);
+                getSupportActionBar().setDisplayShowTitleEnabled(false);
             }
         });
     }
