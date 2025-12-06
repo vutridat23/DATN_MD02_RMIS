@@ -3,6 +3,7 @@ package com.ph48845.datn_qlnh_rmis.ui.bep.adapter;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Color;
+import android.graphics.Paint;
 import android.graphics.drawable.GradientDrawable;
 import android.text.TextUtils;
 import android.util.Log;
@@ -29,11 +30,12 @@ import java.util.HashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * OrderItemAdapter - phiên bản tương thích với item_bep_order.xml bạn gửi
- * - Hỗ trợ txtTableNumber (layout bạn gửi) và fallback txtTableInfo nếu có
- * - Timer client-side với persist start times
- * - Boxed rounded inner background programmatically
- * - Giữ nút luôn enabled (không disable khi click)
+ * OrderItemAdapter - phiên bản tương thích với item_bep_order.xml
+ * - Loại bỏ hiển thị số bàn trên mỗi item (txtTableNumber sẽ luôn GONE từ adapter).
+ * - Khi trạng thái là "ready"/"soldout"/"canceled" -> áp dụng visual rõ rệt:
+ *   + đổi background inner box (màu nhạt)
+ *   + đổi màu txtTrangThai (green/red/gray) và hiển thị nhãn "Đã xong"/"Hết món"/"Đã huỷ"
+ *   + gạch ngang tên món và disable các nút để tránh nhầm lẫn
  */
 public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> {
 
@@ -203,18 +205,11 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
 
         String name = oi.getMenuItemName() != null && !oi.getMenuItemName().isEmpty() ? oi.getMenuItemName() : oi.getName();
         holder.txtTenMon.setText(name);
+        holder.txtTenMon.setPaintFlags(holder.txtTenMon.getPaintFlags() & (~Paint.STRIKE_THRU_TEXT_FLAG));
 
-        // Table text: layout bạn gửi dùng txtTableNumber; fallback txtTableInfo nếu có
+        // HIDE table info per request
         if (holder.txtTableInfo != null) {
-            String tableText = "";
-            if (order != null) {
-                try {
-                    int tn = order.getTableNumber(); // int primitive, không so sánh với null
-                    if (tn > 0) tableText = "Bàn " + tn;
-                } catch (Exception ignored) {}
-            }
-            holder.txtTableInfo.setVisibility(tableText.isEmpty() ? View.GONE : View.VISIBLE);
-            holder.txtTableInfo.setText(tableText);
+            holder.txtTableInfo.setVisibility(View.GONE);
         }
 
         String note = oi.getNote() != null ? oi.getNote().trim() : "";
@@ -231,7 +226,8 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
         }
 
         if (holder.txtQty != null) holder.txtQty.setText("Số lượng: " + oi.getQuantity());
-        if (holder.txtTrangThai != null) holder.txtTrangThai.setText("Trạng thái: " + (oi.getStatus() == null ? "" : oi.getStatus()));
+        String statusRaw = oi.getStatus() == null ? "" : oi.getStatus();
+        if (holder.txtTrangThai != null) holder.txtTrangThai.setText("Trạng thái: " + statusRaw);
 
         String img = oi.getImageUrl();
         if (!TextUtils.isEmpty(img)) {
@@ -245,22 +241,33 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
             holder.imgThumb.setImageResource(R.drawable.ic_menu_placeholder);
         }
 
-        // initial timer UI update
+        // initial timer UI update (also sets warning background)
         updateTimerUI(holder, position);
 
-        holder.setButtonsEnabled(true);
+        // Apply visual treatment for finished / soldout / canceled statuses
+        String lowerStatus = statusRaw.trim().toLowerCase();
+        applyStatusVisuals(holder, lowerStatus);
 
+        // Ensure buttons are enabled/disabled based on status
+        boolean interactive = !( "ready".equals(lowerStatus) || "soldout".equals(lowerStatus) || "canceled".equals(lowerStatus) );
+        holder.setButtonsEnabled(interactive);
 
+        // wire buttons
         holder.btnDangLam.setOnClickListener(v -> {
             if (listener != null) listener.onChangeStatus(wrapper, "preparing");
         });
         holder.btnXongMon.setOnClickListener(v -> {
             if (listener != null) listener.onChangeStatus(wrapper, "ready");
             clearStartTimeForItem(order, oi);
+            // immediate visual feedback: disable buttons and mark
+            applyStatusVisuals(holder, "ready");
+            holder.setButtonsEnabled(false);
         });
         holder.btnHetMon.setOnClickListener(v -> {
             if (listener != null) listener.onChangeStatus(wrapper, "soldout");
             clearStartTimeForItem(order, oi);
+            applyStatusVisuals(holder, "soldout");
+            holder.setButtonsEnabled(false);
         });
     }
 
@@ -297,6 +304,7 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
                 shouldWarn = true;
             }
         } else {
+            // if not cooking anymore, ensure timers are cleared
             if (startTimes.containsKey(key)) startTimes.remove(key);
             SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
             if (prefs.contains(PREF_KEY_PREFIX + key)) prefs.edit().remove(PREF_KEY_PREFIX + key).apply();
@@ -315,8 +323,68 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
             if (rootInner != null) rootInner.setBackground(createRoundedDrawable(Color.parseColor("#FFF3E0"), Color.parseColor("#FF7043")));
             else holder.itemView.setBackgroundColor(Color.parseColor("#FFF3E0"));
         } else {
+            // keep default white when not warning; but if status is finished/soldout we'll override later in applyStatusVisuals
             if (rootInner != null) rootInner.setBackground(createRoundedDrawable(Color.WHITE, Color.parseColor("#CCCCCC")));
             else holder.itemView.setBackgroundColor(Color.TRANSPARENT);
+        }
+    }
+
+    /**
+     * Apply clear visual difference for final statuses:
+     * - ready: soft green background, green status text, strike-through name, slightly dimmed
+     * - soldout: soft red/pink background, red status text, strike-through name, more dimmed
+     * - canceled: gray background, gray status text, strike-through name, disabled
+     */
+    private void applyStatusVisuals(@NonNull VH holder, @NonNull String lowerStatus) {
+        View rootInner = null;
+        try {
+            if (holder.itemView instanceof ViewGroup && ((ViewGroup) holder.itemView).getChildCount() > 0) {
+                rootInner = ((ViewGroup) holder.itemView).getChildAt(0);
+            }
+        } catch (Exception ignored) {}
+
+        if ("ready".equals(lowerStatus)) {
+            // soft green background
+            int fill = Color.parseColor("#E8F5E9"); // light green
+            int stroke = Color.parseColor("#43A047"); // green border
+            if (rootInner != null) rootInner.setBackground(createRoundedDrawable(fill, stroke));
+            if (holder.txtTrangThai != null) {
+                holder.txtTrangThai.setText("Đã xong");
+                holder.txtTrangThai.setTextColor(Color.parseColor("#2E7D32"));
+            }
+            // strike-through name and dim whole card slightly
+            holder.txtTenMon.setPaintFlags(holder.txtTenMon.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
+            holder.itemView.setAlpha(0.75f);
+        } else if ("soldout".equals(lowerStatus) || "out_of_stock".equals(lowerStatus)) {
+            // soft red/pink background
+            int fill = Color.parseColor("#FFEBEE"); // light red
+            int stroke = Color.parseColor("#E53935"); // red border
+            if (rootInner != null) rootInner.setBackground(createRoundedDrawable(fill, stroke));
+            if (holder.txtTrangThai != null) {
+                holder.txtTrangThai.setText("Hết món");
+                holder.txtTrangThai.setTextColor(Color.parseColor("#C62828"));
+            }
+            holder.txtTenMon.setPaintFlags(holder.txtTenMon.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
+            holder.itemView.setAlpha(0.6f);
+        } else if ("canceled".equals(lowerStatus)) {
+            int fill = Color.parseColor("#F5F5F5"); // gray
+            int stroke = Color.parseColor("#BDBDBD");
+            if (rootInner != null) rootInner.setBackground(createRoundedDrawable(fill, stroke));
+            if (holder.txtTrangThai != null) {
+                holder.txtTrangThai.setText("Đã huỷ");
+                holder.txtTrangThai.setTextColor(Color.parseColor("#757575"));
+            }
+            holder.txtTenMon.setPaintFlags(holder.txtTenMon.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
+            holder.itemView.setAlpha(0.55f);
+        } else {
+            // default: white background, normal text, full alpha
+            if (rootInner != null) rootInner.setBackground(createRoundedDrawable(Color.WHITE, Color.parseColor("#CCCCCC")));
+            if (holder.txtTrangThai != null) {
+                // leave timer/normal status text as-is; color to blue-ish
+                holder.txtTrangThai.setTextColor(Color.parseColor("#03A9F4"));
+            }
+            holder.txtTenMon.setPaintFlags(holder.txtTenMon.getPaintFlags() & (~Paint.STRIKE_THRU_TEXT_FLAG));
+            holder.itemView.setAlpha(1f);
         }
     }
 
@@ -367,9 +435,9 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
             super(itemView);
             imgThumb = itemView.findViewById(R.id.imgThumb);
             txtTenMon = itemView.findViewById(R.id.txtTenMon);
-//            TextView t1 = itemView.findViewById(R.id.txtTableInfo);   // có thể null
-            TextView t2 = itemView.findViewById(R.id.txtTableNumber); // layout bạn gửi có id này
-//            txtTableInfo = t1 != null ? t1 : t2; // fallback: dùng txtTableNumber nếu txtTableInfo không có
+            // item_bep_order.xml has txtTableNumber id; keep reference but hide it in bind
+            TextView t2 = itemView.findViewById(R.id.txtTableNumber);
+            txtTableInfo = t2;
             txtNote = itemView.findViewById(R.id.txtNote);
             txtQty = itemView.findViewById(R.id.txtQty);
             txtPrice = itemView.findViewById(R.id.txtPrice);
@@ -378,10 +446,12 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
             btnDangLam = itemView.findViewById(R.id.btnDangLam);
             btnXongMon = itemView.findViewById(R.id.btnXongMon);
             btnHetMon = itemView.findViewById(R.id.btnHetMon);
+
+            // ensure table view is hidden initially
+            if (txtTableInfo != null) txtTableInfo.setVisibility(View.GONE);
         }
 
         void setButtonsEnabled(boolean enabled) {
-
             btnDangLam.setEnabled(enabled);
             btnXongMon.setEnabled(enabled);
             btnHetMon.setEnabled(enabled);
