@@ -18,9 +18,17 @@
             android:layout_height="?attr/actionBarSize"
             android:background="#2BB673"
             app:navigationIcon="?attr/homeAsUpIndicator"
-            app:navigationIconTint="#FFFFFF"
-            app:title="Hóa đơn"
-            app:titleTextColor="#FFFFFF" />
+            app:navigationIconTint="#FFFFFF">
+            
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="HOÁ ĐƠN"
+                android:textColor="#FFFFFF"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:layout_gravity="center" />
+        </androidx.appcompat.widget.Toolbar>
 
     </com.google.android.material.appbar.AppBarLayout>
 
