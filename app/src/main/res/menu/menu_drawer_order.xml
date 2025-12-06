@@ -13,12 +13,12 @@
     <item
         android:id="@+id/nav_pre_bill"
         android:title="Y/c hóa đơn tạm tính"
-        android:icon="@drawable/ic_contact" />
+        android:icon="@drawable/ic_prebill" />
 
     <item
         android:id="@+id/nav_check_items_requests"
         android:title="Yêu cầu kiểm tra bàn"
-        android:icon="@drawable/ic_contact" />
+        android:icon="@drawable/ic_checktb" />
 
     <item
         android:id="@+id/nav_logout"

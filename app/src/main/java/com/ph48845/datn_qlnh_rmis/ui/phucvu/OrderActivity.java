@@ -8,6 +8,7 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
@@ -16,6 +17,7 @@ import android.view.inputmethod.InputMethodManager;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -117,6 +119,12 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         tableId = getIntent().getStringExtra("tableId");
         tableNumber = getIntent().getIntExtra("tableNumber", 0);
         tvTable.setText("Bàn " + tableNumber);
+
+        ImageView btnBack = findViewById(R.id.btn_back);
+        btnBack.setOnClickListener(v -> {
+            getOnBackPressedDispatcher().onBackPressed();
+        });
+
 
         // ordered list setup
         rvOrderedList.setLayoutManager(new LinearLayoutManager(this));
@@ -274,8 +282,12 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         };
         
         IntentFilter filter = new IntentFilter(ACTION_CHECK_ITEMS);
-        registerReceiver(checkItemsReceiver, filter);
-        Log.d(TAG, "Registered check items receiver");
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(checkItemsReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(checkItemsReceiver, filter);
+        }
+
     }
 
     /**
