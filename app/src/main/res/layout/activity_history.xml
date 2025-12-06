@@ -20,7 +20,8 @@
             app:navigationIcon="?attr/homeAsUpIndicator"
             app:navigationIconTint="#FFFFFF"
             app:title="Lịch sử giao dịch"
-            app:titleTextColor="#FFFFFF" />
+            app:titleTextColor="#FFFFFF"
+            android:layout_gravity="center" />
 
     </com.google.android.material.appbar.AppBarLayout>
 
