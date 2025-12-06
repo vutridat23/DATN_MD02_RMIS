@@ -16,6 +16,11 @@
         android:icon="@drawable/ic_contact" />
 
     <item
+        android:id="@+id/nav_check_items_requests"
+        android:title="Yêu cầu kiểm tra bàn"
+        android:icon="@drawable/ic_contact" />
+
+    <item
         android:id="@+id/nav_logout"
         android:title="Đăng xuất"
         android:icon="@drawable/ic_logout" />

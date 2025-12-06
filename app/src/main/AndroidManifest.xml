@@ -73,6 +73,9 @@
             android:name=".ui.thungan.PrintBillActivity"
             android:exported="false" />
         <activity
+            android:name=".ui.thungan.PrintBillActivity"
+            android:exported="false" />
+        <activity
             android:name=".ui.revenue.RevenueActivity"
             android:exported="false" />
         <activity
