@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.ArrayList;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -33,6 +34,7 @@ import java.text.SimpleDateFormat;
 
 public class ReportActivity extends AppCompatActivity {
 
+    private Toolbar toolbar;
     private EditText etFromDate, etToDate;
     private Button btnSearch;
     private RecyclerView rvReports;
@@ -47,6 +49,9 @@ public class ReportActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_revenue);
+
+        initViews();
+        setupToolbar();
 
         etFromDate = findViewById(R.id.etFromDate);
         etToDate = findViewById(R.id.etToDate);
@@ -70,6 +75,31 @@ public class ReportActivity extends AppCompatActivity {
 
         // Load tất cả báo cáo khi mở activity
         fetchAllReports();
+    }
+
+    private void initViews() {
+        toolbar = findViewById(R.id.toolbar);
+    }
+
+    private void setupToolbar() {
+        setSupportActionBar(toolbar);
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+            getSupportActionBar().setDisplayShowHomeEnabled(true);
+            // Ẩn title mặc định để chỉ hiển thị TextView custom
+            getSupportActionBar().setDisplayShowTitleEnabled(false);
+        }
+        // Đảm bảo nút back hoạt động
+        toolbar.setNavigationOnClickListener(v -> finish());
+        
+        // Đảm bảo navigation icon hiển thị và có thể click được
+        toolbar.post(() -> {
+            if (getSupportActionBar() != null) {
+                getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+                getSupportActionBar().setDisplayShowHomeEnabled(true);
+                getSupportActionBar().setDisplayShowTitleEnabled(false);
+            }
+        });
     }
 
     private void showDatePicker(final EditText editText) {
@@ -162,5 +192,19 @@ public class ReportActivity extends AppCompatActivity {
         NumberFormat formatter = NumberFormat.getInstance(Locale.US);
         String revenueStr = formatter.format(totalRevenue);
         tvTotalRevenue.setText("Tổng doanh thu: " + revenueStr + " VND");
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(android.view.MenuItem item) {
+        if (item.getItemId() == android.R.id.home) {
+            finish();
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
+    @Override
+    public void onBackPressed() {
+        finish();
     }
 }

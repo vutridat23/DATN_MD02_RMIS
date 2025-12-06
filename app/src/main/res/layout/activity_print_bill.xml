@@ -4,7 +4,8 @@
     android:orientation="vertical"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#FFFFFF">
+    android:background="#FFFFFF"
+    android:fitsSystemWindows="true">
 
     <!-- Toolbar -->
     <com.google.android.material.appbar.AppBarLayout
@@ -18,9 +19,17 @@
             android:layout_height="?attr/actionBarSize"
             android:background="#2BB673"
             app:navigationIcon="?attr/homeAsUpIndicator"
-            app:navigationIconTint="#FFFFFF"
-            app:title="Hóa đơn tạm tính"
-            app:titleTextColor="#FFFFFF" />
+            app:navigationIconTint="#FFFFFF">
+            
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="HOÁ ĐƠN TẠM TÍNH"
+                android:textColor="#FFFFFF"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:layout_gravity="center" />
+        </androidx.appcompat.widget.Toolbar>
 
     </com.google.android.material.appbar.AppBarLayout>
 
