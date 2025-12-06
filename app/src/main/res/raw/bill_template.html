@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='UTF-8'>
+    <link rel="stylesheet" href="bill_style.css">
+</head>
+<body>
+    <h1>HÓA ĐƠN TẠM TÍNH</h1>
+    <div class='info'><strong>Bàn:</strong> {{TABLE_NUMBER}}</div>
+    <div class='info'><strong>Mã đơn:</strong> {{ORDER_CODE}}</div>
+    <div class='info'><strong>Ngày:</strong> {{DATE}}</div>
+    
+    <table>
+        <tr><th>Món ăn</th><th>SL</th><th>Giá</th><th>Thành tiền</th></tr>
+        {{ITEMS_TABLE_ROWS}}
+    </table>
+    
+    <div class='total'>Tổng cộng: {{TOTAL}}</div>
+    {{DISCOUNT_ROW}}
+    {{FINAL_AMOUNT_ROW}}
+    <div class='note'>{{NOTE}}</div>
+</body>
+</html>
+
+
+

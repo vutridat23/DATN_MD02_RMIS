@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:orientation="horizontal"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:padding="12dp"
+    android:paddingStart="16dp"
+    android:paddingEnd="16dp">
+
+    <TextView
+        android:id="@+id/tvItemName"
+        android:layout_width="0dp"
+        android:layout_height="60dp"
+        android:layout_weight="0.75
+"
+        android:text="Tên món"
+        android:textSize="16sp"
+        android:textColor="#000000" />
+
+    <!-- Số lượng với nút +/- -->
+    <LinearLayout
+        android:id="@+id/llQuantity"
+        android:orientation="horizontal"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="0.75"
+        android:gravity="center"
+        android:padding="0dp">
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/btnMinus"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:text="−"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:textColor="#000000"
+            android:background="@drawable/btn_minus_rounded"
+            android:backgroundTint="@null"
+            app:backgroundTint="@null"
+            android:layout_marginEnd="8dp"
+            android:minWidth="36dp"
+            android:minHeight="36dp"
+            android:elevation="2dp"
+            android:padding="0dp"
+            android:gravity="center"
+            android:stateListAnimator="@null" />
+
+        <TextView
+            android:id="@+id/tvItemQuantity"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="1"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="#2C3E50"
+            android:paddingStart="14dp"
+            android:paddingEnd="14dp"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp"
+            android:gravity="center"
+            android:minWidth="40dp"
+            android:background="@drawable/quantity_background" />
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/btnPlus"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:text="+"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:textColor="#000000"
+            android:background="@drawable/btn_plus_rounded"
+            android:backgroundTint="@null"
+            app:backgroundTint="@null"
+            android:layout_marginStart="8dp"
+            android:minWidth="36dp"
+            android:minHeight="36dp"
+            android:elevation="2dp"
+            android:padding="0dp"
+            android:gravity="center"
+            android:stateListAnimator="@null" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/tvItemPrice"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="0.5"
+        android:text="0₫"
+        android:textSize="16sp"
+        android:textColor="#000000"
+        android:gravity="right" />
+</LinearLayout>
+
+
+
