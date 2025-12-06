@@ -154,7 +154,16 @@ public class InvoiceActivity extends AppCompatActivity {
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
             getSupportActionBar().setDisplayShowHomeEnabled(true);
         }
+        // Đảm bảo nút back hoạt động
         toolbar.setNavigationOnClickListener(v -> finish());
+        
+        // Đảm bảo navigation icon hiển thị và có thể click được
+        toolbar.post(() -> {
+            if (getSupportActionBar() != null) {
+                getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+                getSupportActionBar().setDisplayShowHomeEnabled(true);
+            }
+        });
     }
 
     /**
@@ -1927,5 +1936,10 @@ public class InvoiceActivity extends AppCompatActivity {
             return true;
         }
         return super.onOptionsItemSelected(item);
+    }
+
+    @Override
+    public void onBackPressed() {
+        finish();
     }
 }

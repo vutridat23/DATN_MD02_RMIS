@@ -18,6 +18,8 @@
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             android:background="#2BB673"
+            app:navigationIcon="?attr/homeAsUpIndicator"
+            app:navigationIconTint="#FFFFFF"
             app:title="Thống kê báo cáo"
             app:titleTextColor="#FFFFFF"/>
     </com.google.android.material.appbar.AppBarLayout>
