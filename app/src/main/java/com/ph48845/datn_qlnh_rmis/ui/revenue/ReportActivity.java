@@ -19,6 +19,8 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.ph48845.datn_qlnh_rmis.R;
+import androidx.appcompat.widget.Toolbar;
+
 
 import com.ph48845.datn_qlnh_rmis.data.model.ReportItem;
 import com.ph48845.datn_qlnh_rmis.data.remote.ApiResponse;
@@ -67,6 +69,13 @@ public class ReportActivity extends AppCompatActivity {
         etToDate.setOnClickListener(v -> showDatePicker(etToDate));
 
         btnSearch.setOnClickListener(v -> fetchReportsByDate());
+        Toolbar toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
+
+        toolbar.setNavigationOnClickListener(v -> {
+            finish(); // Quay về màn hình trước
+        });
+
 
         // Load tất cả báo cáo khi mở activity
         fetchAllReports();
@@ -94,9 +103,10 @@ public class ReportActivity extends AppCompatActivity {
             public void onResponse(Call<ApiResponse<List<ReportItem>>> call, Response<ApiResponse<List<ReportItem>>> response) {
                 if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
                     reportList.clear();
-                    reportList.addAll(response.body().getData());
+                    reportList.addAll(mergeReports(response.body().getData()));
                     adapter.notifyDataSetChanged();
-                    updateSummary(reportList); // cập nhật tổng hợp
+                    updateSummary(reportList);
+                    // cập nhật tổng hợp
                 } else {
                     Toast.makeText(ReportActivity.this, "Không lấy được danh sách báo cáo", Toast.LENGTH_SHORT).show();
                 }
@@ -129,9 +139,10 @@ public class ReportActivity extends AppCompatActivity {
             public void onResponse(Call<ApiResponse<List<ReportItem>>> call, Response<ApiResponse<List<ReportItem>>> response) {
                 if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
                     reportList.clear();
-                    reportList.addAll(response.body().getData());
+                    reportList.addAll(mergeReports(response.body().getData()));
                     adapter.notifyDataSetChanged();
-                    updateSummary(reportList); // cập nhật tổng hợp
+                    updateSummary(reportList);
+                    // cập nhật tổng hợp
                 } else {
                     Toast.makeText(ReportActivity.this, "Không tìm thấy báo cáo trong khoảng ngày", Toast.LENGTH_SHORT).show();
                     tvInvoiceCount.setText("Số lượng hóa đơn: 0");
@@ -163,4 +174,41 @@ public class ReportActivity extends AppCompatActivity {
         String revenueStr = formatter.format(totalRevenue);
         tvTotalRevenue.setText("Tổng doanh thu: " + revenueStr + " VND");
     }
+    // Gộp báo cáo cùng ngày + loại bỏ báo cáo không có đơn
+    // Gộp báo cáo cùng ngày + loại bỏ báo cáo không có đơn
+    private List<ReportItem> mergeReports(List<ReportItem> rawList) {
+        Map<String, ReportItem> map = new HashMap<>();
+
+        for (ReportItem item : rawList) {
+
+            // Bỏ ngày không có đơn
+            if (item.getTotalOrders() == 0 || item.getTotalRevenue() == 0) {
+                continue;
+            }
+
+            // Format date từ Date -> String yyyy-MM-dd
+            String date = sdf.format(item.getDate());
+
+            if (!map.containsKey(date)) {
+                map.put(date, item);
+            } else {
+                // Gộp nếu trùng ngày
+                ReportItem exist = map.get(date);
+
+                exist.setTotalOrders(exist.getTotalOrders() + item.getTotalOrders());
+                exist.setTotalRevenue(exist.getTotalRevenue() + item.getTotalRevenue());
+            }
+        }
+
+        // Chuyển map -> list
+        List<ReportItem> mergedList = new ArrayList<>(map.values());
+
+        // Sắp xếp giảm dần theo ngày
+        mergedList.sort((a, b) -> b.getDate().compareTo(a.getDate()));
+
+        return mergedList;
+    }
+
+
+
 }

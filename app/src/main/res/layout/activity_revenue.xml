@@ -13,13 +13,15 @@
         android:fitsSystemWindows="true"
         android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar">
 
+
         <androidx.appcompat.widget.Toolbar
             android:id="@+id/toolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             android:background="#2BB673"
             app:title="Thống kê báo cáo"
-            app:titleTextColor="#FFFFFF"/>
+            app:titleTextColor="#FFFFFF"
+            app:navigationIcon="@drawable/back"/>
     </com.google.android.material.appbar.AppBarLayout>
 
     <!-- Scrollable content -->
