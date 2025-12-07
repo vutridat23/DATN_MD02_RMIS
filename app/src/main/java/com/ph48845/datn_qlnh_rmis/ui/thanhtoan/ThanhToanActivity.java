@@ -138,6 +138,7 @@ public class ThanhToanActivity extends AppCompatActivity {
         orderRepository.payOrder(currentOrder.getId(), method, amountCustomerGiven, new OrderRepository.RepositoryCallback<Order>() {
             @Override
             public void onSuccess(Order updatedOrder) {
+                Toast.makeText(ThanhToanActivity.this, "Thanh toán thành công", Toast.LENGTH_SHORT).show();
                 resetTableAndFinish(updatedOrder);
             }
 

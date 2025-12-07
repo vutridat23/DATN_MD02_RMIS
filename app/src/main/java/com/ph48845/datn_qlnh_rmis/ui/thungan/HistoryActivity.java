@@ -1,10 +1,10 @@
 package com.ph48845.datn_qlnh_rmis.ui.thungan;
 
 import android.os.Bundle;
+import android.widget.ImageView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.widget.Toolbar;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -26,8 +26,8 @@ import retrofit2.Response;
 
 public class HistoryActivity extends AppCompatActivity {
 
-    private Toolbar toolbar;
     private RecyclerView rvHistory;
+    private ImageView btnBack;
     private HistoryAdapter adapter;
     private List<HistoryItem> historyList = new ArrayList<>();
     private ApiService apiService;
@@ -37,40 +37,20 @@ public class HistoryActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_history);
 
-        initViews();
-        setupToolbar();
-
         rvHistory = findViewById(R.id.rvHistory);
         adapter = new HistoryAdapter(historyList);
+        btnBack = findViewById(R.id.btnBack);
         rvHistory.setLayoutManager(new LinearLayoutManager(this));
         rvHistory.setAdapter(adapter);
 
         apiService = RetrofitClient.getInstance().getApiService();
 
         fetchHistory();
-    }
-
-    private void initViews() {
-        toolbar = findViewById(R.id.toolbar);
-    }
-
-    private void setupToolbar() {
-        setSupportActionBar(toolbar);
-        if (getSupportActionBar() != null) {
-            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
-            getSupportActionBar().setDisplayShowHomeEnabled(true);
-        }
-        // Đảm bảo nút back hoạt động
-        toolbar.setNavigationOnClickListener(v -> finish());
-        
-        // Đảm bảo navigation icon hiển thị và có thể click được
-        toolbar.post(() -> {
-            if (getSupportActionBar() != null) {
-                getSupportActionBar().setDisplayHomeAsUpEnabled(true);
-                getSupportActionBar().setDisplayShowHomeEnabled(true);
-            }
+        btnBack.setOnClickListener(v -> {
+            finish();   // quay lại màn trước
         });
     }
+
 
     private void fetchHistory() {
         // Nếu cần filter có thể truyền queryMap, hiện để null
@@ -100,19 +80,5 @@ public class HistoryActivity extends AppCompatActivity {
                 Toast.makeText(HistoryActivity.this, "Không thể kết nối server", Toast.LENGTH_SHORT).show();
             }
         });
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(android.view.MenuItem item) {
-        if (item.getItemId() == android.R.id.home) {
-            finish();
-            return true;
-        }
-        return super.onOptionsItemSelected(item);
-    }
-
-    @Override
-    public void onBackPressed() {
-        finish();
     }
 }
