@@ -1,9 +1,11 @@
 package com.ph48845.datn_qlnh_rmis.data.remote;
 
+import com.ph48845.datn_qlnh_rmis.data.model.HistoryItem;
 import com.ph48845.datn_qlnh_rmis.data.model.Ingredient;
 import com.ph48845.datn_qlnh_rmis.data.model.LoginResponse;
 import com.ph48845.datn_qlnh_rmis.data.model.MenuItem;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
+import com.ph48845.datn_qlnh_rmis.data.model.ReportItem;
 import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
 import com.ph48845.datn_qlnh_rmis.data.model.User;
 
@@ -98,8 +100,7 @@ public interface ApiService {
     @POST("orders/{id}/request-temp-calculation")
     Call<ApiResponse<Order>> requestTempCalculation(@Path("id") String orderId, @Body Map<String, Object> body);
 
-    @POST("orders/pay")
-    Call<ApiResponse<Order>> payOrder(@Body Map<String, Object> body);
+
 
     // ===========================
     // pay endpoint (file B had this)
