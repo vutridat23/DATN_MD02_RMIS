@@ -14,7 +14,7 @@
         <ImageView
             android:id="@+id/imgLoginBanner"
             android:layout_width="match_parent"
-            android:layout_height="350dp"
+            android:layout_height="340dp"
             android:scaleType="centerCrop"
             android:src="@drawable/logo_itsteak"
             android:contentDescription="Login Banner" />
