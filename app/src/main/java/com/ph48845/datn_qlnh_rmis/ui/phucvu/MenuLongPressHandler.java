@@ -1,11 +1,10 @@
 package com.ph48845.datn_qlnh_rmis.ui.phucvu;
 
-
-
 import android.app.AlertDialog;
 import android.content.Context;
 import android.text.InputType;
 import android.view.GestureDetector;
+import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.EditText;
@@ -13,6 +12,7 @@ import android.widget.Toast;
 
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.ph48845.datn_qlnh_rmis.R;
 import com.ph48845.datn_qlnh_rmis.data.model.MenuItem;
 import com.ph48845.datn_qlnh_rmis.ui.phucvu.adapter.MenuAdapter;
 
@@ -74,10 +74,11 @@ public class MenuLongPressHandler {
 
     private void showMenuItemNoteDialog(MenuItem menu) {
         if (menu == null) return;
-        AlertDialog.Builder builder = new AlertDialog.Builder(ctx);
-        builder.setTitle("Ghi chú cho: " + (menu.getName() != null ? menu.getName() : ""));
 
-        final EditText input = new EditText(ctx);
+        // Inflate layout dialog_menu_note.xml
+        LayoutInflater inflater = LayoutInflater.from(ctx);
+        View layout = inflater.inflate(R.layout.dialog_menu_note, null);
+        final EditText input = layout.findViewById(R.id.et_menu_note);
         input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
         input.setMinLines(1);
         input.setMaxLines(5);
@@ -86,7 +87,9 @@ public class MenuLongPressHandler {
         try { if (noteStore != null) prev = noteStore.getNoteForMenu(menu.getId()); } catch (Exception ignored) {}
         input.setText(prev);
 
-        builder.setView(input);
+        AlertDialog.Builder builder = new AlertDialog.Builder(ctx);
+        builder.setTitle("Ghi chú cho: " + (menu.getName() != null ? menu.getName() : ""));
+        builder.setView(layout);
 
         builder.setPositiveButton("Lưu", (dialog, which) -> {
             String note = input.getText() != null ? input.getText().toString().trim() : "";

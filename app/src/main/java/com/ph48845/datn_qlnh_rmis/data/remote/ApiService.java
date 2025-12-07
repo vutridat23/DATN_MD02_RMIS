@@ -1,11 +1,9 @@
 package com.ph48845.datn_qlnh_rmis.data.remote;
 
-import com.ph48845.datn_qlnh_rmis.data.model.HistoryItem;
 import com.ph48845.datn_qlnh_rmis.data.model.Ingredient;
 import com.ph48845.datn_qlnh_rmis.data.model.LoginResponse;
 import com.ph48845.datn_qlnh_rmis.data.model.MenuItem;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
-import com.ph48845.datn_qlnh_rmis.data.model.ReportItem;
 import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
 import com.ph48845.datn_qlnh_rmis.data.model.User;
 
@@ -104,6 +102,11 @@ public interface ApiService {
     Call<ApiResponse<Order>> payOrder(@Body Map<String, Object> body);
 
     // ===========================
+    // pay endpoint (file B had this)
+    @POST("orders/pay")
+    Call<ApiResponse<Order>> payOrder(@Body Map<String, Object> body);
+
+    // ===========================
     // --- TABLE ENDPOINTS ---
     // ===========================
     @GET("tables")
@@ -112,8 +115,15 @@ public interface ApiService {
     @PUT("tables/{id}")
     Call<TableItem> updateTable(@Path("id") String tableId, @Body Map<String, Object> updates);
 
+    // Keep both: merge and reserve (reserve có ở file A)
     @POST("tables/{id}/merge")
     Call<TableItem> mergeTable(@Path("id") String targetTableId, @Body Map<String, String> body);
+
+    // ===========================
+    // --- INGREDIENT ENDPOINTS ---
+    // ===========================
+    @POST("tables/{id}/reserve")
+    Call<TableItem> reserveTable(@Path("id") String id, @Body Map<String, Object> body);
 
     // ===========================
     // --- INGREDIENT ENDPOINTS ---

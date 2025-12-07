@@ -1,8 +1,6 @@
 package com.ph48845.datn_qlnh_rmis.ui.table;
 
 import android.app.AlertDialog;
-import android.os.Handler;
-import android.os.Looper;
 import android.widget.Toast;
 import android.widget.ProgressBar;
 
@@ -19,8 +17,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * MergeManager: xử lý luồng gộp nhiều bàn vào 1 bàn đích
- * Thêm chức năng tự động hủy bàn đặt trước sau 5 phút
+ * MergeManager: xử lý luồng gộp nhiều bàn vào 1 bàn đích.
+ * Thay đổi: khi gộp bàn thành công thì KHÔNG xóa các order cũ — các order cũ vẫn giữ nguyên.
  */
 public class MergeManager {
 
@@ -120,7 +118,7 @@ public class MergeManager {
     public void performMergeMultipleIntoTarget(final TableItem targetTable, final List<TableItem> sources) {
         if (targetTable == null || sources == null || sources.isEmpty()) return;
 
-        progressBar.setVisibility(android.view.View.VISIBLE);
+        if (progressBar != null) progressBar.setVisibility(android.view.View.VISIBLE);
 
         final int total = sources.size();
         final int[] finished = {0};
@@ -189,7 +187,9 @@ public class MergeManager {
                     orderRepository.updateOrder(primary.getId(), updates, new OrderRepository.RepositoryCallback<Order>() {
                         @Override
                         public void onSuccess(Order result) {
-                            deleteOtherOrders(primary, orders, targetTable, sources);
+                            // NEW BEHAVIOR: do NOT delete the other orders. Keep original orders unchanged.
+                            // Just update table statuses to reflect there are orders on the table.
+                            updateTableStatuses(targetTable, sources, true);
                         }
 
                         @Override
@@ -205,39 +205,6 @@ public class MergeManager {
                 updateTableStatuses(targetTable, sources, false);
             }
         });
-    }
-
-    private void deleteOtherOrders(final Order primary, List<Order> orders, final TableItem targetTable, final List<TableItem> sources) {
-        List<Order> others = new ArrayList<>();
-        for (Order o : orders) if (!o.getId().equals(primary.getId())) others.add(o);
-
-        if (others.isEmpty()) {
-            updateTableStatuses(targetTable, sources, true);
-            return;
-        }
-
-        final int total = others.size();
-        final int[] finished = {0};
-
-        for (Order o : others) {
-            orderRepository.deleteOrder(o.getId(), new OrderRepository.RepositoryCallback<Void>() {
-                @Override
-                public void onSuccess(Void result) {
-                    synchronized (finished) {
-                        finished[0]++;
-                        if (finished[0] >= total) updateTableStatuses(targetTable, sources, true);
-                    }
-                }
-
-                @Override
-                public void onError(String message) {
-                    synchronized (finished) {
-                        finished[0]++;
-                        if (finished[0] >= total) updateTableStatuses(targetTable, sources, true);
-                    }
-                }
-            });
-        }
     }
 
     private void updateTableStatuses(final TableItem target, final List<TableItem> sources, boolean hasOrders) {
@@ -257,68 +224,9 @@ public class MergeManager {
 
     private void finalizeResult() {
         host.runOnUiThread(() -> {
-            progressBar.setVisibility(android.view.View.GONE);
+            if (progressBar != null) progressBar.setVisibility(android.view.View.GONE);
             Toast.makeText(host, "Gộp bàn thành công", Toast.LENGTH_SHORT).show();
             if (host instanceof MainActivity) ((MainActivity) host).fetchTablesFromServer();
         });
     }
-
-    /**
-     * Tự động hủy bàn đặt trước sau 5 phút
-     */
-    /**
-     * Tự động hủy bàn đặt trước sau 5 phút kể từ thời điểm khách hẹn đến
-     */
-    /**
-     * Tự động hủy bàn đặt trước sau 5 phút kể từ thời điểm khách hẹn đến
-     */
-    public void scheduleAutoCancelReservationAtScheduledTime(final TableItem table) {
-        if (table == null || table.getStatus() != TableItem.Status.RESERVED) return;
-
-        String reservationAtStr = table.getReservationAt();
-        if (reservationAtStr == null || reservationAtStr.isEmpty()) return;
-
-        // định dạng ISO "yyyy-MM-dd HH:mm"
-        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault());
-        java.util.Date scheduledDate;
-        try {
-            scheduledDate = sdf.parse(reservationAtStr);
-        } catch (java.text.ParseException e) {
-            e.printStackTrace();
-            return;
-        }
-
-        if (scheduledDate == null) return;
-
-        long scheduledTimeMillis = scheduledDate.getTime();
-        long currentTime = System.currentTimeMillis();
-        long fiveMinutes = 5 * 60 * 1000;
-
-        long delayMillis = (scheduledTimeMillis + fiveMinutes) - currentTime;
-
-        if (delayMillis <= 0) {
-            // quá thời gian → hủy ngay
-            cancelReservationNow(table);
-        } else {
-            new Handler(Looper.getMainLooper())
-                    .postDelayed(() -> cancelReservationNow(table), delayMillis);
-        }
-    }
-
-    private void cancelReservationNow(final TableItem table) {
-        tableRepository.updateTableStatus(table.getId(), "available", new TableRepository.RepositoryCallback<TableItem>() {
-            @Override
-            public void onSuccess(TableItem result) {
-                Toast.makeText(host, "Bàn " + table.getTableNumber() + " đã tự động hủy đặt trước", Toast.LENGTH_SHORT).show();
-                if (host instanceof MainActivity) ((MainActivity) host).fetchTablesFromServer();
-            }
-
-            @Override
-            public void onError(String message) {
-                Toast.makeText(host, "Lỗi khi hủy bàn đặt trước: " + message, Toast.LENGTH_SHORT).show();
-            }
-        });
-    }
-
-
 }
