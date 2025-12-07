@@ -13,7 +13,7 @@
     <item
         android:id="@+id/nav_pantry"
         android:title="Nguyên liệu"
-        android:icon="@drawable/ic_contact" />
+        android:icon="@drawable/ic_ingredients" />
 
     <item
         android:id="@+id/nav_logout"
