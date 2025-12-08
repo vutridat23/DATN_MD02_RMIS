@@ -75,7 +75,7 @@ public class MainActivity extends BaseMenuActivity {
 
     private SocketManager socketManager;
     // Default socket URL: your server IP
-    private String defaultSocketUrl = "http://192.168.1.140:3000";
+    private String defaultSocketUrl = "http://192.168.1.147:3000";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
