@@ -2,6 +2,7 @@ package com.ph48845.datn_qlnh_rmis.ui.bep;
 
 import android.os.Bundle;
 import android.view.View;
+import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.Toast;
 
@@ -33,6 +34,7 @@ public class NguyenLieuActivity extends AppCompatActivity {
     private RecyclerView recycler;
     private ProgressBar progress;
     private IngredientAdapter adapter;
+    ImageView btnback;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -43,6 +45,11 @@ public class NguyenLieuActivity extends AppCompatActivity {
             Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
+        });
+
+        btnback = findViewById(R.id.btnBack);
+        btnback.setOnClickListener(v -> {
+            getOnBackPressedDispatcher().onBackPressed();
         });
 
         recycler = findViewById(R.id.recyclerIngredients);

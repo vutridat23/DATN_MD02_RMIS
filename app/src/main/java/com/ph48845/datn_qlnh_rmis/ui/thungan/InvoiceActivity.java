@@ -1,7 +1,10 @@
 package com.ph48845.datn_qlnh_rmis.ui.thungan;
 
+import static android.content.Intent.getIntent;
+
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.print.PrintAttributes;
 import android.print.PrintDocumentAdapter;
@@ -29,6 +32,7 @@ import com.ph48845.datn_qlnh_rmis.data.model.MenuItem;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
 import com.ph48845.datn_qlnh_rmis.data.repository.MenuRepository;
 import com.ph48845.datn_qlnh_rmis.data.repository.OrderRepository;
+import com.ph48845.datn_qlnh_rmis.ui.bep.SocketManager;
 import com.ph48845.datn_qlnh_rmis.ui.thanhtoan.ThanhToanActivity;
 
 import java.text.DecimalFormat;
@@ -67,6 +71,10 @@ public class InvoiceActivity extends AppCompatActivity {
     private Order editingOrder = null; // Order đang được chỉnh sửa
     private Map<String, CardView> orderCardMap = new ConcurrentHashMap<>(); // Map order ID -> CardView
     private String newlySplitOrderId = null; // ID của hóa đơn mới vừa tách (để highlight)
+    
+    // Socket để gửi request lên server
+    private final SocketManager socketManager = SocketManager.getInstance();
+    private final String SOCKET_URL = "http://192.168.1.84:3000"; // đổi theo server của bạn
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -87,8 +95,51 @@ public class InvoiceActivity extends AppCompatActivity {
         orderRepository = new OrderRepository();
         menuRepository = new MenuRepository();
 
+        // Khởi tạo socket để gửi request lên server
+        initSocket();
+
         // Load dữ liệu từ API
         loadInvoiceData();
+    }
+
+    /**
+     * Khởi tạo socket connection
+     */
+    private void initSocket() {
+        try {
+            socketManager.init(SOCKET_URL);
+            socketManager.setOnEventListener(new SocketManager.OnEventListener() {
+                @Override
+                public void onOrderCreated(org.json.JSONObject payload) {
+                    // Không cần xử lý
+                }
+
+                @Override
+                public void onOrderUpdated(org.json.JSONObject payload) {
+                    // Không cần xử lý
+                }
+
+                @Override
+                public void onConnect() {
+                    Log.d(TAG, "Socket connected in InvoiceActivity");
+                }
+
+                @Override
+                public void onDisconnect() {
+                    Log.d(TAG, "Socket disconnected in InvoiceActivity");
+                }
+
+                @Override
+                public void onError(Exception e) {
+                    Log.e(TAG, "Socket error in InvoiceActivity: " + (e != null ? e.getMessage() : "unknown"));
+                }
+            });
+            socketManager.connect();
+            Log.d(TAG, "Socket initialized for InvoiceActivity, URL: " + SOCKET_URL);
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to initialize socket: " + e.getMessage(), e);
+            Toast.makeText(this, "Lỗi kết nối socket: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void initViews() {
@@ -102,8 +153,20 @@ public class InvoiceActivity extends AppCompatActivity {
         if (getSupportActionBar() != null) {
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
             getSupportActionBar().setDisplayShowHomeEnabled(true);
+            // Ẩn title mặc định để chỉ hiển thị TextView custom
+            getSupportActionBar().setDisplayShowTitleEnabled(false);
         }
+        // Đảm bảo nút back hoạt động
         toolbar.setNavigationOnClickListener(v -> finish());
+        
+        // Đảm bảo navigation icon hiển thị và có thể click được
+        toolbar.post(() -> {
+            if (getSupportActionBar() != null) {
+                getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+                getSupportActionBar().setDisplayShowHomeEnabled(true);
+                getSupportActionBar().setDisplayShowTitleEnabled(false);
+            }
+        });
     }
 
     /**
@@ -127,6 +190,35 @@ public class InvoiceActivity extends AppCompatActivity {
 
                     // Lọc bỏ các đơn đã thanh toán
                     orders = filterUnpaidOrders(orderList);
+                    
+                    // Nếu đang ở chế độ chỉnh sửa, thay thế order trong danh sách bằng editingOrder
+                    if (editingOrder != null && editingOrder.getId() != null && orders != null) {
+                        String editingId = editingOrder.getId().trim();
+                        Log.d(TAG, "Looking for editingOrder with ID: '" + editingId + "' in " + orders.size() + " orders");
+                        boolean found = false;
+                        for (int i = 0; i < orders.size(); i++) {
+                            Order o = orders.get(i);
+                            if (o != null && o.getId() != null) {
+                                String orderId = o.getId().trim();
+                                Log.d(TAG, "Comparing order[" + i + "] ID: '" + orderId + "' with editingId: '" + editingId + "'");
+                                if (orderId.equals(editingId)) {
+                                    Log.d(TAG, "FOUND! Replacing order in list with editingOrder at index " + i);
+                                    orders.set(i, editingOrder);
+                                    found = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if (!found) {
+                            Log.w(TAG, "editingOrder ID not found in orders list! This might cause buttons not to show.");
+                            runOnUiThread(() -> {
+                                Toast.makeText(InvoiceActivity.this, "Warning: Editing order not found in list", Toast.LENGTH_LONG).show();
+                            });
+                        }
+                    } else {
+                        Log.d(TAG, "No editingOrder to replace - editingOrder: " + (editingOrder != null) + 
+                              ", orders: " + (orders != null));
+                    }
                     
                     if (orders == null || orders.isEmpty()) {
                         Toast.makeText(InvoiceActivity.this, "Không có đơn hàng chưa thanh toán cho bàn này", Toast.LENGTH_SHORT).show();
@@ -215,419 +307,219 @@ public class InvoiceActivity extends AppCompatActivity {
     }
 
     /**
-     * Tạo một card hóa đơn cho một order
+     * Tạo một card hóa đơn cho một order - Sử dụng XML layout
      */
     private void createInvoiceCard(Order order) {
-        // Tạo CardView
-        CardView cardView = new CardView(this);
-        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-        cardParams.setMargins(0, 0, 0, (int) (16 * getResources().getDisplayMetrics().density));
-        cardView.setLayoutParams(cardParams);
-        cardView.setRadius((int) (12 * getResources().getDisplayMetrics().density));
-        cardView.setCardElevation(4);
-        cardView.setUseCompatPadding(true);
+        // Inflate XML layout cho card
+        View cardView = LayoutInflater.from(this).inflate(R.layout.card_invoice, llOrderCards, false);
+        CardView cardViewContainer = cardView.findViewById(R.id.cardInvoice);
         
         // Highlight hóa đơn mới vừa tách
         if (newlySplitOrderId != null && order.getId() != null && order.getId().equals(newlySplitOrderId)) {
-            cardView.setCardBackgroundColor(0xFFE8F5E9); // Màu xanh nhạt
+            cardViewContainer.setCardBackgroundColor(0xFFE8F5E9); // Màu xanh nhạt
         }
 
-        // Container bên trong card
-        LinearLayout cardContent = new LinearLayout(this);
-        cardContent.setOrientation(LinearLayout.VERTICAL);
-        cardContent.setPadding(
-            (int) (20 * getResources().getDisplayMetrics().density),
-            (int) (20 * getResources().getDisplayMetrics().density),
-            (int) (20 * getResources().getDisplayMetrics().density),
-            (int) (20 * getResources().getDisplayMetrics().density)
-        );
+        // Lấy các view từ XML
+        TextView tvTable = cardView.findViewById(R.id.tvTable);
+        TextView tvOrderCode = cardView.findViewById(R.id.tvOrderCode);
+        LinearLayout llItemsContainer = cardView.findViewById(R.id.llItemsContainer);
+        LinearLayout llTotals = cardView.findViewById(R.id.llTotals);
 
-        // Tiêu đề HÓA ĐƠN THANH TOÁN
-        TextView tvTitle = new TextView(this);
-        tvTitle.setText("HÓA ĐƠN THANH TOÁN");
-        tvTitle.setTextColor(0xFF000000);
-        tvTitle.setTextSize(16);
-        tvTitle.setTypeface(null, android.graphics.Typeface.BOLD);
-        tvTitle.setGravity(android.view.Gravity.CENTER);
-        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-        titleParams.setMargins(0, 0, 0, (int) (16 * getResources().getDisplayMetrics().density));
-        tvTitle.setLayoutParams(titleParams);
-        cardContent.addView(tvTitle);
-
-        // Thông tin bàn và mã đơn
-        LinearLayout infoLayout = new LinearLayout(this);
-        infoLayout.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout.LayoutParams infoParams = new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-        infoParams.setMargins(0, 0, 0, (int) (16 * getResources().getDisplayMetrics().density));
-        infoLayout.setLayoutParams(infoParams);
-
-        TextView tvTable = new TextView(this);
+        // Thiết lập thông tin bàn và mã đơn
         tvTable.setText("Bàn: " + String.format("%02d", tableNumber));
-        tvTable.setTextColor(0xFF000000);
-        tvTable.setTextSize(16);
-        infoLayout.addView(tvTable);
-
-        TextView tvCode = new TextView(this);
         String orderCode = order.getId() != null ? order.getId().substring(0, Math.min(12, order.getId().length())) : "N/A";
-        tvCode.setText("Mã đơn: HD" + orderCode);
-        tvCode.setTextColor(0xFF000000);
-        tvCode.setTextSize(16);
-        LinearLayout.LayoutParams codeParams = new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.WRAP_CONTENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-        codeParams.setMargins(0, (int) (4 * getResources().getDisplayMetrics().density), 0, 0);
-        tvCode.setLayoutParams(codeParams);
-        infoLayout.addView(tvCode);
-
-        cardContent.addView(infoLayout);
-
-        // Header bảng món ăn
-        LinearLayout headerLayout = new LinearLayout(this);
-        headerLayout.setOrientation(LinearLayout.HORIZONTAL);
-        headerLayout.setPadding(
-            (int) (8 * getResources().getDisplayMetrics().density),
-            (int) (8 * getResources().getDisplayMetrics().density),
-            (int) (8 * getResources().getDisplayMetrics().density),
-            (int) (8 * getResources().getDisplayMetrics().density)
-        );
-        headerLayout.setBackgroundColor(0xFFF0F0F0);
-        LinearLayout.LayoutParams headerParams = new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-        headerParams.setMargins(0, 0, 0, (int) (8 * getResources().getDisplayMetrics().density));
-        headerLayout.setLayoutParams(headerParams);
-
-        TextView tvHeaderName = new TextView(this);
-        tvHeaderName.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 2f));
-        tvHeaderName.setText("Món ăn");
-        tvHeaderName.setTextColor(0xFF000000);
-        tvHeaderName.setTextSize(16);
-        tvHeaderName.setTypeface(null, android.graphics.Typeface.BOLD);
-        headerLayout.addView(tvHeaderName);
-
-        TextView tvHeaderQty = new TextView(this);
-        tvHeaderQty.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        tvHeaderQty.setText("SL");
-        tvHeaderQty.setTextColor(0xFF000000);
-        tvHeaderQty.setTextSize(16);
-        tvHeaderQty.setTypeface(null, android.graphics.Typeface.BOLD);
-        tvHeaderQty.setGravity(android.view.Gravity.CENTER);
-        headerLayout.addView(tvHeaderQty);
-
-        TextView tvHeaderPrice = new TextView(this);
-        tvHeaderPrice.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.5f));
-        tvHeaderPrice.setText("Giá");
-        tvHeaderPrice.setTextColor(0xFF000000);
-        tvHeaderPrice.setTextSize(16);
-        tvHeaderPrice.setTypeface(null, android.graphics.Typeface.BOLD);
-        tvHeaderPrice.setGravity(android.view.Gravity.RIGHT);
-        headerLayout.addView(tvHeaderPrice);
-
-        cardContent.addView(headerLayout);
-
-        // Container cho danh sách món ăn
-        LinearLayout itemsContainer = new LinearLayout(this);
-        itemsContainer.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout.LayoutParams itemsParams = new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-        itemsParams.setMargins(0, 0, 0, (int) (16 * getResources().getDisplayMetrics().density));
-        itemsContainer.setLayoutParams(itemsParams);
+        tvOrderCode.setText("Mã đơn: HD" + orderCode);
 
         // Hiển thị các món ăn
         List<Order.OrderItem> orderItems = order.getItems();
-        boolean isEditingThisOrder = (editingOrder != null && editingOrder.getId() != null && 
-                                     order.getId() != null && editingOrder.getId().equals(order.getId()));
         
+        // Kiểm tra xem order này có đang được chỉnh sửa không
+        // CÁCH 1: So sánh ID
+        boolean isEditingThisOrder = false;
+        if (editingOrder != null && editingOrder.getId() != null && order.getId() != null) {
+            String editingId = editingOrder.getId().trim();
+            String orderId = order.getId().trim();
+            isEditingThisOrder = editingId.equals(orderId);
+            Log.d(TAG, "=== Checking edit mode ===");
+            Log.d(TAG, "editingOrderId: '" + editingId + "' (length: " + editingId.length() + ")");
+            Log.d(TAG, "orderId: '" + orderId + "' (length: " + orderId.length() + ")");
+            Log.d(TAG, "isEditingThisOrder: " + isEditingThisOrder);
+            
+            if (!isEditingThisOrder) {
+                Log.w(TAG, "ID mismatch! Comparing character by character:");
+                int minLen = Math.min(editingId.length(), orderId.length());
+                for (int i = 0; i < minLen; i++) {
+                    if (editingId.charAt(i) != orderId.charAt(i)) {
+                        Log.w(TAG, "Difference at position " + i + ": editingId='" + editingId.charAt(i) + 
+                              "' (" + (int)editingId.charAt(i) + "), orderId='" + orderId.charAt(i) + 
+                              "' (" + (int)orderId.charAt(i) + ")");
+                        break;
+                    }
+                }
+            }
+        } else {
+            Log.d(TAG, "Edit mode check failed - editingOrder: " + (editingOrder != null) + 
+                  ", editingOrderId: " + (editingOrder != null ? editingOrder.getId() : "null") +
+                  ", orderId: " + (order.getId() != null ? order.getId() : "null"));
+        }
+        
+        // CÁCH 2: So sánh object reference (fallback)
+        if (!isEditingThisOrder && editingOrder != null && order == editingOrder) {
+            Log.d(TAG, "Objects are the same reference, forcing isEditingThisOrder = true");
+            isEditingThisOrder = true;
+        }
+        
+        // CÁCH 3: Kiểm tra lại một lần nữa trước khi tạo items
+        // Nếu editingOrder != null và có cùng tableNumber thì kiểm tra lại ID
+        if (!isEditingThisOrder && editingOrder != null && editingOrder.getTableNumber() == order.getTableNumber()) {
+            if (editingOrder.getId() != null && order.getId() != null) {
+                String editingId = editingOrder.getId().trim();
+                String orderId = order.getId().trim();
+                if (editingId.equals(orderId)) {
+                    isEditingThisOrder = true;
+                    Log.d(TAG, "Re-check before creating items: Force isEditingThisOrder = true based on ID match");
+                }
+            }
+        }
+        
+        llItemsContainer.removeAllViews();
         if (orderItems != null && !orderItems.isEmpty()) {
             for (int i = 0; i < orderItems.size(); i++) {
                 final int itemIndex = i;
                 Order.OrderItem item = orderItems.get(i);
                 if (item == null) continue;
-                LinearLayout itemRow = new LinearLayout(this);
-                itemRow.setOrientation(LinearLayout.HORIZONTAL);
-                itemRow.setPadding(
-                    (int) (16 * getResources().getDisplayMetrics().density),
-                    (int) (12 * getResources().getDisplayMetrics().density),
-                    (int) (16 * getResources().getDisplayMetrics().density),
-                    (int) (12 * getResources().getDisplayMetrics().density)
-                );
-
-                TextView tvItemName = new TextView(this);
-                tvItemName.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 2f));
-                tvItemName.setText(item.getName() != null ? item.getName() : "(Không tên)");
-                tvItemName.setTextColor(0xFF000000);
-                tvItemName.setTextSize(16);
-                itemRow.addView(tvItemName);
-
-                // Số lượng với nút +/-
-                LinearLayout qtyLayout = new LinearLayout(this);
-                qtyLayout.setOrientation(LinearLayout.HORIZONTAL);
-                qtyLayout.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-                qtyLayout.setGravity(android.view.Gravity.CENTER);
-
+                
+                // Sử dụng layout khác nhau cho edit mode và view mode
+                View itemRow;
                 if (isEditingThisOrder) {
-                    int controlSize = (int) (36 * getResources().getDisplayMetrics().density);
-
-                    // Nút trừ (-)
-                    Button btnMinus = new Button(this);
-                    btnMinus.setText("-");
-                    btnMinus.setTextColor(0xFFD35400);
-                    btnMinus.setTextSize(18);
-                    btnMinus.setTypeface(null, android.graphics.Typeface.BOLD);
-                    btnMinus.setBackground(null);
-                    LinearLayout.LayoutParams minusParams = new LinearLayout.LayoutParams(controlSize, controlSize);
-                    minusParams.setMargins(0, 0, 8, 0);
-                    btnMinus.setLayoutParams(minusParams);
-                    btnMinus.setOnClickListener(v -> decreaseItemQuantity(order, itemIndex));
-                    qtyLayout.addView(btnMinus);
-
-                    // Hiển thị số lượng
-                    TextView tvQty = new TextView(this);
-                    tvQty.setLayoutParams(new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.WRAP_CONTENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                    ));
-                    tvQty.setText(String.valueOf(item.getQuantity()));
-                    tvQty.setTextColor(0xFF000000);
-                    tvQty.setTextSize(16);
-                    tvQty.setTypeface(null, android.graphics.Typeface.BOLD);
-                    tvQty.setPadding(16, 0, 16, 0);
-                    tvQty.setGravity(android.view.Gravity.CENTER);
-                    qtyLayout.addView(tvQty);
-
-                    // Nút cộng (+)
-                    Button btnPlus = new Button(this);
-                    btnPlus.setText("+");
-                    btnPlus.setTextColor(0xFF2BB673);
-                    btnPlus.setTextSize(18);
-                    btnPlus.setTypeface(null, android.graphics.Typeface.BOLD);
-                    btnPlus.setBackground(null);
-                    LinearLayout.LayoutParams plusParams = new LinearLayout.LayoutParams(controlSize, controlSize);
-                    plusParams.setMargins(8, 0, 0, 0);
-                    btnPlus.setLayoutParams(plusParams);
-                    btnPlus.setOnClickListener(v -> increaseItemQuantity(order, itemIndex));
-                    qtyLayout.addView(btnPlus);
+                    Log.d(TAG, "Using edit layout for item: " + item.getName() + " at index: " + itemIndex);
+                    itemRow = LayoutInflater.from(this).inflate(R.layout.item_invoice_row_edit, llItemsContainer, false);
+                    
+                    Button btnMinus = itemRow.findViewById(R.id.btnMinus);
+                    Button btnPlus = itemRow.findViewById(R.id.btnPlus);
+                    TextView tvQty = itemRow.findViewById(R.id.tvItemQuantity);
+                    
+                    if (btnMinus != null && btnPlus != null && tvQty != null) {
+                        // Hiển thị số lượng
+                        tvQty.setText(String.valueOf(item.getQuantity()));
+                        
+                        // Setup click listeners
+                        btnMinus.setOnClickListener(v -> {
+                            Log.d(TAG, "Minus button clicked for item index: " + itemIndex);
+                            decreaseItemQuantity(order, itemIndex);
+                        });
+                        
+                        btnPlus.setOnClickListener(v -> {
+                            Log.d(TAG, "Plus button clicked for item index: " + itemIndex);
+                            increaseItemQuantity(order, itemIndex);
+                        });
+                        
+                        // Đảm bảo buttons hiển thị
+                        btnMinus.setVisibility(View.VISIBLE);
+                        btnPlus.setVisibility(View.VISIBLE);
+                        btnMinus.setEnabled(true);
+                        btnPlus.setEnabled(true);
+                        
+                        Log.d(TAG, "Edit buttons set up successfully for item: " + item.getName());
+                    } else {
+                        Log.e(TAG, "Edit layout buttons not found!");
+                    }
                 } else {
-                    TextView tvItemQty = new TextView(this);
-                    tvItemQty.setLayoutParams(new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.WRAP_CONTENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                    ));
-                    tvItemQty.setText("x" + item.getQuantity());
-                    tvItemQty.setTextColor(0xFF000000);
-                    tvItemQty.setTextSize(16);
-                    tvItemQty.setGravity(android.view.Gravity.CENTER);
-                    qtyLayout.addView(tvItemQty);
+                    // Không ở chế độ chỉnh sửa - chỉ hiển thị số lượng
+                    itemRow = LayoutInflater.from(this).inflate(R.layout.item_invoice_row, llItemsContainer, false);
+                    TextView tvQty = itemRow.findViewById(R.id.tvItemQuantity);
+                    if (tvQty != null) {
+                        tvQty.setText("x" + item.getQuantity());
+                    }
                 }
-
-                itemRow.addView(qtyLayout);
-
-                TextView tvItemPrice = new TextView(this);
-                tvItemPrice.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.5f));
+                
+                
+                TextView tvItemName = itemRow.findViewById(R.id.tvItemName);
+                TextView tvItemPrice = itemRow.findViewById(R.id.tvItemPrice);
+                
+                tvItemName.setText(item.getName() != null ? item.getName() : "(Không tên)");
                 double itemTotal = item.getPrice() * item.getQuantity();
                 tvItemPrice.setText(formatCurrency(itemTotal));
-                tvItemPrice.setTextColor(0xFF000000);
-                tvItemPrice.setTextSize(16);
-                tvItemPrice.setGravity(android.view.Gravity.RIGHT);
-                itemRow.addView(tvItemPrice);
-
-                itemsContainer.addView(itemRow);
+                
+                llItemsContainer.addView(itemRow);
             }
         }
 
-        // Nút thêm món (chỉ hiển thị khi đang chỉnh sửa)
+        // Nút thêm món và action buttons (chỉ hiển thị khi đang chỉnh sửa)
         if (isEditingThisOrder) {
-            Button btnAddItem = new Button(this);
-            btnAddItem.setText("+ Thêm món");
-            btnAddItem.setTextColor(0xFFFFFFFF);
-            btnAddItem.setTextSize(16);
-            btnAddItem.setTypeface(null, android.graphics.Typeface.BOLD);
-            btnAddItem.setBackgroundResource(R.drawable.bg_button_primary);
-            LinearLayout.LayoutParams addItemParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            );
-            addItemParams.setMargins(0, (int) (8 * getResources().getDisplayMetrics().density), 0, 0);
-            btnAddItem.setLayoutParams(addItemParams);
-            btnAddItem.setOnClickListener(v -> showAddItemDialog(order));
-            itemsContainer.addView(btnAddItem);
-
-            // Nút lưu và hủy
-            LinearLayout actionLayout = new LinearLayout(this);
-            actionLayout.setOrientation(LinearLayout.HORIZONTAL);
-            LinearLayout.LayoutParams actionParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            );
-            actionParams.setMargins(0, (int) (16 * getResources().getDisplayMetrics().density), 0, 0);
-            actionLayout.setLayoutParams(actionParams);
-
-            Button btnSave = new Button(this);
-            btnSave.setText("Lưu");
-            btnSave.setTextColor(0xFFFFFFFF);
-            btnSave.setTextSize(16);
-            btnSave.setTypeface(null, android.graphics.Typeface.BOLD);
-            btnSave.setBackgroundResource(R.drawable.bg_button_primary);
-            LinearLayout.LayoutParams saveParams = new LinearLayout.LayoutParams(
-                0,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                1f
-            );
-            saveParams.setMargins(0, 0, (int) (8 * getResources().getDisplayMetrics().density), 0);
-            btnSave.setLayoutParams(saveParams);
-            btnSave.setOnClickListener(v -> saveOrderChanges(order));
-            actionLayout.addView(btnSave);
-
-            Button btnCancel = new Button(this);
-            btnCancel.setText("Hủy");
-            btnCancel.setTextColor(0xFF000000);
-            btnCancel.setTextSize(16);
-            btnCancel.setTypeface(null, android.graphics.Typeface.BOLD);
-            btnCancel.setBackgroundColor(0xFFE0E0E0);
-            LinearLayout.LayoutParams cancelParams = new LinearLayout.LayoutParams(
-                0,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                1f
-            );
-            cancelParams.setMargins((int) (8 * getResources().getDisplayMetrics().density), 0, 0, 0);
-            btnCancel.setLayoutParams(cancelParams);
-            btnCancel.setOnClickListener(v -> {
-                editingOrder = null;
-                loadInvoiceData();
-            });
-            actionLayout.addView(btnCancel);
-
-            cardContent.addView(actionLayout);
+            Log.d(TAG, "Adding action buttons for editing order: " + order.getId());
+            View actionLayout = LayoutInflater.from(this).inflate(R.layout.layout_invoice_actions, llItemsContainer, false);
+            Button btnAddItem = actionLayout.findViewById(R.id.btnAddItem);
+            Button btnSave = actionLayout.findViewById(R.id.btnSave);
+            Button btnCancel = actionLayout.findViewById(R.id.btnCancel);
+            
+            if (btnAddItem != null) {
+                btnAddItem.setOnClickListener(v -> {
+                    Log.d(TAG, "btnAddItem clicked");
+                    showAddItemDialog(order);
+                });
+            } else {
+                Log.e(TAG, "btnAddItem not found in layout!");
+            }
+            
+            if (btnSave != null) {
+                btnSave.setOnClickListener(v -> {
+                    Log.d(TAG, "btnSave clicked");
+                    saveOrderChanges(order);
+                });
+            } else {
+                Log.e(TAG, "btnSave not found in layout!");
+            }
+            
+            if (btnCancel != null) {
+                btnCancel.setOnClickListener(v -> {
+                    Log.d(TAG, "btnCancel clicked");
+                    editingOrder = null;
+                    loadInvoiceData();
+                });
+            } else {
+                Log.e(TAG, "btnCancel not found in layout!");
+            }
+            
+            llItemsContainer.addView(actionLayout);
+            
+            // Nếu items đã được tạo với layout thường, rebuild lại với edit layout
+            if (!isEditingThisOrder) {
+                Log.w(TAG, "Action buttons added but items were created with normal layout, rebuilding...");
+                // Items đã được add ở trên, không cần rebuild lại
+            }
+        } else {
+            Log.d(TAG, "Not in edit mode for order: " + order.getId());
         }
 
-        cardContent.addView(itemsContainer);
-
-        // Tổng kết thanh toán
-        LinearLayout totalsLayout = new LinearLayout(this);
-        totalsLayout.setOrientation(LinearLayout.VERTICAL);
-
-        // Tổng cộng
-        LinearLayout totalRow = new LinearLayout(this);
-        totalRow.setOrientation(LinearLayout.HORIZONTAL);
-        LinearLayout.LayoutParams totalRowParams = new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-        totalRowParams.setMargins(0, 0, 0, (int) (8 * getResources().getDisplayMetrics().density));
-        totalRow.setLayoutParams(totalRowParams);
-
-        TextView tvTotalLabel = new TextView(this);
-        tvTotalLabel.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        tvTotalLabel.setText("Tổng cộng:");
-        tvTotalLabel.setTextColor(0xFF000000);
-        tvTotalLabel.setTextSize(16);
-        totalRow.addView(tvTotalLabel);
-
-        TextView tvTotal = new TextView(this);
-        tvTotal.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        // Tổng kết thanh toán - Sử dụng XML layout
+        View totalsView = LayoutInflater.from(this).inflate(R.layout.layout_invoice_totals, llTotals, false);
+        TextView tvTotal = totalsView.findViewById(R.id.tvTotal);
+        TextView tvDiscount = totalsView.findViewById(R.id.tvDiscount);
+        TextView tvFinalAmount = totalsView.findViewById(R.id.tvFinalAmount);
+        
         tvTotal.setText(formatCurrency(order.getTotalAmount()));
-        tvTotal.setTextColor(0xFF000000);
-        tvTotal.setTextSize(16);
-        tvTotal.setTypeface(null, android.graphics.Typeface.BOLD);
-        totalRow.addView(tvTotal);
-
-        totalsLayout.addView(totalRow);
-
-        // Giảm giá
-        LinearLayout discountRow = new LinearLayout(this);
-        discountRow.setOrientation(LinearLayout.HORIZONTAL);
-        LinearLayout.LayoutParams discountRowParams = new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-        discountRowParams.setMargins(0, 0, 0, (int) (8 * getResources().getDisplayMetrics().density));
-        discountRow.setLayoutParams(discountRowParams);
-
-        TextView tvDiscountLabel = new TextView(this);
-        tvDiscountLabel.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        tvDiscountLabel.setText("Giảm giá:");
-        tvDiscountLabel.setTextColor(0xFF000000);
-        tvDiscountLabel.setTextSize(16);
-        discountRow.addView(tvDiscountLabel);
-
-        TextView tvDiscount = new TextView(this);
-        tvDiscount.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         tvDiscount.setText(formatCurrency(order.getDiscount()));
-        tvDiscount.setTextColor(0xFF000000);
-        tvDiscount.setTextSize(16);
-        tvDiscount.setTypeface(null, android.graphics.Typeface.BOLD);
-        discountRow.addView(tvDiscount);
+        tvFinalAmount.setText(formatCurrency(order.getFinalAmount()));
+        
+        llTotals.removeAllViews();
+        llTotals.addView(totalsView);
 
-        totalsLayout.addView(discountRow);
-
-        // Thành tiền
-        LinearLayout finalRow = new LinearLayout(this);
-        finalRow.setOrientation(LinearLayout.HORIZONTAL);
-
-        TextView tvFinalLabel = new TextView(this);
-        tvFinalLabel.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        tvFinalLabel.setText("Thành tiền:");
-        tvFinalLabel.setTextColor(0xFF000000);
-        tvFinalLabel.setTextSize(16);
-        tvFinalLabel.setTypeface(null, android.graphics.Typeface.BOLD);
-        finalRow.addView(tvFinalLabel);
-
-        TextView tvFinal = new TextView(this);
-        tvFinal.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
-        tvFinal.setText(formatCurrency(order.getFinalAmount()));
-        tvFinal.setTextColor(0xFF000000);
-        tvFinal.setTextSize(16);
-        tvFinal.setTypeface(null, android.graphics.Typeface.BOLD);
-        finalRow.addView(tvFinal);
-
-        totalsLayout.addView(finalRow);
-
-        cardContent.addView(totalsLayout);
-
-        cardView.addView(cardContent);
+        // Thêm card vào container
         llOrderCards.addView(cardView);
 
         // Lưu CardView vào map để dễ dàng refresh sau này
         if (order.getId() != null) {
-            orderCardMap.put(order.getId(), cardView);
+            orderCardMap.put(order.getId(), cardViewContainer);
         }
 
         // Nhấn giữ vào card để mở menu tùy chọn, chạm nhanh để thanh toán
         final Order currentOrder = order;
-        cardView.setOnClickListener(v -> {
-            // Kiểm tra order hiện tại có hợp lệ không
-            if (currentOrder == null || currentOrder.getId() == null) {
-                Toast.makeText(InvoiceActivity.this, "Hóa đơn không hợp lệ", Toast.LENGTH_SHORT).show();
-                return;
-            }
-
-            // Log để debug
-            Log.d(TAG, "Opening payment - Order ID: " + currentOrder.getId());
-            Log.d(TAG, "Table Number: " + tableNumber);
-            Log.d(TAG, "Final Amount: " + currentOrder.getFinalAmount());
-
-            // Chuyển sang màn thanh toán
-            Intent intent = new Intent(InvoiceActivity.this, ThanhToanActivity.class);
-            intent.putExtra("orderId", currentOrder.getId());
-            intent.putExtra("tableNumber", tableNumber);  // QUAN TRỌNG: phải truyền tableNumber
-            intent.putExtra("finalAmount", currentOrder.getFinalAmount());
-
-            startActivity(intent);
+        cardViewContainer.setOnClickListener(v -> processPaymentForOrder(currentOrder));
+        cardViewContainer.setOnLongClickListener(v -> {
+            showInvoiceOptionsDialogForOrder(currentOrder);
+            return true;
         });
-
     }
 
     /**
@@ -732,8 +624,7 @@ public class InvoiceActivity extends AppCompatActivity {
     }
 
     /**
-     * Hiển thị danh sách các hóa đơn riêng biệt (sau khi tách)
-     * Method này không còn được sử dụng, giữ lại để tránh lỗi
+     * Hiển thị danh sách các hóa đơn riêng biệt (sau khi tách) - Sử dụng XML layout
      */
     private void displaySplitOrders() {
         if (llOrderCards == null) return;
@@ -747,34 +638,18 @@ public class InvoiceActivity extends AppCompatActivity {
         for (Order order : orders) {
             if (order == null) continue;
 
-            CardView cardView = new CardView(this);
-            cardView.setUseCompatPadding(true);
-            cardView.setCardElevation(4f);
-            cardView.setRadius(16f);
-            LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-            );
-            cardParams.setMargins(0, 0, 0, (int) (12 * getResources().getDisplayMetrics().density));
-            cardView.setLayoutParams(cardParams);
+            // Inflate XML layout
+            View cardView = LayoutInflater.from(this).inflate(R.layout.card_split_order, llOrderCards, false);
+            CardView cardViewContainer = cardView.findViewById(R.id.cardSplitOrder);
+            
+            TextView tvCode = cardView.findViewById(R.id.tvCode);
+            TextView tvInfo = cardView.findViewById(R.id.tvInfo);
+            TextView tvStatus = cardView.findViewById(R.id.tvStatus);
+            LinearLayout llItems = cardView.findViewById(R.id.llItems);
 
-            LinearLayout content = new LinearLayout(this);
-            content.setOrientation(LinearLayout.VERTICAL);
-            content.setPadding(
-                    (int) (16 * getResources().getDisplayMetrics().density),
-                    (int) (16 * getResources().getDisplayMetrics().density),
-                    (int) (16 * getResources().getDisplayMetrics().density),
-                    (int) (16 * getResources().getDisplayMetrics().density)
-            );
-
-            TextView tvCode = new TextView(this);
+            // Thiết lập thông tin
             tvCode.setText("Mã: " + (order.getId() != null ? order.getId() : generateOrderCode()));
-            tvCode.setTextSize(15);
-            tvCode.setTextColor(0xFF1B5E20);
-            tvCode.setTypeface(null, android.graphics.Typeface.BOLD);
-            content.addView(tvCode);
-
-            TextView tvInfo = new TextView(this);
+            
             int totalQty = 0;
             if (order.getItems() != null) {
                 for (Order.OrderItem item : order.getItems()) {
@@ -782,32 +657,20 @@ public class InvoiceActivity extends AppCompatActivity {
                 }
             }
             tvInfo.setText("Tổng món: " + totalQty + " • Thanh tiền: " + formatCurrency(order.getFinalAmount()));
-            tvInfo.setTextSize(14);
-            tvInfo.setTextColor(0xFF333333);
-            tvInfo.setPadding(0, (int) (4 * getResources().getDisplayMetrics().density), 0, 0);
-            content.addView(tvInfo);
-
-            TextView tvStatus = new TextView(this);
             tvStatus.setText("Trạng thái: " + (order.getOrderStatus() != null ? order.getOrderStatus() : "pending"));
-            tvStatus.setTextSize(13);
-            tvStatus.setTextColor(0xFF777777);
-            tvStatus.setPadding(0, (int) (4 * getResources().getDisplayMetrics().density), 0, (int) (8 * getResources().getDisplayMetrics().density));
-            content.addView(tvStatus);
 
+            // Thêm các món ăn
             if (order.getItems() != null && !order.getItems().isEmpty()) {
                 for (Order.OrderItem item : order.getItems()) {
                     if (item == null) continue;
-                    TextView tvItem = new TextView(this);
+                    View itemView = LayoutInflater.from(this).inflate(R.layout.item_split_order_item, llItems, false);
+                    TextView tvItem = itemView.findViewById(R.id.tvItem);
                     tvItem.setText("- " + (item.getName() != null ? item.getName() : "Món") +
                             " x" + item.getQuantity() + " (" + formatCurrency(item.getPrice() * item.getQuantity()) + ")");
-                    tvItem.setTextSize(13);
-                    tvItem.setTextColor(0xFF000000);
-                    tvItem.setPadding(0, (int) (2 * getResources().getDisplayMetrics().density), 0, 0);
-                    content.addView(tvItem);
+                    llItems.addView(itemView);
                 }
             }
 
-            cardView.addView(content);
             llOrderCards.addView(cardView);
         }
     }
@@ -1058,17 +921,132 @@ public class InvoiceActivity extends AppCompatActivity {
      * Yêu cầu kiểm tra lại món ăn
      */
     private void requestCheckItems() {
-        // Tạo request gửi sang màn phục vụ
-        Intent intent = new Intent();
-        intent.setAction("com.ph48845.datn_qlnh_rmis.ACTION_CHECK_ITEMS");
-        intent.putExtra("tableNumber", tableNumber);
-        intent.putExtra("orderIds", getOrderIds());
+        String[] orderIds = getOrderIds();
+        if (orderIds == null || orderIds.length == 0) {
+            Toast.makeText(this, "Không có hóa đơn để kiểm tra", Toast.LENGTH_SHORT).show();
+            return;
+        }
         
-        // Có thể sử dụng BroadcastReceiver hoặc Notification
-        sendBroadcast(intent);
+        progressBar.setVisibility(View.VISIBLE);
         
-        Toast.makeText(this, "Đã gửi yêu cầu kiểm tra lại món ăn cho bàn " + tableNumber, Toast.LENGTH_LONG).show();
-        Log.d(TAG, "Request check items for table " + tableNumber);
+        // Lấy user ID từ SharedPreferences
+        SharedPreferences prefs = getSharedPreferences("RestaurantPrefs", MODE_PRIVATE);
+        String userId = prefs.getString("userId", null);
+        
+        Log.d(TAG, "Starting check items request for table " + tableNumber + ", orders: " + java.util.Arrays.toString(orderIds));
+        
+        // Lưu request vào database cho từng order
+        saveCheckItemsRequestToDatabase(orderIds, userId, new Runnable() {
+            @Override
+            public void run() {
+                // Sau khi lưu vào database thành công, gửi socket event
+                runOnUiThread(() -> {
+                    // Đảm bảo socket đã được init và connect
+                    if (!socketManager.isConnected()) {
+                        Log.w(TAG, "Socket not connected, initializing...");
+                        initSocket();
+                        // Đợi một chút để socket kết nối
+                        new android.os.Handler().postDelayed(() -> {
+                            socketManager.emitCheckItemsRequest(tableNumber, orderIds);
+                        }, 1000);
+                    } else {
+                        socketManager.emitCheckItemsRequest(tableNumber, orderIds);
+                    }
+                    
+                    // Gửi broadcast trong app để màn phục vụ nhận được ngay (nếu đang mở)
+                    Intent intent = new Intent();
+                    intent.setAction("com.ph48845.datn_qlnh_rmis.ACTION_CHECK_ITEMS");
+                    intent.putExtra("tableNumber", tableNumber);
+                    intent.putExtra("orderIds", orderIds);
+                    sendBroadcast(intent);
+                    
+                    progressBar.setVisibility(View.GONE);
+                    Toast.makeText(InvoiceActivity.this, "Đã gửi yêu cầu kiểm tra lại món ăn cho bàn " + tableNumber, Toast.LENGTH_LONG).show();
+                    Log.d(TAG, "Request check items for table " + tableNumber + " sent to server and broadcast");
+                });
+            }
+        });
+    }
+
+    /**
+     * Lưu request kiểm tra món vào database cho các order
+     */
+    private void saveCheckItemsRequestToDatabase(String[] orderIds, String userId, Runnable onComplete) {
+        if (orderIds == null || orderIds.length == 0) {
+            if (onComplete != null) onComplete.run();
+            return;
+        }
+        
+        String currentTime = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).format(new Date());
+        
+        final java.util.concurrent.atomic.AtomicInteger successCount = new java.util.concurrent.atomic.AtomicInteger(0);
+        final java.util.concurrent.atomic.AtomicInteger totalCount = new java.util.concurrent.atomic.AtomicInteger(0);
+        final java.util.concurrent.atomic.AtomicBoolean callbackCalled = new java.util.concurrent.atomic.AtomicBoolean(false);
+        
+        // Đếm số order hợp lệ
+        for (String orderId : orderIds) {
+            if (orderId != null && !orderId.trim().isEmpty()) {
+                totalCount.incrementAndGet();
+            }
+        }
+        
+        if (totalCount.get() == 0) {
+            if (onComplete != null) onComplete.run();
+            return;
+        }
+        
+        // Cập nhật từng order với checkItemsRequestedBy và checkItemsRequestedAt
+        for (String orderId : orderIds) {
+            if (orderId == null || orderId.trim().isEmpty()) {
+                continue;
+            }
+            
+            Map<String, Object> updates = new HashMap<>();
+            if (userId != null && !userId.trim().isEmpty()) {
+                updates.put("checkItemsRequestedBy", userId);
+            }
+            updates.put("checkItemsRequestedAt", currentTime);
+            
+            Log.d(TAG, "Updating order " + orderId + " with checkItemsRequestedAt: " + currentTime);
+            
+            orderRepository.updateOrder(orderId, updates, new OrderRepository.RepositoryCallback<Order>() {
+                @Override
+                public void onSuccess(Order result) {
+                    int current = successCount.incrementAndGet();
+                    Log.d(TAG, "Check items request saved to database for order: " + orderId + " (" + current + "/" + totalCount.get() + ")");
+                    
+                    // Log chi tiết response từ server
+                    if (result != null) {
+                        Log.d(TAG, "Order response - checkItemsRequestedAt: " + result.getCheckItemsRequestedAt());
+                        Log.d(TAG, "Order response - checkItemsRequestedBy: " + result.getCheckItemsRequestedBy());
+                        if (result.getCheckItemsRequestedAt() == null || result.getCheckItemsRequestedAt().trim().isEmpty()) {
+                            Log.w(TAG, "WARNING: Server response does not contain checkItemsRequestedAt field!");
+                        }
+                    } else {
+                        Log.w(TAG, "WARNING: Server returned null order object!");
+                    }
+                    
+                    // Nếu tất cả đã thành công, gọi callback (chỉ gọi một lần)
+                    if (current >= totalCount.get() && onComplete != null && !callbackCalled.getAndSet(true)) {
+                        onComplete.run();
+                    }
+                }
+
+                @Override
+                public void onError(String message) {
+                    Log.e(TAG, "Failed to save check items request to database for order " + orderId + ": " + message);
+                    int current = successCount.incrementAndGet();
+                    
+                    // Nếu đã xử lý hết (dù thành công hay thất bại), gọi callback
+                    if (current >= totalCount.get() && onComplete != null && !callbackCalled.getAndSet(true)) {
+                        runOnUiThread(() -> {
+                            Toast.makeText(InvoiceActivity.this, "Một số yêu cầu không thể lưu, nhưng đã gửi qua socket", Toast.LENGTH_LONG).show();
+                        });
+                        onComplete.run();
+                    }
+                }
+            });
+        }
     }
 
     /**
@@ -1552,12 +1530,52 @@ public class InvoiceActivity extends AppCompatActivity {
      * Yêu cầu kiểm tra cho một order cụ thể
      */
     private void requestCheckItemsForOrder(Order order) {
-        Intent intent = new Intent();
-        intent.setAction("com.ph48845.datn_qlnh_rmis.ACTION_CHECK_ITEMS");
-        intent.putExtra("tableNumber", tableNumber);
-        intent.putExtra("orderIds", new String[]{order.getId()});
-        sendBroadcast(intent);
-        Toast.makeText(this, "Đã gửi yêu cầu kiểm tra lại món ăn", Toast.LENGTH_LONG).show();
+        if (order == null || order.getId() == null) {
+            Toast.makeText(this, "Hóa đơn không hợp lệ", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        String[] orderIds = new String[]{order.getId()};
+        
+        progressBar.setVisibility(View.VISIBLE);
+        
+        // Lấy user ID từ SharedPreferences
+        SharedPreferences prefs = getSharedPreferences("RestaurantPrefs", MODE_PRIVATE);
+        String userId = prefs.getString("userId", null);
+        
+        Log.d(TAG, "Starting check items request for order " + order.getId());
+        
+        // Lưu request vào database
+        saveCheckItemsRequestToDatabase(orderIds, userId, new Runnable() {
+            @Override
+            public void run() {
+                // Sau khi lưu vào database thành công, gửi socket event
+                runOnUiThread(() -> {
+                    // Đảm bảo socket đã được init và connect
+                    if (!socketManager.isConnected()) {
+                        Log.w(TAG, "Socket not connected, initializing...");
+                        initSocket();
+                        // Đợi một chút để socket kết nối
+                        new android.os.Handler().postDelayed(() -> {
+                            socketManager.emitCheckItemsRequest(tableNumber, orderIds);
+                        }, 1000);
+                    } else {
+                        socketManager.emitCheckItemsRequest(tableNumber, orderIds);
+                    }
+                    
+                    // Gửi broadcast trong app để màn phục vụ nhận được ngay (nếu đang mở)
+                    Intent intent = new Intent();
+                    intent.setAction("com.ph48845.datn_qlnh_rmis.ACTION_CHECK_ITEMS");
+                    intent.putExtra("tableNumber", tableNumber);
+                    intent.putExtra("orderIds", orderIds);
+                    sendBroadcast(intent);
+                    
+                    progressBar.setVisibility(View.GONE);
+                    Toast.makeText(InvoiceActivity.this, "Đã gửi yêu cầu kiểm tra lại món ăn", Toast.LENGTH_LONG).show();
+                    Log.d(TAG, "Request check items for order " + order.getId() + " sent to server and broadcast");
+                });
+            }
+        });
     }
 
     /**
@@ -1621,7 +1639,71 @@ public class InvoiceActivity extends AppCompatActivity {
             Toast.makeText(this, "Hóa đơn không hợp lệ", Toast.LENGTH_SHORT).show();
             return;
         }
-        editingOrder = order;
+        if (order.getId() == null) {
+            Toast.makeText(this, "Hóa đơn chưa có ID", Toast.LENGTH_SHORT).show();
+            Log.e(TAG, "Order has no ID!");
+            return;
+        }
+        Log.d(TAG, "Starting edit mode for order: " + order.getId());
+        
+        // Tìm order trong danh sách orders hiện tại để giữ reference
+        Order orderToEdit = null;
+        String orderIdToFind = order.getId() != null ? order.getId().trim() : null;
+        if (orderIdToFind != null && orders != null) {
+            for (Order o : orders) {
+                if (o != null && o.getId() != null && o.getId().trim().equals(orderIdToFind)) {
+                    orderToEdit = o;
+                    break;
+                }
+            }
+        }
+        
+        if (orderToEdit == null) {
+            // Nếu không tìm thấy trong danh sách, dùng order được truyền vào
+            orderToEdit = order;
+            Log.d(TAG, "Order not found in list, using passed order");
+        }
+        
+        // Tạo một bản copy của order để tránh thay đổi trực tiếp cho đến khi lưu
+        editingOrder = new Order();
+        editingOrder.setId(orderToEdit.getId());
+        editingOrder.setTableNumber(orderToEdit.getTableNumber());
+        if (orderToEdit.getItems() != null) {
+            List<Order.OrderItem> copiedItems = new ArrayList<>();
+            for (Order.OrderItem item : orderToEdit.getItems()) {
+                if (item != null) {
+                    Order.OrderItem copiedItem = new Order.OrderItem();
+                    copiedItem.setMenuItemId(item.getMenuItemId());
+                    copiedItem.setName(item.getName());
+                    copiedItem.setPrice(item.getPrice());
+                    copiedItem.setQuantity(item.getQuantity());
+                    copiedItem.setStatus(item.getStatus());
+                    copiedItem.setNote(item.getNote());
+                    copiedItems.add(copiedItem);
+                }
+            }
+            editingOrder.setItems(copiedItems);
+        }
+        editingOrder.setTotalAmount(orderToEdit.getTotalAmount());
+        editingOrder.setDiscount(orderToEdit.getDiscount());
+        editingOrder.setFinalAmount(orderToEdit.getFinalAmount());
+        
+        Log.d(TAG, "editingOrder set with ID: '" + editingOrder.getId() + "'" + 
+              ", items count: " + (editingOrder.getItems() != null ? editingOrder.getItems().size() : 0));
+        
+        // Cập nhật order trong danh sách orders để khi reload, nó sẽ dùng editingOrder
+        if (orders != null && editingOrder.getId() != null) {
+            String editingId = editingOrder.getId().trim();
+            for (int i = 0; i < orders.size(); i++) {
+                Order o = orders.get(i);
+                if (o != null && o.getId() != null && o.getId().trim().equals(editingId)) {
+                    Log.d(TAG, "Updating order in list at index " + i);
+                    orders.set(i, editingOrder);
+                    break;
+                }
+            }
+        }
+        
         loadInvoiceData(); // Reload để hiển thị nút +/-
         Toast.makeText(this, "Đang ở chế độ chỉnh sửa", Toast.LENGTH_SHORT).show();
     }
@@ -1857,5 +1939,10 @@ public class InvoiceActivity extends AppCompatActivity {
             return true;
         }
         return super.onOptionsItemSelected(item);
+    }
+
+    @Override
+    public void onBackPressed() {
+        finish();
     }
 }

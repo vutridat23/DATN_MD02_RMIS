@@ -162,6 +162,7 @@ public class QRPaymentActivity extends AppCompatActivity {
                         .setContentTitle("Đã nhận thanh toán")
                         .setContentText("Đã nhận được " + String.format("%,.0f₫", amount))
                         .setPriority(NotificationCompat.PRIORITY_HIGH)
+                        .setSilent(true)
                         .setAutoCancel(true);
 
         NotificationManagerCompat manager = NotificationManagerCompat.from(this);
@@ -176,6 +177,7 @@ public class QRPaymentActivity extends AppCompatActivity {
                     NotificationManager.IMPORTANCE_HIGH
             );
             channel.setDescription("Thông báo khi nhận thanh toán");
+            channel.setSound(null, null);
             NotificationManager manager = getSystemService(NotificationManager.class);
             manager.createNotificationChannel(channel);
         }

@@ -1,6 +1,7 @@
 package com.ph48845.datn_qlnh_rmis.ui.thungan;
 
 import android.os.Bundle;
+import android.widget.ImageView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -26,6 +27,7 @@ import retrofit2.Response;
 public class HistoryActivity extends AppCompatActivity {
 
     private RecyclerView rvHistory;
+    private ImageView btnBack;
     private HistoryAdapter adapter;
     private List<HistoryItem> historyList = new ArrayList<>();
     private ApiService apiService;
@@ -37,13 +39,18 @@ public class HistoryActivity extends AppCompatActivity {
 
         rvHistory = findViewById(R.id.rvHistory);
         adapter = new HistoryAdapter(historyList);
+        btnBack = findViewById(R.id.btnBack);
         rvHistory.setLayoutManager(new LinearLayoutManager(this));
         rvHistory.setAdapter(adapter);
 
         apiService = RetrofitClient.getInstance().getApiService();
 
         fetchHistory();
+        btnBack.setOnClickListener(v -> {
+            finish();   // quay lại màn trước
+        });
     }
+
 
     private void fetchHistory() {
         // Nếu cần filter có thể truyền queryMap, hiện để null

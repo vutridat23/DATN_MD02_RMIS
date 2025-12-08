@@ -5,6 +5,7 @@ import android.print.PrintAttributes;
 import android.print.PrintDocumentAdapter;
 import android.print.PrintJob;
 import android.print.PrintManager;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
@@ -83,6 +84,8 @@ public class PrintBillActivity extends AppCompatActivity {
         if (getSupportActionBar() != null) {
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
             getSupportActionBar().setDisplayShowHomeEnabled(true);
+            // Ẩn title mặc định để chỉ hiển thị TextView custom
+            getSupportActionBar().setDisplayShowTitleEnabled(false);
         }
         toolbar.setNavigationOnClickListener(v -> finish());
     }
@@ -179,54 +182,96 @@ public class PrintBillActivity extends AppCompatActivity {
     }
 
     private String generateHTMLFromLayout() {
-        StringBuilder html = new StringBuilder();
-        html.append("<!DOCTYPE html><html><head><meta charset='UTF-8'><style>");
-        html.append("body { font-family: Arial, sans-serif; padding: 20px; }");
-        html.append("h1 { text-align: center; font-size: 20px; margin-bottom: 16px; }");
-        html.append("table { width: 100%; border-collapse: collapse; margin: 16px 0; }");
-        html.append("th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }");
-        html.append("th { background-color: #f0f0f0; font-weight: bold; }");
-        html.append(".info { margin-bottom: 8px; }");
-        html.append(".total { font-weight: bold; margin-top: 8px; }");
-        html.append(".note { font-style: italic; color: #666; text-align: center; margin-top: 8px; }");
-        html.append("</style></head><body>");
+        // Đọc HTML template từ file
+        String template = readRawResource(R.raw.bill_template);
         
-        html.append("<h1>HÓA ĐƠN TẠM TÍNH</h1>");
-        html.append("<div class='info'><strong>Bàn:</strong> ").append(String.format("%02d", tableNumber)).append("</div>");
-        html.append("<div class='info'><strong>Mã đơn:</strong> ").append(tvOrderCode.getText().toString().replace("Mã đơn: ", "")).append("</div>");
-        html.append("<div class='info'><strong>Ngày:</strong> ").append(tvDate.getText().toString().replace("Ngày: ", "")).append("</div>");
+        // Thay thế các placeholders
+        template = template.replace("{{TABLE_NUMBER}}", String.format("%02d", tableNumber));
+        template = template.replace("{{ORDER_CODE}}", tvOrderCode.getText().toString().replace("Mã đơn: ", ""));
+        template = template.replace("{{DATE}}", tvDate.getText().toString().replace("Ngày: ", ""));
         
-        html.append("<table>");
-        html.append("<tr><th>Món ăn</th><th>SL</th><th>Giá</th><th>Thành tiền</th></tr>");
-        
+        // Tạo rows cho bảng món ăn
+        StringBuilder itemsRows = new StringBuilder();
         if (order.getItems() != null) {
             for (Order.OrderItem item : order.getItems()) {
                 if (item == null) continue;
                 double itemTotal = item.getPrice() * item.getQuantity();
-                html.append("<tr>");
-                html.append("<td>").append(item.getName() != null ? item.getName() : "Món").append("</td>");
-                html.append("<td>").append(item.getQuantity()).append("</td>");
-                html.append("<td>").append(formatCurrency(item.getPrice())).append("</td>");
-                html.append("<td>").append(formatCurrency(itemTotal)).append("</td>");
-                html.append("</tr>");
+                itemsRows.append("<tr>");
+                itemsRows.append("<td>").append(item.getName() != null ? item.getName() : "Món").append("</td>");
+                itemsRows.append("<td>").append(item.getQuantity()).append("</td>");
+                itemsRows.append("<td>").append(formatCurrency(item.getPrice())).append("</td>");
+                itemsRows.append("<td>").append(formatCurrency(itemTotal)).append("</td>");
+                itemsRows.append("</tr>");
             }
         }
+        template = template.replace("{{ITEMS_TABLE_ROWS}}", itemsRows.toString());
         
-        html.append("</table>");
-        html.append("<div class='total'>Tổng cộng: ").append(tvTotal.getText().toString()).append("</div>");
+        // Thay thế tổng cộng
+        template = template.replace("{{TOTAL}}", tvTotal.getText().toString());
         
+        // Thay thế giảm giá (nếu có)
         if (order.getDiscount() > 0) {
-            html.append("<div class='total'>Giảm giá: ").append(tvDiscount.getText().toString()).append("</div>");
+            template = template.replace("{{DISCOUNT_ROW}}", 
+                "<div class='total'>Giảm giá: " + tvDiscount.getText().toString() + "</div>");
+        } else {
+            template = template.replace("{{DISCOUNT_ROW}}", "");
         }
         
+        // Thay thế thành tiền (nếu có)
         if (order.getFinalAmount() > 0 && order.getFinalAmount() != order.getTotalAmount()) {
-            html.append("<div class='total'>Thành tiền: ").append(tvFinalAmount.getText().toString()).append("</div>");
+            template = template.replace("{{FINAL_AMOUNT_ROW}}", 
+                "<div class='total'>Thành tiền: " + tvFinalAmount.getText().toString() + "</div>");
+        } else {
+            template = template.replace("{{FINAL_AMOUNT_ROW}}", "");
         }
         
-        html.append("<div class='note'>").append(tvNote.getText().toString()).append("</div>");
-        html.append("</body></html>");
+        // Thay thế ghi chú
+        template = template.replace("{{NOTE}}", tvNote.getText().toString());
         
-        return html.toString();
+        return template;
+    }
+    
+    private String readRawResource(int resourceId) {
+        try {
+            java.io.InputStream inputStream = getResources().openRawResource(resourceId);
+            java.io.BufferedReader reader = new java.io.BufferedReader(
+                new java.io.InputStreamReader(inputStream, "UTF-8"));
+            StringBuilder stringBuilder = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                stringBuilder.append(line).append("\n");
+            }
+            reader.close();
+            inputStream.close();
+            return stringBuilder.toString();
+        } catch (Exception e) {
+            Log.e("PrintBillActivity", "Error reading template: " + e.getMessage());
+            // Fallback: trả về template đơn giản
+            return getFallbackTemplate();
+        }
+    }
+    
+    private String getFallbackTemplate() {
+        // Template dự phòng nếu không đọc được file
+        return "<!DOCTYPE html><html><head><meta charset='UTF-8'><style>" +
+               "body { font-family: Arial, sans-serif; padding: 20px; }" +
+               "h1 { text-align: center; font-size: 20px; margin-bottom: 16px; }" +
+               "table { width: 100%; border-collapse: collapse; margin: 16px 0; }" +
+               "th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }" +
+               "th { background-color: #f0f0f0; font-weight: bold; }" +
+               ".info { margin-bottom: 8px; }" +
+               ".total { font-weight: bold; margin-top: 8px; }" +
+               ".note { font-style: italic; color: #666; text-align: center; margin-top: 8px; }" +
+               "</style></head><body>" +
+               "<h1>HÓA ĐƠN TẠM TÍNH</h1>" +
+               "<div class='info'><strong>Bàn:</strong> {{TABLE_NUMBER}}</div>" +
+               "<div class='info'><strong>Mã đơn:</strong> {{ORDER_CODE}}</div>" +
+               "<div class='info'><strong>Ngày:</strong> {{DATE}}</div>" +
+               "<table><tr><th>Món ăn</th><th>SL</th><th>Giá</th><th>Thành tiền</th></tr>" +
+               "{{ITEMS_TABLE_ROWS}}</table>" +
+               "<div class='total'>Tổng cộng: {{TOTAL}}</div>" +
+               "{{DISCOUNT_ROW}}{{FINAL_AMOUNT_ROW}}" +
+               "<div class='note'>{{NOTE}}</div></body></html>";
     }
 
     private void createPrintJob(android.webkit.WebView webView) {
