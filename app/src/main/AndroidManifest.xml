@@ -42,7 +42,7 @@
             android:name=".ui.bep.NguyenLieuActivity"
             android:exported="false" />
         <activity
-            android:name=".ui.auth.OnboardingActivity"
+            android:name=".ui.MainActivity"
             android:exported="true">
 
             <intent-filter>
@@ -60,7 +60,7 @@
             android:exported="false" />
 
         <activity
-            android:name=".ui.MainActivity"
+            android:name=".ui.auth.OnboardingActivity"
             android:exported="false" />
         <activity
             android:name=".ui.thungan.ThuNganActivity"
