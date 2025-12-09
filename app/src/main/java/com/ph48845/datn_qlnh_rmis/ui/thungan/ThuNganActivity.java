@@ -103,6 +103,8 @@ public class ThuNganActivity extends BaseMenuActivity {
                 showMoodDialog();
             } else if (id == R.id.nav_contact) {
                 showContactDialog();
+            } else if (id == R.id.nav_temp_calculation_requests) {
+                showTempCalculationRequests();
             } else if (id == R.id.nav_logout) {
                 logout();
             }    else if (id == R.id.nav_payment_history) {
@@ -123,6 +125,9 @@ public class ThuNganActivity extends BaseMenuActivity {
 
         // Load dữ liệu
         loadActiveTables();
+
+        // Load và hiển thị số lượng yêu cầu tạm tính
+        loadTempCalculationRequestsCount();
     }
 
     private void updateNavHeaderInfo() {
@@ -365,11 +370,142 @@ public class ThuNganActivity extends BaseMenuActivity {
         }
         // Refresh khi quay lại màn hình
         loadActiveTables();
+        // Refresh số lượng yêu cầu tạm tính
+        loadTempCalculationRequestsCount();
     }
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         // Không xử lý nút back nữa vì đã ẩn nó
         return super.onOptionsItemSelected(item);
+    }
+
+    /**
+     * Load số lượng yêu cầu tạm tính và hiển thị trên menu
+     */
+    private void loadTempCalculationRequestsCount() {
+        orderRepository.getOrdersByTableNumber(null, null, new OrderRepository.RepositoryCallback<List<Order>>() {
+            @Override
+            public void onSuccess(List<Order> allOrders) {
+                runOnUiThread(() -> {
+                    // Lọc các orders có tempCalculationRequestedAt
+                    int count = 0;
+                    if (allOrders != null) {
+                        for (Order order : allOrders) {
+                            if (order != null && order.getTempCalculationRequestedAt() != null
+                                && !order.getTempCalculationRequestedAt().trim().isEmpty()) {
+                                count++;
+                            }
+                        }
+                    }
+
+                    // Cập nhật menu item với số lượng
+                    updateTempCalculationMenuBadge(count);
+                });
+            }
+
+            @Override
+            public void onError(String message) {
+                Log.w(TAG, "Error loading temp calculation requests: " + message);
+                // Hiển thị 0 nếu có lỗi
+                runOnUiThread(() -> updateTempCalculationMenuBadge(0));
+            }
+        });
+    }
+
+    /**
+     * Cập nhật badge số lượng trên menu item
+     */
+    private void updateTempCalculationMenuBadge(int count) {
+        MenuItem menuItem = navigationView.getMenu().findItem(R.id.nav_temp_calculation_requests);
+        if (menuItem != null) {
+            String title = "Yêu cầu tạm tính";
+            if (count > 0) {
+                title += " (" + count + ")";
+            }
+            SpannableString spanString = new SpannableString(title);
+            spanString.setSpan(new RelativeSizeSpan(1.1f), 0, spanString.length(), 0);
+            menuItem.setTitle(spanString);
+        }
+    }
+
+    /**
+     * Hiển thị danh sách yêu cầu tạm tính
+     */
+    private void showTempCalculationRequests() {
+        progressBar.setVisibility(View.VISIBLE);
+
+        orderRepository.getOrdersByTableNumber(null, null, new OrderRepository.RepositoryCallback<List<Order>>() {
+            @Override
+            public void onSuccess(List<Order> allOrders) {
+                runOnUiThread(() -> {
+                    progressBar.setVisibility(View.GONE);
+
+                    // Lọc các orders có tempCalculationRequestedAt
+                    List<Order> tempCalculationOrders = new ArrayList<>();
+                    if (allOrders != null) {
+                        for (Order order : allOrders) {
+                            if (order != null && order.getTempCalculationRequestedAt() != null
+                                && !order.getTempCalculationRequestedAt().trim().isEmpty()) {
+                                tempCalculationOrders.add(order);
+                            }
+                        }
+                    }
+
+                    if (tempCalculationOrders.isEmpty()) {
+                        Toast.makeText(ThuNganActivity.this, "Không có yêu cầu tạm tính nào", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+
+                    // Hiển thị dialog với danh sách yêu cầu
+                    showTempCalculationRequestsDialog(tempCalculationOrders);
+                });
+            }
+
+            @Override
+            public void onError(String message) {
+                runOnUiThread(() -> {
+                    progressBar.setVisibility(View.GONE);
+                    Toast.makeText(ThuNganActivity.this, "Lỗi tải yêu cầu tạm tính: " + message, Toast.LENGTH_LONG).show();
+                });
+            }
+        });
+    }
+
+    /**
+     * Hiển thị dialog danh sách yêu cầu tạm tính
+     */
+    private void showTempCalculationRequestsDialog(List<Order> orders) {
+        // Tạo danh sách hiển thị
+        String[] items = new String[orders.size()];
+        for (int i = 0; i < orders.size(); i++) {
+            Order order = orders.get(i);
+            String tableInfo = "Bàn " + order.getTableNumber();
+            String timeInfo = "";
+            if (order.getTempCalculationRequestedAt() != null) {
+                try {
+                    // Parse ISO date và format lại
+                    java.text.SimpleDateFormat inputFormat = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US);
+                    java.text.SimpleDateFormat outputFormat = new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault());
+                    java.util.Date date = inputFormat.parse(order.getTempCalculationRequestedAt());
+                    timeInfo = " - " + outputFormat.format(date);
+                } catch (Exception e) {
+                    timeInfo = " - " + order.getTempCalculationRequestedAt();
+                }
+            }
+            items[i] = tableInfo + timeInfo;
+        }
+
+        new android.app.AlertDialog.Builder(this)
+            .setTitle("Yêu cầu tạm tính (" + orders.size() + ")")
+            .setItems(items, (dialog, which) -> {
+                // Mở màn hình hóa đơn cho bàn được chọn
+                Order selectedOrder = orders.get(which);
+                Intent intent = new Intent(ThuNganActivity.this, InvoiceActivity.class);
+                intent.putExtra("tableNumber", selectedOrder.getTableNumber());
+                startActivity(intent);
+            })
+            .setNegativeButton("Đóng", null)
+            .show();
     }
 }
