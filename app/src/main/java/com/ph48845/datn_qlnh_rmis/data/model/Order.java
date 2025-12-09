@@ -84,6 +84,19 @@ public class Order implements Serializable {
     @SerializedName("paidAt")
     private String paidAtAnnotated;
 
+    @SerializedName("tempCalculationRequestedBy")
+    private Object tempCalculationRequestedByAnnotated;
+
+    @SerializedName("tempCalculationRequestedAt")
+    private String tempCalculationRequestedAtAnnotated;
+
+    // Tương tự, nếu trường checkItems cũng trả về object thì sửa luôn
+    @SerializedName("checkItemsRequestedBy")
+    private Object checkItemsRequestedByAnnotated;
+
+    @SerializedName("checkItemsRequestedAt")
+    private String checkItemsRequestedAtAnnotated;
+
     // ✨ Annotated field mới
     @SerializedName("cancelReason")
     private String cancelReasonAnnotated;
@@ -311,6 +324,93 @@ public class Order implements Serializable {
         this.paidAtAnnotated = paidAt;
     }
 
+// ===================== GETTER & SETTER CHO CÁC TRƯỜNG DYNAMIC (OBJECT) =====================
+
+    // 1. TempCalculationRequestedBy
+    public String getTempCalculationRequestedBy() {
+        if (tempCalculationRequestedByAnnotated == null) return ""; // Trả về rỗng để an toàn hiển thị
+
+        // Trường hợp A: Server trả về Object JSON (Map)
+        if (tempCalculationRequestedByAnnotated instanceof Map) {
+            try {
+                Map<?, ?> map = (Map<?, ?>) tempCalculationRequestedByAnnotated;
+                // Ưu tiên 1: Lấy tên hiển thị ("name")
+                Object name = map.get("name");
+                if (name != null) return String.valueOf(name);
+
+                // Ưu tiên 2: Lấy username
+                Object username = map.get("username");
+                if (username != null) return String.valueOf(username);
+
+                // Ưu tiên 3: Lấy _id
+                Object id = map.get("_id");
+                return id != null ? String.valueOf(id) : "";
+            } catch (Exception e) {
+                return "";
+            }
+        }
+
+        // Trường hợp B: Server trả về String (chỉ có ID) hoặc các kiểu khác
+        if (tempCalculationRequestedByAnnotated instanceof String) {
+            return (String) tempCalculationRequestedByAnnotated;
+        }
+
+        // Trường hợp còn lại: ép kiểu về String
+        return String.valueOf(tempCalculationRequestedByAnnotated);
+    }
+
+    public void setTempCalculationRequestedBy(String tempCalculationRequestedBy) {
+        // Khi set từ App, ta gán String ID vào biến Object
+        this.tempCalculationRequestedByAnnotated = tempCalculationRequestedBy;
+    }
+
+    public String getCheckItemsRequestedBy() {
+        if (checkItemsRequestedByAnnotated == null) return "";
+
+        if (checkItemsRequestedByAnnotated instanceof Map) {
+            try {
+                Map<?, ?> map = (Map<?, ?>) checkItemsRequestedByAnnotated;
+                Object name = map.get("name");
+                if (name != null) return String.valueOf(name);
+
+                Object username = map.get("username");
+                if (username != null) return String.valueOf(username);
+
+                Object id = map.get("_id");
+                return id != null ? String.valueOf(id) : "";
+            } catch (Exception e) {
+                return "";
+            }
+        }
+
+        if (checkItemsRequestedByAnnotated instanceof String) {
+            return (String) checkItemsRequestedByAnnotated;
+        }
+
+        return String.valueOf(checkItemsRequestedByAnnotated);
+    }
+
+    public void setCheckItemsRequestedBy(String checkItemsRequestedBy) {
+        this.checkItemsRequestedByAnnotated = checkItemsRequestedBy;
+    }
+
+    // Các trường thời gian (At) vẫn giữ nguyên là String vì Server trả về chuỗi ngày tháng
+    public String getTempCalculationRequestedAt() {
+        return tempCalculationRequestedAtAnnotated;
+    }
+
+    public void setTempCalculationRequestedAt(String tempCalculationRequestedAt) {
+        this.tempCalculationRequestedAtAnnotated = tempCalculationRequestedAt;
+    }
+
+    public String getCheckItemsRequestedAt() {
+        return checkItemsRequestedAtAnnotated;
+    }
+
+    public void setCheckItemsRequestedAt(String checkItemsRequestedAt) {
+        this.checkItemsRequestedAtAnnotated = checkItemsRequestedAt;
+    }
+
     private String createdAtEpochToString() {
         return createdAtAnnotated != null ? createdAtAnnotated : (createdAt > 0 ? String.valueOf(createdAt) : null);
     }
@@ -359,6 +459,10 @@ public class Order implements Serializable {
         if (paymentMethodAnnotated != null) m.put("paymentMethod", paymentMethodAnnotated);
         if (orderStatusAnnotated != null) m.put("orderStatus", orderStatusAnnotated);
         if (createdAtAnnotated != null) m.put("createdAt", createdAtAnnotated);
+        if (tempCalculationRequestedByAnnotated != null) m.put("tempCalculationRequestedBy", tempCalculationRequestedByAnnotated);
+        if (tempCalculationRequestedAtAnnotated != null) m.put("tempCalculationRequestedAt", tempCalculationRequestedAtAnnotated);
+        if (checkItemsRequestedByAnnotated != null) m.put("checkItemsRequestedBy", checkItemsRequestedByAnnotated);
+        if (checkItemsRequestedAtAnnotated != null) m.put("checkItemsRequestedAt", checkItemsRequestedAtAnnotated);
 
         // ✨ add cancelReason
         m.put("cancelReason", getCancelReason());
