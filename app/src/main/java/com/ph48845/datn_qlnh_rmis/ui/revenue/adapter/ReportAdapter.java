@@ -46,7 +46,7 @@ public class ReportAdapter extends RecyclerView.Adapter<ReportAdapter.ViewHolder
         // Format tổng doanh thu
         NumberFormat formatter = NumberFormat.getInstance(Locale.US); // hoặc Locale.getDefault()
         String revenueStr = formatter.format(item.getTotalRevenue());
-        holder.tvTotalRevenue.setText("Tổng doanh thu: " + revenueStr + " VND");
+        holder.tvTotalRevenue.setText(revenueStr + " VND");
     }
 
 

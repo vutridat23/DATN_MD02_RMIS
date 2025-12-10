@@ -25,7 +25,7 @@ import com.ph48845.datn_qlnh_rmis.data.model.Order;
 import com.ph48845.datn_qlnh_rmis.data.repository.MenuRepository;
 import com.ph48845.datn_qlnh_rmis.data.repository.OrderRepository;
 import com.ph48845.datn_qlnh_rmis.ui.bep.SocketManager;
-import com.ph48845.datn_qlnh_rmis.ui.thanhtoan.ThanhToanActivity;
+import com.ph48845.datn_qlnh_rmis.ui.thungan.thanhtoan.ThanhToanActivity;
 
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;

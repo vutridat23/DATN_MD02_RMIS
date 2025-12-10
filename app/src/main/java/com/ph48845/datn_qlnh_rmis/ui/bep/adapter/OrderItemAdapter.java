@@ -367,9 +367,7 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
             super(itemView);
             imgThumb = itemView.findViewById(R.id.imgThumb);
             txtTenMon = itemView.findViewById(R.id.txtTenMon);
-//            TextView t1 = itemView.findViewById(R.id.txtTableInfo);   // có thể null
-            TextView t2 = itemView.findViewById(R.id.txtTableNumber); // layout bạn gửi có id này
-//            txtTableInfo = t1 != null ? t1 : t2; // fallback: dùng txtTableNumber nếu txtTableInfo không có
+            txtTableInfo = itemView.findViewById(R.id.txtTableNumber);   // có thể null
             txtNote = itemView.findViewById(R.id.txtNote);
             txtQty = itemView.findViewById(R.id.txtQty);
             txtPrice = itemView.findViewById(R.id.txtPrice);

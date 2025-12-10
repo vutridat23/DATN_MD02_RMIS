@@ -39,17 +39,17 @@ public class OnboardingActivity extends AppCompatActivity {
 
         List<OnboardingItem> items = new ArrayList<>();
         items.add(new OnboardingItem(
-                R.drawable.banner_login,
+                R.drawable.banner_1,
                 "Gọi món tại bàn",
                 "Nhân viên order trực tiếp trên điện thoại, đơn hàng được chuyển ngay xuống bếp không cần đi lại."
         ));
         items.add(new OnboardingItem(
-                R.drawable.banner_login2,
+                R.drawable.banner_2,
                 "Quản lý Bếp & Bar",
                 "Hiển thị danh sách món cần làm theo thứ tự thời gian, báo hết món và trả món nhanh chóng."
         ));
         items.add(new OnboardingItem(
-                R.drawable.banner_login3,
+                R.drawable.banner_3,
                 "Báo cáo doanh thu",
                 "Theo dõi dòng tiền, hóa đơn và hiệu suất nhân viên theo thời gian thực chính xác tuyệt đối."
         ));

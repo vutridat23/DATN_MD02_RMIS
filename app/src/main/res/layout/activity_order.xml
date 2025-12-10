@@ -1,200 +1,215 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/order_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F7F7F7">
+    android:background="#F5F5F5"
+    android:fitsSystemWindows="true">
 
-    <!-- Vertical content -->
+    <com.google.android.material.appbar.AppBarLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#AA0000"
+        android:fitsSystemWindows="true"
+        android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar">
+
+        <androidx.appcompat.widget.Toolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            app:navigationIcon="@drawable/btn_back"
+            app:contentInsetStartWithNavigation="0dp"
+            app:popupTheme="@style/ThemeOverlay.AppCompat.Light">
+
+            <androidx.constraintlayout.widget.ConstraintLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent">
+
+                <TextView
+                    android:id="@+id/header_title"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="GỌI MÓN"
+                    android:textColor="#FFFFFF"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintTop_toTopOf="parent" />
+
+                <TextView
+                    android:id="@+id/tv_table_label"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="16dp"
+                    android:background="@drawable/bg_white_rounded"
+                    android:paddingStart="12dp"
+                    android:paddingTop="4dp"
+                    android:paddingEnd="12dp"
+                    android:paddingBottom="4dp"
+                    android:text="Bàn 01"
+                    android:textColor="#AA0000"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintTop_toTopOf="parent" />
+
+            </androidx.constraintlayout.widget.ConstraintLayout>
+
+        </androidx.appcompat.widget.Toolbar>
+    </com.google.android.material.appbar.AppBarLayout>
+
     <LinearLayout
         android:id="@+id/content_column"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:fitsSystemWindows="true"
-        android:orientation="vertical">
+        android:orientation="vertical"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
-        <!-- Header/top bar -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp"
-            android:background="#2DB06A">
-
-            <ImageView
-                android:id="@+id/btn_back"
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                app:tint="#FFFFFF"
-                android:src="@drawable/btn_back" />
-
-            <TextView
-                android:id="@+id/header_title"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Menu phục vụ món"
-                android:textColor="#FFFFFF"
-                android:textSize="18sp"
-                android:gravity="center"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp" />
-
-            <!-- Table label on header right -->
-            <TextView
-                android:id="@+id/tv_table_label"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Bàn 1"
-                android:textColor="#FFFFFF"
-                android:textSize="14sp"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"/>
-        </LinearLayout>
-
-        <!-- Title -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="12dp">
+            android:paddingStart="16dp"
+            android:paddingTop="16dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="8dp">
 
             <TextView
                 android:id="@+id/tv_section_title"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Danh sách món ăn"
-                android:textSize="16sp"
+                android:text="Chi tiết đơn hàng"
+                android:textAllCaps="true"
+                android:textColor="#AA0000"
+                android:textSize="14sp"
                 android:textStyle="bold"
-                android:textColor="#222222" />
+                android:letterSpacing="0.05"/>
 
             <TextView
                 android:id="@+id/tv_section_sub"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Xem, kiểm tra bàn ăn"
-                android:textSize="13sp"
-                android:textColor="#777777"
-                android:layout_marginTop="4dp" />
+                android:layout_marginTop="4dp"
+                android:text="Kiểm tra món ăn đã gọi hoặc thêm mới"
+                android:textColor="#757575"
+                android:textSize="12sp" />
         </LinearLayout>
 
-        <!-- Ordered view container (shown by default) -->
-        <LinearLayout
-            android:id="@+id/ordered_container"
+        <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_weight="1"
-            android:orientation="vertical"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp">
+            android:layout_weight="1">
 
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/rv_ordered_list"
+            <LinearLayout
+                android:id="@+id/ordered_container"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:clipToPadding="false"
-                android:paddingTop="4dp"
-                android:paddingBottom="8dp"/>
-
-        </LinearLayout>
-
-        <!-- Bottom summary for ordered view -->
-        <LinearLayout
-            android:id="@+id/order_summary"
-            android:layout_width="match_parent"
-            android:layout_height="96dp"
-            android:orientation="vertical"
-            android:padding="12dp"
-            android:background="#FFFFFF"
-            android:elevation="4dp">
+                android:orientation="vertical">
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/rv_ordered_list"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:clipToPadding="false"
+                    android:paddingHorizontal="8dp"
+                    android:paddingBottom="16dp" />
+            </LinearLayout>
 
             <LinearLayout
+                android:id="@+id/menu_container"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:visibility="gone">
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/rv_menu_list"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:clipToPadding="false"
+                    android:paddingHorizontal="8dp"
+                    android:paddingBottom="16dp" />
+            </LinearLayout>
+        </FrameLayout>
+
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardElevation="16dp"
+            app:cardCornerRadius="0dp"
+            app:cardBackgroundColor="#FFFFFF">
+
+            <LinearLayout
+                android:id="@+id/order_summary"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:paddingBottom="8dp">
-
-                <TextView
-                    android:id="@+id/tv_total_label"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Tổng Tiền :"
-                    android:textSize="16sp"
-                    android:textColor="#222222"
-                    android:layout_gravity="center_vertical"/>
-
-                <TextView
-                    android:id="@+id/tv_total_amount_ordered"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="0 VND"
-                    android:textSize="16sp"
-                    android:textStyle="bold"
-                    android:layout_gravity="center_vertical"
-                    android:layout_marginStart="16dp"
-                    android:textColor="#222222"/>
-            </LinearLayout>
-
-            <Button
-                android:id="@+id/btn_add_more"
-                android:layout_width="match_parent"
-                android:layout_height="44dp"
-                android:text="Thêm món"
-                android:backgroundTint="#2DB06A"
-                android:textColor="#FFFFFF"/>
-        </LinearLayout>
-
-        <!-- Menu container (hidden initially) - user can add items here -->
-        <LinearLayout
-            android:id="@+id/menu_container"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:orientation="vertical"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
-            android:visibility="gone">
-
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/rv_menu_list"
-                android:layout_width="match_parent"
-                android:layout_height="0dp"
-                android:layout_weight="1"
-                android:clipToPadding="false"
-                android:paddingTop="4dp"
-                android:paddingBottom="8dp"/>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="72dp"
                 android:orientation="vertical"
-                android:padding="12dp"
-                android:background="#FFFFFF"
-                android:elevation="4dp">
+                android:padding="16dp">
 
-                <Button
-                    android:id="@+id/btn_confirm_order"
+                <LinearLayout
                     android:layout_width="match_parent"
-                    android:layout_height="48dp"
-                    android:text="Xác nhận lên đơn"
-                    android:textColor="#FFFFFF"
-                    android:backgroundTint="#2DB06A"
-                    android:enabled="false" />
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="12dp"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/tv_total_label"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Tạm tính:"
+                        android:textColor="#424242"
+                        android:textSize="16sp" />
+
+                    <TextView
+                        android:id="@+id/tv_total_amount_ordered"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="0 đ"
+                        android:textColor="#AA0000"
+                        android:textSize="20sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <FrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+
+                    <Button
+                        android:id="@+id/btn_add_more"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:backgroundTint="#AA0000"
+                        android:text="THÊM MÓN"
+                        android:textColor="#FFFFFF"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        app:cornerRadius="8dp"/>
+
+                    <Button
+                        android:id="@+id/btn_confirm_order"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:backgroundTint="#AA0000"
+                        android:text="XÁC NHẬN ĐƠN"
+                        android:textColor="#FFFFFF"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        app:cornerRadius="8dp"
+                        android:visibility="gone"/>
+                </FrameLayout>
             </LinearLayout>
-        </LinearLayout>
+        </androidx.cardview.widget.CardView>
 
     </LinearLayout>
 
-    <!-- Progress overlay (centered) -->
     <ProgressBar
         android:id="@+id/progress_bar_order"
-        style="?android:attr/progressBarStyleLarge"
-        android:layout_width="56dp"
-        android:layout_height="56dp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
         android:layout_gravity="center"
+        android:indeterminateTint="#AA0000"
         android:visibility="gone" />
 
-</FrameLayout>
+</androidx.coordinatorlayout.widget.CoordinatorLayout>
