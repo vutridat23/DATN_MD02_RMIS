@@ -112,9 +112,10 @@ public class TransferManager {
             String s = t.getStatusDisplay();
             if (s != null && !s.isEmpty()) return s;
         } catch (Exception ignored) {}
+        if (t.getStatus() == TableItem.Status.AVAILABLE) return "Khả dụng";
         if (t.getStatus() == TableItem.Status.OCCUPIED) return "Đã có khách";
         if (t.getStatus() == TableItem.Status.RESERVED) return "Đã được đặt trước";
-        return "Trống";
+        return "Khả dụng";
     }
 
     public void showTransferReservationDialog(final TableItem fromTable, final TableItem targetTable) {
