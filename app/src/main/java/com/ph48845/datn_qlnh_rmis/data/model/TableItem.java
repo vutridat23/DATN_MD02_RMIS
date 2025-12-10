@@ -160,6 +160,7 @@ public class TableItem implements Serializable {
     public String getStatusDisplay() {
         switch (getStatus()) {
             case OCCUPIED: return "Đã có khách";
+            case AVAILABLE: return "Khả dụng";
             case RESERVED: return "Đã được đặt trước";
             case PENDING_PAYMENT: return "Chờ thanh toán";
             case FINISH_SERVE: return "Đã phục vụ";

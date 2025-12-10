@@ -84,6 +84,9 @@ public class TableAdapter extends RecyclerView.Adapter<TableAdapter.TableViewHol
                 case RESERVED:
                     stripColor = Color.parseColor("#F57F17"); // Màu Cam
                     break;
+                case AVAILABLE:
+                    stripColor = Color.parseColor("#000000"); // Màu Cam
+                    break;
                 case FINISH_SERVE:
                     stripColor = Color.parseColor("#D32F2F"); // Màu Đỏ đậm hơn chút hoặc giữ nguyên
                     break;
