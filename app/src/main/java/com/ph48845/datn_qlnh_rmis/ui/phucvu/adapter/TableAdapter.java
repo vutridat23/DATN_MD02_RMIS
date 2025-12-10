@@ -2,12 +2,12 @@ package com.ph48845.datn_qlnh_rmis.ui.phucvu.adapter;
 
 import android.content.Context;
 import android.graphics.Color;
+import android.graphics.Typeface;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 import androidx.cardview.widget.CardView;
-
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -17,11 +17,6 @@ import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Adapter hiển thị danh sách bàn (với layout item_table.xml)
- *
- * Kept a backward-compatible constructor that accepts (Context, List<TableItem>, listener).
- */
 public class TableAdapter extends RecyclerView.Adapter<TableAdapter.TableViewHolder> {
 
     public interface OnTableClickListener {
@@ -32,13 +27,13 @@ public class TableAdapter extends RecyclerView.Adapter<TableAdapter.TableViewHol
     private final OnTableClickListener listener;
     private List<TableItem> tableList = new ArrayList<>();
 
-    // Constructor (listener first)
+    // Constructor 1
     public TableAdapter(OnTableClickListener listener, List<TableItem> tables) {
         this.listener = listener;
         this.tableList = tables != null ? tables : new ArrayList<>();
     }
 
-    // Overloaded constructor used in code: (Context, List<TableItem>, listener)
+    // Constructor 2
     public TableAdapter(Context ctx, List<TableItem> tables, OnTableClickListener listener) {
         this(listener, tables);
     }
@@ -55,43 +50,63 @@ public class TableAdapter extends RecyclerView.Adapter<TableAdapter.TableViewHol
         TableItem table = tableList.get(position);
         if (table == null) return;
 
+        // --- 1. SET DỮ LIỆU CƠ BẢN ---
         holder.tvTableNumber.setText("Bàn " + table.getTableNumber());
-        holder.tvCapacity.setText(table.getCapacity() > 0 ? ("Sức chứa: " + table.getCapacity() + " người") : "");
+        holder.tvCapacity.setText(table.getCapacity() > 0 ? ("Sức chứa: " + table.getCapacity()) : "");
         holder.tvStatus.setText(table.getStatusDisplay());
 
-        int bgColor;
-        try {
-            switch (table.getStatus()) {
-                case OCCUPIED:
-                    bgColor = Color.parseColor("#2BB673");
-                    break;
-                case PENDING_PAYMENT:
-                case RESERVED:
-                    bgColor = Color.parseColor("#F2B01E");
-                    break;
-                case FINISH_SERVE:
-                    bgColor = Color.parseColor("#D2544C");
-                    break;
-                case EMPTY:
-                default:
-                    bgColor = Color.parseColor("#DADADA");
-                    break;
-            }
-        } catch (Exception e) {
-            bgColor = Color.parseColor("#DADADA");
-        }
-        holder.cardView.setCardBackgroundColor(bgColor);
+        // --- 2. XỬ LÝ MÀU SẮC (LOGIC MỚI) ---
+
+        // Luôn đặt nền Card là màu trắng
+        holder.cardView.setCardBackgroundColor(Color.WHITE);
 
         if (table.getStatus() == TableItem.Status.EMPTY) {
-            holder.tvTableNumber.setTextColor(Color.parseColor("#7A7A7A"));
-            holder.tvCapacity.setTextColor(Color.parseColor("#7A7A7A"));
-            holder.tvStatus.setTextColor(Color.parseColor("#7A7A7A"));
+            // --- TRẠNG THÁI: BÀN TRỐNG ---
+
+            // Thanh Strip màu xám nhạt
+            holder.viewStatusStrip.setBackgroundColor(Color.parseColor("#E0E0E0"));
+
+            // Text màu xám để làm chìm
+            holder.tvTableNumber.setTextColor(Color.parseColor("#757575"));
+            holder.tvStatus.setTextColor(Color.parseColor("#9E9E9E"));
+            holder.tvCapacity.setTextColor(Color.parseColor("#9E9E9E"));
+
+            // Giảm độ nổi (Elevation)
+            holder.cardView.setCardElevation(2f);
+
         } else {
-            holder.tvTableNumber.setTextColor(Color.WHITE);
-            holder.tvCapacity.setTextColor(Color.WHITE);
-            holder.tvStatus.setTextColor(Color.WHITE);
+            // --- TRẠNG THÁI: CÓ KHÁCH (Active) ---
+
+            // Xác định màu cho Strip dựa trên chi tiết trạng thái
+            int stripColor;
+            switch (table.getStatus()) {
+                case PENDING_PAYMENT:
+                case RESERVED:
+                    stripColor = Color.parseColor("#F57F17"); // Màu Cam
+                    break;
+                case FINISH_SERVE:
+                    stripColor = Color.parseColor("#D32F2F"); // Màu Đỏ đậm hơn chút hoặc giữ nguyên
+                    break;
+                case OCCUPIED:
+                default:
+                    stripColor = Color.parseColor("#AA0000"); // Màu Đỏ chủ đạo
+                    break;
+            }
+            holder.viewStatusStrip.setBackgroundColor(stripColor);
+
+            // Tên bàn màu Đỏ thương hiệu
+            holder.tvTableNumber.setTextColor(Color.parseColor("#AA0000"));
+
+            // Các text thông tin khác màu đậm cho dễ đọc
+            holder.tvStatus.setTextColor(Color.parseColor("#333333"));
+            holder.tvStatus.setTypeface(null, Typeface.BOLD);
+            holder.tvCapacity.setTextColor(Color.parseColor("#757575"));
+
+            // Tăng độ nổi để nhấn mạnh bàn đang hoạt động
+            holder.cardView.setCardElevation(8f);
         }
 
+        // --- 3. SỰ KIỆN CLICK ---
         holder.itemView.setOnClickListener(v -> {
             if (listener != null) listener.onTableClick(v, table);
         });
@@ -112,16 +127,22 @@ public class TableAdapter extends RecyclerView.Adapter<TableAdapter.TableViewHol
         notifyDataSetChanged();
     }
 
+    // --- ViewHolder Cập Nhật ---
     public static class TableViewHolder extends RecyclerView.ViewHolder {
         CardView cardView;
         TextView tvTableNumber, tvCapacity, tvStatus;
+        View viewStatusStrip; // <--- Cần thêm biến này
 
         public TableViewHolder(@NonNull View itemView) {
             super(itemView);
+            // Ánh xạ các View theo ID trong file item_table.xml mới
             cardView = itemView.findViewById(R.id.card_table);
             tvTableNumber = itemView.findViewById(R.id.tv_table_name);
             tvCapacity = itemView.findViewById(R.id.tv_table_capacity);
             tvStatus = itemView.findViewById(R.id.tv_table_status);
+
+            // Ánh xạ thanh Strip mới
+            viewStatusStrip = itemView.findViewById(R.id.view_status_strip);
         }
     }
 }

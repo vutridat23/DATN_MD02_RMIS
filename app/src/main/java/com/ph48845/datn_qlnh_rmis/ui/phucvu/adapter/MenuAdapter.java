@@ -136,7 +136,6 @@ public class MenuAdapter extends RecyclerView.Adapter<MenuAdapter.MenuViewHolder
         }
 
         holder.tvBadge.setText("Còn món");
-        holder.tvBadge.setBackgroundResource(R.drawable.badge_green_bg);
 
         Integer q = qtyMap.get(m.getId());
         if (q == null) q = 0;

@@ -18,6 +18,8 @@ import android.widget.Toast;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.widget.Toolbar;
 import androidx.core.view.GravityCompat;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -71,7 +73,6 @@ public class MainActivity extends BaseMenuActivity {
     private TableActionsHandler tableActionsHandler;
     DrawerLayout drawerLayout;
     NavigationView navigationView;
-    private View redDot;
 
     private SocketManager socketManager;
     // Default socket URL: your server IP
@@ -96,8 +97,6 @@ public class MainActivity extends BaseMenuActivity {
         Toolbar toolbar = findViewById(R.id.toolbar);
         navigationView = findViewById(R.id.navigationView_order);
 
-        redDot = findViewById(R.id.redDot);
-        if (redDot != null) redDot.setVisibility(View.VISIBLE);
 
         ImageView navIcon = findViewById(R.id.nav_icon);
         if (navIcon != null && drawerLayout != null) {
@@ -245,9 +244,33 @@ public class MainActivity extends BaseMenuActivity {
         } catch (Exception e) {
             Log.w(TAG, "Failed to init socket in MainActivity: " + e.getMessage(), e);
         }
+        applyNavigationViewInsets();
+
 
         // initial load
         fetchTablesFromServer();
+    }
+
+    private void applyNavigationViewInsets() {
+        if (navigationView == null) return;
+
+        ViewCompat.setOnApplyWindowInsetsListener(navigationView, (view, insets) -> {
+
+            int statusBar = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top;
+
+            // Lấy header của NavigationView
+            View header = navigationView.getHeaderView(0);
+            if (header != null) {
+                header.setPadding(
+                        header.getPaddingLeft(),
+                        statusBar,   // ĐẨY XUỐNG ĐỂ TRÁNH DÍNH STATUS BAR
+                        header.getPaddingRight(),
+                        header.getPaddingBottom()
+                );
+            }
+
+            return insets;
+        });
     }
 
     private boolean isProbablyEmulator() {

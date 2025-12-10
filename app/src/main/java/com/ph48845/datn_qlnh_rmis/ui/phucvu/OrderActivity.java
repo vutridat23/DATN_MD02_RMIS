@@ -56,7 +56,7 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
     private ImageView imgBack;
     private Button btnAddMore;
     private Button btnConfirm;
-    private View redDot;
+
 
     private MenuRepository menuRepository;
     private OrderRepository orderRepository;
@@ -95,6 +95,7 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_order);
 
+        // 1. Ánh xạ các View chính
         rvOrderedList = findViewById(R.id.rv_ordered_list);
         rvMenuList = findViewById(R.id.rv_menu_list);
         progressBar = findViewById(R.id.progress_bar_order);
@@ -102,31 +103,40 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         tvTotal = findViewById(R.id.tv_total_amount_ordered);
         btnAddMore = findViewById(R.id.btn_add_more);
         btnConfirm = findViewById(R.id.btn_confirm_order);
-        imgBack = findViewById(R.id.btn_back);
-        redDot = findViewById(R.id.redDot); // if present in layout
 
-        if (imgBack != null) {
-            imgBack.setOnClickListener(v -> {
-                Intent intent = new Intent(OrderActivity.this, MainActivity.class);
-                startActivity(intent);
-                finish();
-            });
-        }
+        // 2. XỬ LÝ TOOLBAR & NÚT BACK (Thay thế cho imgBack cũ)
+        androidx.appcompat.widget.Toolbar toolbar = findViewById(R.id.toolbar);
+        toolbar.setNavigationOnClickListener(v -> {
+            // Quay lại màn hình trước đó (thường là MainActivity hoặc Danh sách bàn)
+            // Nếu bạn muốn ép về MainActivity như code cũ, hãy dùng:
+             Intent intent = new Intent(OrderActivity.this, MainActivity.class);
+             startActivity(intent);
+             finish();
 
-        // load persisted notes (both normal notes and cancel notes)
+            onBackPressed(); // Cách chuẩn nhất cho nút Back
+        });
+
+        // 3. Load dữ liệu đã lưu (Ghi chú)
         loadNotesFromPrefs();
 
+        // 4. Khởi tạo Repository
         menuRepository = new MenuRepository();
         orderRepository = new OrderRepository();
         tableRepository = new TableRepository();
 
+        // 5. Lấy dữ liệu từ Intent
         tableId = getIntent().getStringExtra("tableId");
         tableNumber = getIntent().getIntExtra("tableNumber", 0);
+
+        // Gán số bàn lên Toolbar (vì tvTable giờ nằm trong Toolbar)
         if (tvTable != null) tvTable.setText("Bàn " + tableNumber);
 
         String extraSocket = getIntent().getStringExtra("socketUrl");
-        if (extraSocket != null && !extraSocket.trim().isEmpty()) socketUrl = extraSocket.trim();
+        if (extraSocket != null && !extraSocket.trim().isEmpty()) {
+            socketUrl = extraSocket.trim();
+        }
 
+        // 6. Setup RecyclerView - Danh sách món ĐÃ GỌI
         rvOrderedList.setLayoutManager(new LinearLayoutManager(this));
         orderedAdapter = new OrderAdapter(new ArrayList<>(), item -> {
             if (!isFinishing() && !isDestroyed()) {
@@ -135,20 +145,28 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         }, this);
         rvOrderedList.setAdapter(orderedAdapter);
 
+        // 7. Setup RecyclerView - Danh sách MENU (Ban đầu ẩn)
         rvMenuList.setLayoutManager(new LinearLayoutManager(this));
         menuAdapter = new MenuAdapter(new ArrayList<>(), this);
         rvMenuList.setAdapter(menuAdapter);
 
+        // 8. Setup Long Press (Để sửa/xóa món trong menu chọn)
         longPressHandler = new MenuLongPressHandler(this, rvMenuList, menuAdapter, this);
         longPressHandler.setup();
 
-        if (btnAddMore != null) btnAddMore.setOnClickListener(v -> showMenuView());
-        if (btnConfirm != null) btnConfirm.setOnClickListener(v -> confirmAddItems());
+        // 9. Xử lý sự kiện nút bấm chính
+        if (btnAddMore != null) {
+            btnAddMore.setOnClickListener(v -> showMenuView());
+        }
+        if (btnConfirm != null) {
+            btnConfirm.setOnClickListener(v -> confirmAddItems());
+        }
 
-        // socket handler
+        // 10. Socket Handler
         socketHandler = new OrderSocketHandler(this, socketUrl, tableNumber, this);
         socketHandler.initAndConnect();
 
+        // 11. Load dữ liệu API
         loadMenuItems();
         loadExistingOrdersForTable();
     }
@@ -383,21 +401,36 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         if (btnConfirm != null) btnConfirm.setEnabled(!addQtyMap.isEmpty());
     }
 
+    // Tìm đến dòng khoảng 305 trong file OrderActivity.java
     private void showMenuView() {
         View v1 = findViewById(R.id.ordered_container);
         View v2 = findViewById(R.id.order_summary);
         View v3 = findViewById(R.id.menu_container);
+
         if (v1 != null) v1.setVisibility(View.GONE);
-        if (v2 != null) v2.setVisibility(View.GONE);
+
+        // SỬA: Luôn hiện order_summary vì nó chứa nút bấm
+        if (v2 != null) v2.setVisibility(View.VISIBLE);
+
         if (v3 != null) v3.setVisibility(View.VISIBLE);
+
+        // SỬA THÊM: Đảo trạng thái 2 nút
+        if (btnAddMore != null) btnAddMore.setVisibility(View.GONE);      // Ẩn nút Thêm
+        if (btnConfirm != null) btnConfirm.setVisibility(View.VISIBLE);   // Hiện nút Xác nhận
     }
+
     private void hideMenuView() {
         View v1 = findViewById(R.id.menu_container);
         View v2 = findViewById(R.id.ordered_container);
         View v3 = findViewById(R.id.order_summary);
+
         if (v1 != null) v1.setVisibility(View.GONE);
         if (v2 != null) v2.setVisibility(View.VISIBLE);
         if (v3 != null) v3.setVisibility(View.VISIBLE);
+
+        // SỬA THÊM: Đảo trạng thái 2 nút về ban đầu
+        if (btnAddMore != null) btnAddMore.setVisibility(View.VISIBLE);   // Hiện nút Thêm
+        if (btnConfirm != null) btnConfirm.setVisibility(View.GONE);      // Ẩn nút Xác nhận
     }
 
     public void confirmAddItems(View view) { confirmAddItems(); }

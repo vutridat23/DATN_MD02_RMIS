@@ -6,7 +6,7 @@
     android:layout_height="match_parent"
     android:padding="16dp"
     android:background="#FAFAFA"
-    tools:context=".ui.thanhtoan.QRPaymentActivity">
+    tools:context=".ui.thungan.thanhtoan.QRPaymentActivity">
 
     <!-- Tiêu đề -->
     <TextView

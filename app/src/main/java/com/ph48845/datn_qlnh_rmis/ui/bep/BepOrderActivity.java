@@ -56,6 +56,7 @@ public class BepOrderActivity extends AppCompatActivity implements OrderItemAdap
         progressBar = findViewById(R.id.progress_bep_order);
         rvItems = findViewById(R.id.recycler_table_orders);
 
+
         setSupportActionBar(toolbar);
 
         if (getSupportActionBar() != null) {
@@ -77,6 +78,7 @@ public class BepOrderActivity extends AppCompatActivity implements OrderItemAdap
 
         loadTableOrders();
     }
+
 
     @Override
     protected void onStart() {

@@ -3,11 +3,10 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="16dp"
-    android:fitsSystemWindows="true"
-
+    android:padding="25dp"
+    android:paddingTop="32dp"
     android:gravity="bottom"
-    android:background="#32B768">
+    android:background="#AA0000">
 
     <!-- Avatar -->
     <ImageView
