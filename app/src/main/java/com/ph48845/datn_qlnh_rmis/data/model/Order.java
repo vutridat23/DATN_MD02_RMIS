@@ -9,6 +9,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Order model - updated to tolerate server/cashier being returned either as String or as Object.
+ *
+ * Changes:
+ * - serverIdAnnotated and cashierIdAnnotated are now Object so Gson can deserialize either a String or an Object.
+ * - getServerId() and getCashierId() resolve the best string representation (prefer _id or id, fallback to name).
+ * - setServerId/setCashierId still accept String for callers that set simple ids.
+ */
 public class Order implements Serializable {
 
     public transient String _id;
@@ -42,11 +50,12 @@ public class Order implements Serializable {
     @SerializedName("tableNumber")
     private Integer tableNumberAnnotated;
 
+    // Accept either String or Object for server/cashier to be tolerant of API variations
     @SerializedName("server")
-    private String serverIdAnnotated;
+    private Object serverIdAnnotated;
 
     @SerializedName("cashier")
-    private String cashierIdAnnotated;
+    private Object cashierIdAnnotated;
 
     @SerializedName("items")
     private List<OrderItem> itemsAnnotated;
@@ -224,16 +233,64 @@ public class Order implements Serializable {
         this.tableNumberAnnotated = tableNumber;
     }
 
+    /**
+     * Resolve server id to a String.
+     * Supports server being returned as:
+     * - String (object id)
+     * - Object/Map (with _id or id or name)
+     * Fallback to legacy field if resolution fails.
+     */
     public String getServerId() {
-        return serverIdAnnotated != null ? serverIdAnnotated : serverLegacy;
+        if (serverIdAnnotated == null) return serverLegacy;
+        if (serverIdAnnotated instanceof String) {
+            String s = (String) serverIdAnnotated;
+            if (s != null && !s.isEmpty()) return s;
+            return serverLegacy;
+        }
+        try {
+            if (serverIdAnnotated instanceof Map) {
+                Map<?,?> map = (Map<?,?>) serverIdAnnotated;
+                Object idObj = map.get("_id");
+                if (idObj == null) idObj = map.get("id");
+                if (idObj != null) return String.valueOf(idObj);
+                Object nameObj = map.get("name");
+                if (nameObj != null) return String.valueOf(nameObj);
+            } else {
+                String s = String.valueOf(serverIdAnnotated);
+                if (s != null && !s.isEmpty()) return s;
+            }
+        } catch (Exception ignored) {}
+        return serverLegacy;
     }
     public void setServerId(String serverId) {
         this.serverLegacy = serverId;
         this.serverIdAnnotated = serverId;
     }
 
+    /**
+     * Resolve cashier id similarly to server.
+     */
     public String getCashierId() {
-        return cashierIdAnnotated != null ? cashierIdAnnotated : cashierLegacy;
+        if (cashierIdAnnotated == null) return cashierLegacy;
+        if (cashierIdAnnotated instanceof String) {
+            String s = (String) cashierIdAnnotated;
+            if (s != null && !s.isEmpty()) return s;
+            return cashierLegacy;
+        }
+        try {
+            if (cashierIdAnnotated instanceof Map) {
+                Map<?,?> map = (Map<?,?>) cashierIdAnnotated;
+                Object idObj = map.get("_id");
+                if (idObj == null) idObj = map.get("id");
+                if (idObj != null) return String.valueOf(idObj);
+                Object nameObj = map.get("name");
+                if (nameObj != null) return String.valueOf(nameObj);
+            } else {
+                String s = String.valueOf(cashierIdAnnotated);
+                if (s != null && !s.isEmpty()) return s;
+            }
+        } catch (Exception ignored) {}
+        return cashierLegacy;
     }
     public void setCashierId(String cashierId) {
         this.cashierLegacy = cashierId;
@@ -431,7 +488,7 @@ public class Order implements Serializable {
                 ", change=" + getChange() +
                 ", paymentMethod='" + getPaymentMethod() + '\'' +
                 ", orderStatus='" + getOrderStatus() + '\'' +
-                ", cancelReason='" + getCancelReason() + '\'' +      // ✨ add
+                ", cancelReason='" + getCancelReason() + '\'' +
                 ", mergedFrom=" + getMergedFrom() +
                 ", splitTo=" + getSplitTo() +
                 ", createdAt='" + getCreatedAt() + '\'' +
