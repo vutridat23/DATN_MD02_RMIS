@@ -3,6 +3,9 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
 
+    <color name="itsteak_red">#AA0000</color>
+    <color name="itsteak_dark">#AA0000</color>
+
     <!-- primary green used in headers -->
     <color name="primary_green">#4CAF50</color>
     <!-- action blue used for primary actions/buttons -->

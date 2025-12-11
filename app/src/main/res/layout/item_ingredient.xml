@@ -44,7 +44,7 @@
             android:layout_height="wrap_content"
             android:text="Số lượng: 0"
             android:textSize="14sp"
-            android:textColor="#4CAF50"
+            android:textColor="#AA0000"
         app:layout_constraintStart_toStartOf="@id/tvIngredientName"
         app:layout_constraintTop_toBottomOf="@id/tvIngredientName"
         app:layout_constraintEnd_toStartOf="@id/etAmount"

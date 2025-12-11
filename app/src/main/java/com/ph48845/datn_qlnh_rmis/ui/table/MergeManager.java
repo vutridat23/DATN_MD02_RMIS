@@ -93,26 +93,34 @@ public class MergeManager {
     }
 
     private String safeStatusLabel(TableItem t) {
-        if (t == null) return "Trống";
-        try {
-            String disp = t.getStatusDisplay();
-            if (disp != null && !disp.trim().isEmpty()) return disp.trim();
-        } catch (Exception ignored) {}
-        try {
-            TableItem.Status st = t.getStatus();
-            if (st != null) {
-                switch (st) {
-                    case OCCUPIED: return "Đã có khách";
-                    case RESERVED: return "Đã được đặt trước";
-                    case PENDING_PAYMENT: return "Chờ thanh toán";
-                    case FINISH_SERVE: return "Đã phục vụ";
-                    case AVAILABLE:
-                    case EMPTY:
-                    default: return "Trống";
-                }
-            }
-        } catch (Exception ignored) {}
-        return "Trống";
+        // 1. Check null ngay đầu vào
+        if (t == null) return "Khả dụng";
+
+        // 2. Ưu tiên hiển thị statusDisplay nếu có
+        // Dùng isBlank() (Java 11+) tốt hơn trim().isEmpty()
+        String disp = t.getStatusDisplay();
+        if (disp != null && !disp.isBlank()) {
+            return disp.trim();
+        }
+
+        // 3. Check null cho status
+        TableItem.Status st = t.getStatus();
+        if (st == null) return "Khả dụng";
+
+        // 4. Switch case gọn gàng
+        switch (st) {
+            case OCCUPIED:
+                return "Đã có khách";
+            case RESERVED:
+                return "Đã được đặt trước";
+            case PENDING_PAYMENT:
+                return "Chờ thanh toán";
+            case FINISH_SERVE:
+                return "Đã phục vụ";
+            case EMPTY:
+            default:
+                return "Khả dụng";
+        }
     }
 
     public void performMergeMultipleIntoTarget(final TableItem targetTable, final List<TableItem> sources) {
