@@ -1,8 +1,6 @@
 package com.ph48845.datn_qlnh_rmis.data.model;
 
 import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonPrimitive;
 import com.google.gson.annotations.SerializedName;
 
 import java.io.Serializable;
@@ -47,10 +45,12 @@ public class Order implements Serializable {
 
     // server có thể là String hoặc Object
     @SerializedName("server")
+    private Object serverIdAnnotated;
     private JsonElement serverAnnotated;
 
     // cashier có thể là String hoặc Object -> đổi sang JsonElement
     @SerializedName("cashier")
+    private Object cashierIdAnnotated;
     private JsonElement cashierAnnotated;
 
     @SerializedName("items")
@@ -231,10 +231,22 @@ public class Order implements Serializable {
         this.tableNumberAnnotated = tableNumber;
     }
 
-    // ===================== SERVER helpers (unchanged) =====================
     public String getServerId() {
-        String extracted = getServerIdAnnotated();
-        return extracted != null ? extracted : (serverLegacy != null ? serverLegacy : null);
+        Object val = serverIdAnnotated;
+        if (val == null) return serverLegacy;
+        if (val instanceof String) {
+            return (String) val;
+        }
+        if (val instanceof Map) {
+            try {
+                Map<?, ?> map = (Map<?, ?>) val;
+                if (map.containsKey("name")) return String.valueOf(map.get("name"));
+                if (map.containsKey("fullname")) return String.valueOf(map.get("fullname"));
+                if (map.containsKey("username")) return String.valueOf(map.get("username"));
+                if (map.containsKey("_id")) return String.valueOf(map.get("_id"));
+            } catch (Exception ignored) {}
+        }
+        return String.valueOf(val);
     }
 
     public void setServerId(String serverId) {
@@ -273,20 +285,23 @@ public class Order implements Serializable {
         return serverAnnotated;
     }
 
-    // ===================== CASHIER helpers (NEW) =====================
-    /**
-     * Safe getter for cashier id.
-     * Will extract id/_id if cashier is an object, or return primitive string if cashier is primitive.
-     * Falls back to legacy cashier string when annotated value missing.
-     */
     public String getCashierId() {
-        String extracted = getCashierIdAnnotated();
-        return extracted != null ? extracted : (cashierLegacy != null ? cashierLegacy : null);
+        Object val = cashierIdAnnotated;
+        if (val == null) return cashierLegacy;
+        if (val instanceof String) {
+            return (String) val;
+        }
+        if (val instanceof Map) {
+            try {
+                Map<?, ?> map = (Map<?, ?>) val;
+                if (map.containsKey("name")) return String.valueOf(map.get("name"));
+                if (map.containsKey("fullname")) return String.valueOf(map.get("fullname"));
+                if (map.containsKey("username")) return String.valueOf(map.get("username"));
+                if (map.containsKey("_id")) return String.valueOf(map.get("_id"));
+            } catch (Exception ignored) {}
+        }
+        return String.valueOf(val);
     }
-
-    /**
-     * Set cashier id (when app sets). Keeps legacy string and stores a JsonPrimitive as annotated value.
-     */
     public void setCashierId(String cashierId) {
         this.cashierLegacy = cashierId;
         this.cashierAnnotated = cashierId != null ? new JsonPrimitive(cashierId) : null;
@@ -538,26 +553,14 @@ public class Order implements Serializable {
         Map<String, Object> m = new HashMap<>();
         if (tableNumberAnnotated != null) m.put("tableNumber", tableNumberAnnotated);
         else m.put("tableNumber", tableNumber);
+        if (serverIdAnnotated != null) m.put("server", serverIdAnnotated);
+        if (cashierIdAnnotated != null) m.put("cashier", cashierIdAnnotated);
 
-        // For server: prefer annotated id if available, otherwise legacy
-        String srv = getServerIdAnnotated();
-        if (srv != null) m.put("server", srv);
-        else if (serverLegacy != null) m.put("server", serverLegacy);
-
-        // For cashier: prefer annotated id if available, otherwise legacy
-        String csh = getCashierIdAnnotated();
-        if (csh != null) m.put("cashier", csh);
-        else if (cashierLegacy != null) m.put("cashier", cashierLegacy);
-
-        if (items != null && !items.isEmpty()) {
-            List<Map<String, Object>> itemsList = new ArrayList<>();
-            for (OrderItem oi : getItems()) {
-                itemsList.add(oi.toMap());
-            }
-            m.put("items", itemsList);
-        } else {
-            m.put("items", new ArrayList<>());
+        List<Map<String, Object>> itemsList = new ArrayList<>();
+        for (OrderItem oi : getItems()) {
+            itemsList.add(oi.toMap());
         }
+        m.put("items", itemsList);
 
         m.put("totalAmount", getTotalAmount());
         m.put("discount", getDiscount());
