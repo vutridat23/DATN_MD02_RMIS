@@ -11,7 +11,6 @@ import android.view.MenuItem;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
-import android.widget.PopupMenu;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -38,7 +37,6 @@ import com.ph48845.datn_qlnh_rmis.ui.table.ReservationHelper;
 import com.ph48845.datn_qlnh_rmis.ui.table.TableActionsHandler;
 import com.ph48845.datn_qlnh_rmis.ui.table.TransferManager;
 import com.ph48845.datn_qlnh_rmis.ui.table.TemporaryBillDialogFragment;
-import com.ph48845.datn_qlnh_rmis.ui.thungan.ThuNganActivity;
 import com.ph48845.datn_qlnh_rmis.ui.phucvu.socket.SocketManager;
 
 import org.json.JSONObject;
@@ -53,7 +51,10 @@ import java.util.regex.Pattern;
 
 /**
  * MainActivity (rút gọn): setup UI, load data and listen for socket table events.
- * Shows a modal dialog when server emits table_auto_released.
+ *
+ * IMPORTANT: This version delegates the popup menu handling to TableActionsHandler.
+ * - onTableLongClick -> tableActionsHandler.showTableActionsMenuForLongPress(...)
+ * Other features unchanged.
  */
 public class MainActivity extends BaseMenuActivity {
 
@@ -141,6 +142,18 @@ public class MainActivity extends BaseMenuActivity {
         tableRepository = new TableRepository();
         orderRepository = new OrderRepository();
 
+        transferManager = new TransferManager(this, tableRepository, orderRepository, progressBar);
+        mergeManager = new MergeManager(this, tableRepository, orderRepository, progressBar);
+        reservationHelper = new ReservationHelper(this, tableRepository, progressBar);
+        tableActionsHandler = new TableActionsHandler(this, transferManager, mergeManager, reservationHelper);
+
+        // register temporary bill handler
+        tableActionsHandler.setTemporaryBillRequester(table -> {
+            if (table == null) return;
+            TemporaryBillDialogFragment f = TemporaryBillDialogFragment.newInstance(table, updatedOrder -> fetchTablesFromServer());
+            f.show(getSupportFragmentManager(), "tempBill");
+        });
+
         // adapters and helpers
         TableAdapter.OnTableClickListener listener = new TableAdapter.OnTableClickListener() {
             @Override
@@ -157,9 +170,11 @@ public class MainActivity extends BaseMenuActivity {
                 intent.putExtra("forceShowOrders", isCustomerPresent);
                 startActivity(intent);
             }
+
             @Override
             public void onTableLongClick(View v, TableItem table) {
                 if (table == null) return;
+                // Delegate to TableActionsHandler which shows the popup and calls managers
                 tableActionsHandler.showTableActionsMenuForLongPress(v, table);
             }
         };
@@ -168,17 +183,6 @@ public class MainActivity extends BaseMenuActivity {
         adapterFloor2 = new TableAdapter(this, new ArrayList<>(), listener);
         rvFloor1.setAdapter(adapterFloor1);
         rvFloor2.setAdapter(adapterFloor2);
-
-        transferManager = new TransferManager(this, tableRepository, orderRepository, progressBar);
-        mergeManager = new MergeManager(this, tableRepository, orderRepository, progressBar);
-        reservationHelper = new ReservationHelper(this, tableRepository, progressBar);
-        tableActionsHandler = new TableActionsHandler(this, transferManager, mergeManager, reservationHelper);
-
-        tableActionsHandler.setTemporaryBillRequester(table -> {
-            if (table == null) return;
-            TemporaryBillDialogFragment f = TemporaryBillDialogFragment.newInstance(table, updatedOrder -> fetchTablesFromServer());
-            f.show(getSupportFragmentManager(), "tempBill");
-        });
 
         // Determine socket URL (intent override possible)
         String socketUrl = getIntent().getStringExtra("socketUrl");
@@ -245,7 +249,6 @@ public class MainActivity extends BaseMenuActivity {
             Log.w(TAG, "Failed to init socket in MainActivity: " + e.getMessage(), e);
         }
         applyNavigationViewInsets();
-
 
         // initial load
         fetchTablesFromServer();
@@ -342,24 +345,6 @@ public class MainActivity extends BaseMenuActivity {
             default:
                 return roleKey;
         }
-    }
-
-    private void showMenu(View anchor) {
-        PopupMenu popup = new PopupMenu(this, anchor);
-        popup.getMenu().add(0, 1, 0, "Thu Ngân");
-        popup.getMenu().add(0, 2, 1, "Thống kê doanh thu");
-        popup.setOnMenuItemClickListener(item -> {
-            int id = item.getItemId();
-            if (id == 1) {
-                startActivity(new Intent(MainActivity.this, ThuNganActivity.class));
-                return true;
-            } else if (id == 2) {
-                Toast.makeText(this, "Thống kê chưa được triển khai", Toast.LENGTH_SHORT).show();
-                return true;
-            }
-            return false;
-        });
-        popup.show();
     }
 
     @Override
