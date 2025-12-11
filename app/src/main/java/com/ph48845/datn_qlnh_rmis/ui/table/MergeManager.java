@@ -99,7 +99,7 @@ public class MergeManager {
         // 2. Ưu tiên hiển thị statusDisplay nếu có
         // Dùng isBlank() (Java 11+) tốt hơn trim().isEmpty()
         String disp = t.getStatusDisplay();
-        if (disp != null && !disp.isBlank()) {
+        if (disp != null && !disp.trim().isEmpty()) {
             return disp.trim();
         }
 
@@ -111,6 +111,8 @@ public class MergeManager {
         switch (st) {
             case OCCUPIED:
                 return "Đã có khách";
+            case AVAILABLE:
+                return "Khả dụng";
             case RESERVED:
                 return "Đã được đặt trước";
             case PENDING_PAYMENT:
@@ -119,7 +121,7 @@ public class MergeManager {
                 return "Đã phục vụ";
             case EMPTY:
             default:
-                return "Khả dụng";
+                return "";
         }
     }
 

@@ -51,7 +51,7 @@ public class TransferManager {
             public void onSuccess(List<TableItem> result) {
                 host.runOnUiThread(() -> {
                     List<TableItem> candidates = new ArrayList<>();
-                    TableItem.Status fromStatus = TableItem.Status.EMPTY;
+                    TableItem.Status fromStatus = TableItem.Status.AVAILABLE;
                     try { fromStatus = fromTable.getStatus(); } catch (Exception ignored) {}
 
                     for (TableItem t : result) {
@@ -60,7 +60,7 @@ public class TransferManager {
                         TableItem.Status ts = t.getStatus();
                         boolean allowed = true;
                         if (fromStatus == TableItem.Status.RESERVED) {
-                            if (!(ts == TableItem.Status.AVAILABLE || ts == TableItem.Status.EMPTY)) allowed = false;
+                            if (ts != TableItem.Status.AVAILABLE) allowed = false;
                         } else if (fromStatus == TableItem.Status.OCCUPIED) {
                             if (ts == TableItem.Status.RESERVED) allowed = false;
                         }
@@ -115,7 +115,7 @@ public class TransferManager {
         if (t.getStatus() == TableItem.Status.AVAILABLE) return "Khả dụng";
         if (t.getStatus() == TableItem.Status.OCCUPIED) return "Đã có khách";
         if (t.getStatus() == TableItem.Status.RESERVED) return "Đã được đặt trước";
-        return "Khả dụng";
+        return "";
     }
 
     public void showTransferReservationDialog(final TableItem fromTable, final TableItem targetTable) {
@@ -249,7 +249,7 @@ public class TransferManager {
                     TableItem.Status fromStatus = fromTable.getStatus();
                     TableItem.Status toStatus = targetTable.getStatus();
                     if (fromStatus == TableItem.Status.RESERVED) {
-                        if (!(toStatus == TableItem.Status.AVAILABLE || toStatus == TableItem.Status.EMPTY)) {
+                        if (toStatus != TableItem.Status.AVAILABLE) {
                             progressBar.setVisibility(View.GONE);
                             Toast.makeText(host, "Không thể chuyển: bàn đặt trước chỉ được chuyển sang bàn trống/available.", Toast.LENGTH_LONG).show();
                             if (host instanceof com.ph48845.datn_qlnh_rmis.ui.MainActivity) ((com.ph48845.datn_qlnh_rmis.ui.MainActivity) host).fetchTablesFromServer();

@@ -43,10 +43,10 @@ public class Order implements Serializable {
     private Integer tableNumberAnnotated;
 
     @SerializedName("server")
-    private String serverIdAnnotated;
+    private Object serverIdAnnotated;
 
     @SerializedName("cashier")
-    private String cashierIdAnnotated;
+    private Object cashierIdAnnotated;
 
     @SerializedName("items")
     private List<OrderItem> itemsAnnotated;
@@ -224,17 +224,48 @@ public class Order implements Serializable {
         this.tableNumberAnnotated = tableNumber;
     }
 
+    // Vẫn giữ public String (không đổi thành Object)
     public String getServerId() {
-        return serverIdAnnotated != null ? serverIdAnnotated : serverLegacy;
+        Object val = serverIdAnnotated;
+        if (val == null) return serverLegacy;
+        if (val instanceof String) {
+            return (String) val;
+        }
+        if (val instanceof Map) {
+            try {
+                Map<?, ?> map = (Map<?, ?>) val;
+                if (map.containsKey("name")) return String.valueOf(map.get("name"));
+                if (map.containsKey("fullname")) return String.valueOf(map.get("fullname"));
+                if (map.containsKey("username")) return String.valueOf(map.get("username"));
+                if (map.containsKey("_id")) return String.valueOf(map.get("_id"));
+            } catch (Exception ignored) {}
+        }
+        return String.valueOf(val);
     }
+
     public void setServerId(String serverId) {
         this.serverLegacy = serverId;
         this.serverIdAnnotated = serverId;
     }
 
     public String getCashierId() {
-        return cashierIdAnnotated != null ? cashierIdAnnotated : cashierLegacy;
+        Object val = cashierIdAnnotated;
+        if (val == null) return cashierLegacy;
+        if (val instanceof String) {
+            return (String) val;
+        }
+        if (val instanceof Map) {
+            try {
+                Map<?, ?> map = (Map<?, ?>) val;
+                if (map.containsKey("name")) return String.valueOf(map.get("name"));
+                if (map.containsKey("fullname")) return String.valueOf(map.get("fullname"));
+                if (map.containsKey("username")) return String.valueOf(map.get("username"));
+                if (map.containsKey("_id")) return String.valueOf(map.get("_id"));
+            } catch (Exception ignored) {}
+        }
+        return String.valueOf(val);
     }
+
     public void setCashierId(String cashierId) {
         this.cashierLegacy = cashierId;
         this.cashierIdAnnotated = cashierId;
