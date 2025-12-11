@@ -93,21 +93,14 @@ public class MergeManager {
     }
 
     private String safeStatusLabel(TableItem t) {
-        // 1. Check null ngay đầu vào
         if (t == null) return "Khả dụng";
-
-        // 2. Ưu tiên hiển thị statusDisplay nếu có
-        // Dùng isBlank() (Java 11+) tốt hơn trim().isEmpty()
         String disp = t.getStatusDisplay();
         if (disp != null && !disp.trim().isEmpty()) {
             return disp.trim();
         }
-
-        // 3. Check null cho status
         TableItem.Status st = t.getStatus();
         if (st == null) return "Khả dụng";
 
-        // 4. Switch case gọn gàng
         switch (st) {
             case OCCUPIED:
                 return "Đã có khách";
@@ -121,7 +114,7 @@ public class MergeManager {
                 return "Đã phục vụ";
             case EMPTY:
             default:
-                return "";
+                return "Khả dụng";
         }
     }
 
