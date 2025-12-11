@@ -60,16 +60,14 @@ public class TableAdapter extends RecyclerView.Adapter<TableAdapter.TableViewHol
         // Luôn đặt nền Card là màu trắng
         holder.cardView.setCardBackgroundColor(Color.WHITE);
 
-        if (table.getStatus() == TableItem.Status.EMPTY) {
-            // --- TRẠNG THÁI: BÀN TRỐNG ---
+        if (table.getStatus() == TableItem.Status.AVAILABLE) {
 
-            // Thanh Strip màu xám nhạt
-            holder.viewStatusStrip.setBackgroundColor(Color.parseColor("#E0E0E0"));
+            holder.viewStatusStrip.setBackgroundColor(Color.parseColor("#000000"));
 
             // Text màu xám để làm chìm
             holder.tvTableNumber.setTextColor(Color.parseColor("#757575"));
-            holder.tvStatus.setTextColor(Color.parseColor("#9E9E9E"));
-            holder.tvCapacity.setTextColor(Color.parseColor("#9E9E9E"));
+            holder.tvStatus.setTextColor(Color.parseColor("#757575"));
+            holder.tvCapacity.setTextColor(Color.parseColor("#757575"));
 
             // Giảm độ nổi (Elevation)
             holder.cardView.setCardElevation(2f);
@@ -85,7 +83,7 @@ public class TableAdapter extends RecyclerView.Adapter<TableAdapter.TableViewHol
                     stripColor = Color.parseColor("#F57F17"); // Màu Cam
                     break;
                 case AVAILABLE:
-                    stripColor = Color.parseColor("#000000"); // Màu Cam
+                    stripColor = Color.parseColor("#000000");
                     break;
                 case FINISH_SERVE:
                     stripColor = Color.parseColor("#D32F2F"); // Màu Đỏ đậm hơn chút hoặc giữ nguyên

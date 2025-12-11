@@ -55,7 +55,7 @@ public class TableActionsHandler {
                 popup.getMenu().add(0, 3, 2, "Hủy đặt trước");
         } catch (Exception ignored) {}
         try {
-            if (table.getStatus() == TableItem.Status.EMPTY || table.getStatus() == TableItem.Status.AVAILABLE)
+            if (table.getStatus() == TableItem.Status.AVAILABLE)
                 popup.getMenu().add(0, 4, 3, "Đặt trước");
         } catch (Exception ignored) {}
 
@@ -101,7 +101,7 @@ public class TableActionsHandler {
         boolean isEmpty = false;
         try {
             TableItem.Status st = table.getStatus();
-            isEmpty = (st == TableItem.Status.EMPTY || st == TableItem.Status.AVAILABLE);
+            isEmpty = (st == TableItem.Status.AVAILABLE);
         } catch (Exception ignored) {}
 
         if (isEmpty) {
