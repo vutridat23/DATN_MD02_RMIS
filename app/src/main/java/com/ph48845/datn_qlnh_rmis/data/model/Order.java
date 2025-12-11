@@ -1,5 +1,8 @@
 package com.ph48845.datn_qlnh_rmis.data.model;
 
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
 import com.google.gson.annotations.SerializedName;
 
 import java.io.Serializable;
@@ -42,11 +45,13 @@ public class Order implements Serializable {
     @SerializedName("tableNumber")
     private Integer tableNumberAnnotated;
 
+    // server có thể là String hoặc Object
     @SerializedName("server")
-    private String serverIdAnnotated;
+    private JsonElement serverAnnotated;
 
+    // cashier có thể là String hoặc Object -> đổi sang JsonElement
     @SerializedName("cashier")
-    private String cashierIdAnnotated;
+    private JsonElement cashierAnnotated;
 
     @SerializedName("items")
     private List<OrderItem> itemsAnnotated;
@@ -122,7 +127,9 @@ public class Order implements Serializable {
         this.orderStatusLegacy = orderStatus;
 
         this.tableNumberAnnotated = tableNumber;
-        this.serverIdAnnotated = serverId;
+        // lưu server / cashier dưới dạng JsonPrimitive khi tạo local
+        this.serverAnnotated = serverId != null ? new JsonPrimitive(serverId) : null;
+        this.cashierAnnotated = null;
         this.itemsAnnotated = items;
         this.totalAmountAnnotated = totalAmount;
         this.discountAnnotated = discount;
@@ -224,20 +231,107 @@ public class Order implements Serializable {
         this.tableNumberAnnotated = tableNumber;
     }
 
+    // ===================== SERVER helpers (unchanged) =====================
     public String getServerId() {
-        return serverIdAnnotated != null ? serverIdAnnotated : serverLegacy;
-    }
-    public void setServerId(String serverId) {
-        this.serverLegacy = serverId;
-        this.serverIdAnnotated = serverId;
+        String extracted = getServerIdAnnotated();
+        return extracted != null ? extracted : (serverLegacy != null ? serverLegacy : null);
     }
 
-    public String getCashierId() {
-        return cashierIdAnnotated != null ? cashierIdAnnotated : cashierLegacy;
+    public void setServerId(String serverId) {
+        this.serverLegacy = serverId;
+        this.serverAnnotated = serverId != null ? new JsonPrimitive(serverId) : null;
     }
+
+    public String getServerIdAnnotated() {
+        try {
+            if (serverAnnotated == null || serverAnnotated.isJsonNull()) return null;
+            if (serverAnnotated.isJsonPrimitive()) {
+                return serverAnnotated.getAsString();
+            } else if (serverAnnotated.isJsonObject()) {
+                JsonObject obj = serverAnnotated.getAsJsonObject();
+                if (obj.has("_id") && !obj.get("_id").isJsonNull()) return obj.get("_id").getAsString();
+                if (obj.has("id") && !obj.get("id").isJsonNull()) return obj.get("id").getAsString();
+                if (obj.has("name") && !obj.get("name").isJsonNull()) return obj.get("name").getAsString();
+            }
+        } catch (Exception ignored) {}
+        return null;
+    }
+
+    public String getServerName() {
+        try {
+            if (serverAnnotated == null || serverAnnotated.isJsonNull()) return null;
+            if (serverAnnotated.isJsonPrimitive()) return serverAnnotated.getAsString();
+            if (serverAnnotated.isJsonObject()) {
+                JsonObject obj = serverAnnotated.getAsJsonObject();
+                if (obj.has("name") && !obj.get("name").isJsonNull()) return obj.get("name").getAsString();
+            }
+        } catch (Exception ignored) {}
+        return null;
+    }
+
+    public JsonElement getServerRaw() {
+        return serverAnnotated;
+    }
+
+    // ===================== CASHIER helpers (NEW) =====================
+    /**
+     * Safe getter for cashier id.
+     * Will extract id/_id if cashier is an object, or return primitive string if cashier is primitive.
+     * Falls back to legacy cashier string when annotated value missing.
+     */
+    public String getCashierId() {
+        String extracted = getCashierIdAnnotated();
+        return extracted != null ? extracted : (cashierLegacy != null ? cashierLegacy : null);
+    }
+
+    /**
+     * Set cashier id (when app sets). Keeps legacy string and stores a JsonPrimitive as annotated value.
+     */
     public void setCashierId(String cashierId) {
         this.cashierLegacy = cashierId;
-        this.cashierIdAnnotated = cashierId;
+        this.cashierAnnotated = cashierId != null ? new JsonPrimitive(cashierId) : null;
+    }
+
+    /**
+     * Extract cashier id from cashierAnnotated (JsonElement) if possible.
+     * Returns null if not present.
+     */
+    public String getCashierIdAnnotated() {
+        try {
+            if (cashierAnnotated == null || cashierAnnotated.isJsonNull()) return null;
+            if (cashierAnnotated.isJsonPrimitive()) {
+                return cashierAnnotated.getAsString();
+            } else if (cashierAnnotated.isJsonObject()) {
+                JsonObject obj = cashierAnnotated.getAsJsonObject();
+                if (obj.has("_id") && !obj.get("_id").isJsonNull()) return obj.get("_id").getAsString();
+                if (obj.has("id") && !obj.get("id").isJsonNull()) return obj.get("id").getAsString();
+                // optionally fallback to name if id not present
+                if (obj.has("name") && !obj.get("name").isJsonNull()) return obj.get("name").getAsString();
+            }
+        } catch (Exception ignored) {}
+        return null;
+    }
+
+    /**
+     * Extract cashier name (if available) or return primitive string if cashierAnnotated is primitive.
+     */
+    public String getCashierName() {
+        try {
+            if (cashierAnnotated == null || cashierAnnotated.isJsonNull()) return null;
+            if (cashierAnnotated.isJsonPrimitive()) return cashierAnnotated.getAsString();
+            if (cashierAnnotated.isJsonObject()) {
+                JsonObject obj = cashierAnnotated.getAsJsonObject();
+                if (obj.has("name") && !obj.get("name").isJsonNull()) return obj.get("name").getAsString();
+            }
+        } catch (Exception ignored) {}
+        return null;
+    }
+
+    /**
+     * Get raw JsonElement for cashier if needed.
+     */
+    public JsonElement getCashierRaw() {
+        return cashierAnnotated;
     }
 
     public double getDiscount() {
@@ -444,14 +538,26 @@ public class Order implements Serializable {
         Map<String, Object> m = new HashMap<>();
         if (tableNumberAnnotated != null) m.put("tableNumber", tableNumberAnnotated);
         else m.put("tableNumber", tableNumber);
-        if (serverIdAnnotated != null) m.put("server", serverIdAnnotated);
-        if (cashierIdAnnotated != null) m.put("cashier", cashierIdAnnotated);
 
-        List<Map<String, Object>> itemsList = new ArrayList<>();
-        for (OrderItem oi : getItems()) {
-            itemsList.add(oi.toMap());
+        // For server: prefer annotated id if available, otherwise legacy
+        String srv = getServerIdAnnotated();
+        if (srv != null) m.put("server", srv);
+        else if (serverLegacy != null) m.put("server", serverLegacy);
+
+        // For cashier: prefer annotated id if available, otherwise legacy
+        String csh = getCashierIdAnnotated();
+        if (csh != null) m.put("cashier", csh);
+        else if (cashierLegacy != null) m.put("cashier", cashierLegacy);
+
+        if (items != null && !items.isEmpty()) {
+            List<Map<String, Object>> itemsList = new ArrayList<>();
+            for (OrderItem oi : getItems()) {
+                itemsList.add(oi.toMap());
+            }
+            m.put("items", itemsList);
+        } else {
+            m.put("items", new ArrayList<>());
         }
-        m.put("items", itemsList);
 
         m.put("totalAmount", getTotalAmount());
         m.put("discount", getDiscount());

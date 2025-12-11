@@ -46,6 +46,8 @@ import retrofit2.Response;
  * Những thay đổi:
  * - Khi lưu/đọc lý do hủy vào NoteStore, dùng key composite có parentOrderId để tránh "lan" giữa bàn.
  * - Chỉ hiển thị lí do hủy khi status chỉ rõ là hủy/yêu cầu hủy hoặc cancelReason khớp với noteStore của cùng order.
+ * - Fix mapping trạng thái (bao gồm "served") để hiển thị "Đã phục vụ" khi server trả "served".
+ * - KHÔNG cho phép gửi yêu cầu hủy (@long press) nếu item đã ở trạng thái "served"/"Đã phục vụ".
  */
 public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.VH> {
 
@@ -80,22 +82,29 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.VH> {
     /**
      * Cập nhật trạng thái item theo menuId hoặc itemSubId.
      */
-    public synchronized boolean updateItemStatus(String menuId, String status) {
-        if (menuId == null || menuId.isEmpty()) return false;
+    public synchronized boolean updateItemStatus(String menuIdOrItemId, String status) {
+        if (menuIdOrItemId == null || menuIdOrItemId.isEmpty()) return false;
         String st = status == null ? "" : status;
         for (int i = 0; i < items.size(); i++) {
             Order.OrderItem oi = items.get(i);
             if (oi == null) continue;
             String mid = safeString(oi.getMenuItemId());
             String sid = safeString(oi.getId());
-            if ((!mid.isEmpty() && mid.equals(menuId)) || (!sid.isEmpty() && sid.equals(menuId))) {
+            if ((!mid.isEmpty() && mid.equals(menuIdOrItemId)) || (!sid.isEmpty() && sid.equals(menuIdOrItemId))) {
                 oi.setStatus(st);
                 notifyItemChanged(i);
-                Log.d(TAG, "updateItemStatus matched: " + menuId + " -> " + st + " at pos=" + i);
+                Log.d(TAG, "updateItemStatus matched: " + menuIdOrItemId + " -> " + st + " at pos=" + i);
                 return true;
             }
         }
         return false;
+    }
+
+    /**
+     * Convenience: update by itemId only (if you know sub-id).
+     */
+    public synchronized boolean updateItemStatusById(String itemId, String status) {
+        return updateItemStatus(itemId, status);
     }
 
     /**
@@ -214,8 +223,12 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.VH> {
         }
 
         // Determine status first
-        String s = oi.getStatus() != null ? oi.getStatus().toLowerCase() : "preparing";
-        if (s.contains("done") || s.contains("ready") || s.contains("completed")) {
+        String s = oi.getStatus() != null ? oi.getStatus().toLowerCase() : "";
+        // FIRST: handle "served" explicitly -> show "Đã phục vụ"
+        if (s.contains("served") || s.contains("phucvu") || s.contains("phục vụ")) {
+            holder.tvStatus.setText("Đã phục vụ");
+            holder.tvStatus.setBackgroundResource(R.drawable.badge_green_bg);
+        } else if (s.contains("done") || s.contains("ready") || s.contains("completed") || s.contains("xong")) {
             holder.tvStatus.setText("Đã xong");
             holder.tvStatus.setBackgroundResource(R.drawable.badge_green_bg);
         } else if (s.contains("out") || s.contains("het") || s.contains("sold")) {
@@ -260,7 +273,20 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.VH> {
             holder.tvNote2.setVisibility(View.GONE);
         }
 
+        // Determine if item is served to disable cancel option
+        boolean isServed = s.contains("served") || s.contains("phucvu") || s.contains("phục vụ");
+
         holder.itemView.setOnLongClickListener(view -> {
+            if (isServed) {
+                // If already served, do not allow cancel request — show info dialog
+                new AlertDialog.Builder(ctx)
+                        .setTitle("Không thể hủy")
+                        .setMessage("Món này đã được phục vụ, không thể gửi yêu cầu hủy.")
+                        .setPositiveButton("OK", null)
+                        .show();
+                return true;
+            }
+
             PopupMenu popup = new PopupMenu(ctx, view);
             popup.getMenu().add(0, 1, 0, "Yêu cầu hủy món");
             popup.setOnMenuItemClickListener((MenuItem menuItem) -> {
