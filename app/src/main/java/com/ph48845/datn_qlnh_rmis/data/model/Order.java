@@ -1,6 +1,8 @@
 package com.ph48845.datn_qlnh_rmis.data.model;
 
 import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
 import com.google.gson.annotations.SerializedName;
 
 import java.io.Serializable;
