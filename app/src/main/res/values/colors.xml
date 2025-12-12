@@ -14,4 +14,11 @@
     <color name="status_ok">#4CAF50</color>
     <color name="status_low">#FF9800</color> <!-- orange -->
     <color name="status_out">#F44336</color> <!-- red -->
+
+    <!-- Primary app colors (bạn có thể thay đổi giá trị theo theme của dự án) -->
+    <color name="colorPrimary">#B71C1C</color>         <!-- đỏ đậm giống UI mẫu -->
+    <color name="colorPrimaryDark">#7F0000</color>
+    <color name="colorAccent">#FFC107</color>          <!-- vàng làm accent nếu cần -->
+    <!-- Optional: thêm màu nền nút/đỏ nhạt để tương thích nếu dùng elsewhere -->
+    <color name="colorPrimaryVariant">#C62828</color>
 </resources>
