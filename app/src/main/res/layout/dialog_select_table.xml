@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/select_table_root"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:id="@+id/tv_select_table_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Chọn bàn đích"
+        android:textAppearance="?attr/textAppearanceHeadline6"
+        android:paddingBottom="8dp"/>
+
+    <!-- Make RecyclerView use remaining space so confirm button remains visible -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rv_tables"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:overScrollMode="ifContentScrolls"
+        android:nestedScrollingEnabled="false"
+        android:clipToPadding="false"
+        android:paddingBottom="8dp" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="8dp" />
+
+    <Button
+        android:id="@+id/btn_confirm_table"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:backgroundTint="@color/colorPrimary"
+        android:textColor="@android:color/white"
+        android:text="Xác nhận"
+        android:enabled="false"
+        android:layout_marginTop="4dp"/>
+</LinearLayout>
