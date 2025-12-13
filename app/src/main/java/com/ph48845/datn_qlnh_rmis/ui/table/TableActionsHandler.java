@@ -5,13 +5,19 @@ import android.view.View;
 import android.widget.PopupMenu;
 import android.widget.Toast;
 
+import androidx.fragment.app.FragmentActivity;
+
 import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
+import com.ph48845.datn_qlnh_rmis.ui.MainActivity;
+import com.ph48845.datn_qlnh_rmis.ui.table.fragment.SplitItemsDialogFragment;
+import com.ph48845.datn_qlnh_rmis.ui.table.fragment.SplitOrderDialogFragment;
 
 /**
  * TableActionsHandler: hiển thị PopupMenu cho 1 bàn và gọi các manager tương ứng.
  *
- * Chỉ sửa tối thiểu: khi long-press vào bàn trống (EMPTY hoặc AVAILABLE) chỉ hiển thị "Đặt trước".
- * Các chức năng khác giữ nguyên.
+ * Thay đổi:
+ * - Thêm mục "Tách bàn" (đã có) và "Tách Hóa Đơn" (mới).
+ * - Nếu temporaryBillRequester không được set thì fallback mở TemporaryBillDialogFragment trực tiếp.
  */
 public class TableActionsHandler {
 
@@ -33,18 +39,10 @@ public class TableActionsHandler {
         this.reservationHelper = reservationHelper;
     }
 
-    /**
-     * Đăng ký handler để xử lý "Yêu Cầu Tạm TÍnh".
-     * Nếu không set, khi người dùng chọn mục đó sẽ hiện Toast báo chưa cấu hình.
-     */
     public void setTemporaryBillRequester(TemporaryBillRequester requester) {
         this.temporaryBillRequester = requester;
     }
 
-    /**
-     * Hiện popup menu thông thường (bây giờ có thêm mục "Yêu Cầu Tạm TÍnh").
-     * Dùng cho click bình thường.
-     */
     public void showTableActionsMenu(View anchor, TableItem table) {
         PopupMenu popup = new PopupMenu(host, anchor);
         popup.getMenu().add(0, 1, 0, "Chuyển bàn");
@@ -55,12 +53,18 @@ public class TableActionsHandler {
                 popup.getMenu().add(0, 3, 2, "Hủy đặt trước");
         } catch (Exception ignored) {}
         try {
-            if (table.getStatus() == TableItem.Status.EMPTY || table.getStatus() == TableItem.Status.AVAILABLE)
+            if (table.getStatus() == TableItem.Status.AVAILABLE)
                 popup.getMenu().add(0, 4, 3, "Đặt trước");
         } catch (Exception ignored) {}
 
-        // THÊM mục "Yêu Cầu Tạm TÍnh" trong menu chính
-        popup.getMenu().add(0, 5, 4, "Yêu Cầu Tạm TÍnh");
+        // Tách bàn (mục cũ)
+        popup.getMenu().add(0, 6, 4, "Tách bàn");
+
+        // Tách Hóa Đơn (mục mới)
+        popup.getMenu().add(0, 7, 5, "Tách Hóa Đơn");
+
+        // Yêu Cầu Tạm Tính
+        popup.getMenu().add(0, 5, 6, "Yêu Cầu Tạm Tính");
 
         popup.setOnMenuItemClickListener((MenuItem item) -> {
             int id = item.getItemId();
@@ -69,7 +73,6 @@ public class TableActionsHandler {
                     transferManager.showTransferDialog(table);
                     return true;
                 case 2:
-                    // multi-select merge
                     mergeManager.showMergeDialog(table);
                     return true;
                 case 3:
@@ -82,7 +85,43 @@ public class TableActionsHandler {
                     if (temporaryBillRequester != null) {
                         temporaryBillRequester.requestTemporaryBill(table);
                     } else {
-                        Toast.makeText(host, "Chưa cấu hình xử lý Yêu Cầu Tạm TÍnh", Toast.LENGTH_SHORT).show();
+                        if (host instanceof FragmentActivity) {
+                            try {
+                                TemporaryBillDialogFragment f = TemporaryBillDialogFragment.newInstance(table, updatedOrder -> {
+                                    if (host instanceof MainActivity) ((MainActivity) host).fetchTablesFromServer();
+                                });
+                                f.show(((FragmentActivity) host).getSupportFragmentManager(), "tempBill");
+                            } catch (Exception e) {
+                                Toast.makeText(host, "Không thể mở dialog tạm tính: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                            }
+                        } else {
+                            Toast.makeText(host, "Chưa cấu hình xử lý Yêu Cầu Tạm TÍnh", Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                    return true;
+                case 6:
+                    if (host instanceof FragmentActivity) {
+                        try {
+                            SplitOrderDialogFragment f = SplitOrderDialogFragment.newInstance(table.getId(), table.getTableNumber());
+                            f.show(((FragmentActivity) host).getSupportFragmentManager(), "splitOrder");
+                        } catch (Exception e) {
+                            Toast.makeText(host, "Không thể mở dialog tách bàn: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                        }
+                    } else {
+                        Toast.makeText(host, "Tách bàn không khả dụng trên Activity này", Toast.LENGTH_SHORT).show();
+                    }
+                    return true;
+                case 7:
+                    // MỚI: Tách Hóa Đơn -> mở dialog chọn món across orders
+                    if (host instanceof FragmentActivity) {
+                        try {
+                            SplitItemsDialogFragment f = SplitItemsDialogFragment.newInstance(table.getId(), table.getTableNumber());
+                            f.show(((FragmentActivity) host).getSupportFragmentManager(), "splitItems");
+                        } catch (Exception e) {
+                            Toast.makeText(host, "Không thể mở dialog tách hóa đơn: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                        }
+                    } else {
+                        Toast.makeText(host, "Tách hóa đơn không khả dụng trên Activity này", Toast.LENGTH_SHORT).show();
                     }
                     return true;
                 default:
@@ -92,20 +131,14 @@ public class TableActionsHandler {
         popup.show();
     }
 
-    /**
-     * Hiển thị popup menu khi người dùng long-press vào bàn.
-     * Nếu bàn trống (EMPTY/AVAILABLE) CHỈ hiện "Đặt trước".
-     * Nếu bàn không trống, gọi showTableActionsMenu để hiển thị menu đầy đủ.
-     */
     public void showTableActionsMenuForLongPress(View anchor, TableItem table) {
         boolean isEmpty = false;
         try {
             TableItem.Status st = table.getStatus();
-            isEmpty = (st == TableItem.Status.EMPTY || st == TableItem.Status.AVAILABLE);
+            isEmpty = (st == TableItem.Status.AVAILABLE);
         } catch (Exception ignored) {}
 
         if (isEmpty) {
-            // Only show "Đặt trước"
             PopupMenu popup = new PopupMenu(host, anchor);
             popup.getMenu().add(0, 4, 0, "Đặt trước");
             popup.setOnMenuItemClickListener((MenuItem item) -> {
@@ -118,15 +151,10 @@ public class TableActionsHandler {
             });
             popup.show();
         } else {
-            // For non-empty tables, reuse the full menu
             showTableActionsMenu(anchor, table);
         }
     }
 
-    /**
-     * Interface để Activity/Adapter hiện thực xử lý "Yêu Cầu Tạm TÍnh".
-     * Ví dụ: mở dialog tạm tính, gửi yêu cầu đến server, v.v.
-     */
     public interface TemporaryBillRequester {
         void requestTemporaryBill(TableItem table);
     }

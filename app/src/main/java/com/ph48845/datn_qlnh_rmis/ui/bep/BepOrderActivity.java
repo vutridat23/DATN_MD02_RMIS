@@ -25,6 +25,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * BepOrderActivity - show items for a single table to kitchen staff.
+ * Changes:
+ *  - Skip items with status "soldout" or "out_of_stock" so they are removed from kitchen lists.
+ *  - Keep notify dialog for canceled items (one-time per load).
+ */
 public class BepOrderActivity extends AppCompatActivity implements OrderItemAdapter.OnActionListener {
 
     private static final String TAG = "BepOrderActivityRealtime";
@@ -41,10 +47,10 @@ public class BepOrderActivity extends AppCompatActivity implements OrderItemAdap
     private int tableNumber;
     private String tableId;
 
-    private final SocketManager socketManager = SocketManager.getInstance();
-
     // Để tránh hiện nhiều lần dialog thông báo hủy cho cùng 1 món trong 1 lần load
     private final Set<String> showedCanceledNotify = new HashSet<>();
+
+    private final com.ph48845.datn_qlnh_rmis.ui.phucvu.socket.SocketManager socketManager = com.ph48845.datn_qlnh_rmis.ui.phucvu.socket.SocketManager.getInstance();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -77,6 +83,7 @@ public class BepOrderActivity extends AppCompatActivity implements OrderItemAdap
 
         loadTableOrders();
     }
+
 
     @Override
     protected void onStart() {
@@ -113,10 +120,14 @@ public class BepOrderActivity extends AppCompatActivity implements OrderItemAdap
                         if (o.getItems() == null) continue;
                         for (Order.OrderItem it : o.getItems()) {
                             if (it == null) continue;
+                            String status = it.getStatus() == null ? "" : it.getStatus().trim().toLowerCase();
+                            // SKIP soldout/out_of_stock items entirely (remove from kitchen's view)
+                            if ("soldout".equals(status) || "out_of_stock".equals(status)) {
+                                continue;
+                            }
                             toShow.add(new ItemWithOrder(o, it));
                             // Nếu status là canceled, show dialog báo hủy (chỉ hiện 1 lần/món)
-                            String status = it.getStatus() == null ? "" : it.getStatus().trim().toLowerCase();
-                            String uniqueKey = o.getId() + "-" + it.getMenuItemId();
+                            String uniqueKey = (o.getId() != null ? o.getId() : "") + "-" + (it.getMenuItemId() != null ? it.getMenuItemId() : it.getId());
                             if ("canceled".equals(status) && !showedCanceledNotify.contains(uniqueKey)) {
                                 showedCanceledNotify.add(uniqueKey);
                                 showCanceledNotifyDialog(new ItemWithOrder(o, it));
@@ -156,7 +167,7 @@ public class BepOrderActivity extends AppCompatActivity implements OrderItemAdap
     private void startRealtimeForTable() {
         try {
             socketManager.init(SOCKET_URL);
-            socketManager.setOnEventListener(new SocketManager.OnEventListener() {
+            socketManager.setOnEventListener(new com.ph48845.datn_qlnh_rmis.ui.phucvu.socket.SocketManager.OnEventListener() {
                 @Override
                 public void onOrderCreated(JSONObject payload) {
                     runOnUiThread(() -> loadTableOrders());
@@ -170,8 +181,8 @@ public class BepOrderActivity extends AppCompatActivity implements OrderItemAdap
                 @Override
                 public void onConnect() {
                     try {
-                        socketManager.emitJoinRoom("bep");
-                        socketManager.emitJoinRoom("phucvu");
+                        socketManager.joinTable(tableNumber);
+                        socketManager.emitEvent("join_room", "bep");
                     } catch (Exception ignored) {}
                 }
 
@@ -181,6 +192,11 @@ public class BepOrderActivity extends AppCompatActivity implements OrderItemAdap
                 @Override
                 public void onError(Exception e) {
                     Log.w(TAG, "Socket error (BepOrderActivity): " + (e != null ? e.getMessage() : ""));
+                }
+
+                @Override
+                public void onTableUpdated(JSONObject payload) {
+                    // ignore in this activity
                 }
             });
             socketManager.connect();

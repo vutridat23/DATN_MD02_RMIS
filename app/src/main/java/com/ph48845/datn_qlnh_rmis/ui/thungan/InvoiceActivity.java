@@ -1,22 +1,14 @@
 package com.ph48845.datn_qlnh_rmis.ui.thungan;
-
-import static android.content.Intent.getIntent;
-
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
-import android.print.PrintAttributes;
-import android.print.PrintDocumentAdapter;
-import android.print.PrintJob;
-import android.print.PrintManager;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.ProgressBar;
@@ -33,7 +25,7 @@ import com.ph48845.datn_qlnh_rmis.data.model.Order;
 import com.ph48845.datn_qlnh_rmis.data.repository.MenuRepository;
 import com.ph48845.datn_qlnh_rmis.data.repository.OrderRepository;
 import com.ph48845.datn_qlnh_rmis.ui.bep.SocketManager;
-import com.ph48845.datn_qlnh_rmis.ui.thanhtoan.ThanhToanActivity;
+import com.ph48845.datn_qlnh_rmis.ui.thungan.thanhtoan.ThanhToanActivity;
 
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
@@ -71,7 +63,7 @@ public class InvoiceActivity extends AppCompatActivity {
     private Order editingOrder = null; // Order đang được chỉnh sửa
     private Map<String, CardView> orderCardMap = new ConcurrentHashMap<>(); // Map order ID -> CardView
     private String newlySplitOrderId = null; // ID của hóa đơn mới vừa tách (để highlight)
-    
+
     // Socket để gửi request lên server
     private final SocketManager socketManager = SocketManager.getInstance();
     private final String SOCKET_URL = "http://192.168.1.84:3000"; // đổi theo server của bạn
@@ -91,7 +83,7 @@ public class InvoiceActivity extends AppCompatActivity {
 
         initViews();
         setupToolbar();
-        
+
         orderRepository = new OrderRepository();
         menuRepository = new MenuRepository();
 
@@ -156,9 +148,8 @@ public class InvoiceActivity extends AppCompatActivity {
             // Ẩn title mặc định để chỉ hiển thị TextView custom
             getSupportActionBar().setDisplayShowTitleEnabled(false);
         }
-        // Đảm bảo nút back hoạt động
         toolbar.setNavigationOnClickListener(v -> finish());
-        
+
         // Đảm bảo navigation icon hiển thị và có thể click được
         toolbar.post(() -> {
             if (getSupportActionBar() != null) {
@@ -182,7 +173,7 @@ public class InvoiceActivity extends AppCompatActivity {
             public void onSuccess(List<Order> orderList) {
                 runOnUiThread(() -> {
                     progressBar.setVisibility(View.GONE);
-                    
+
                     if (orderList == null || orderList.isEmpty()) {
                         Toast.makeText(InvoiceActivity.this, "Không có đơn hàng cho bàn này", Toast.LENGTH_SHORT).show();
                         return;
@@ -190,7 +181,7 @@ public class InvoiceActivity extends AppCompatActivity {
 
                     // Lọc bỏ các đơn đã thanh toán
                     orders = filterUnpaidOrders(orderList);
-                    
+
                     // Nếu đang ở chế độ chỉnh sửa, thay thế order trong danh sách bằng editingOrder
                     if (editingOrder != null && editingOrder.getId() != null && orders != null) {
                         String editingId = editingOrder.getId().trim();
@@ -216,10 +207,10 @@ public class InvoiceActivity extends AppCompatActivity {
                             });
                         }
                     } else {
-                        Log.d(TAG, "No editingOrder to replace - editingOrder: " + (editingOrder != null) + 
+                        Log.d(TAG, "No editingOrder to replace - editingOrder: " + (editingOrder != null) +
                               ", orders: " + (orders != null));
                     }
-                    
+
                     if (orders == null || orders.isEmpty()) {
                         Toast.makeText(InvoiceActivity.this, "Không có đơn hàng chưa thanh toán cho bàn này", Toast.LENGTH_SHORT).show();
                         return;
@@ -245,41 +236,41 @@ public class InvoiceActivity extends AppCompatActivity {
      */
     private List<Order> filterUnpaidOrders(List<Order> allOrders) {
         List<Order> unpaidOrders = new ArrayList<>();
-        
+
         for (Order order : allOrders) {
             if (order == null) continue;
-            
+
             // Kiểm tra nếu đã thanh toán
             boolean isPaid = false;
-            
+
             // Kiểm tra trường paid
             if (order.isPaid()) {
                 isPaid = true;
             }
-            
+
             // Kiểm tra paidAt
             String paidAt = order.getPaidAt();
             if (paidAt != null && !paidAt.trim().isEmpty()) {
                 isPaid = true;
             }
-            
+
             // Kiểm tra orderStatus
             String orderStatus = order.getOrderStatus();
             if (orderStatus != null) {
                 String status = orderStatus.toLowerCase().trim();
-                if (status.equals("paid") || status.contains("paid") || 
+                if (status.equals("paid") || status.contains("paid") ||
                     status.equals("completed") || status.contains("completed") ||
                     status.contains("đã thanh toán") || status.contains("hoàn thành")) {
                     isPaid = true;
                 }
             }
-            
+
             // Nếu không có dấu hiệu thanh toán, thêm vào danh sách chưa thanh toán
             if (!isPaid) {
                 unpaidOrders.add(order);
             }
         }
-        
+
         return unpaidOrders;
     }
 
@@ -301,19 +292,19 @@ public class InvoiceActivity extends AppCompatActivity {
             order.normalizeItems();
             createInvoiceCard(order);
         }
-        
+
         // Reset highlight sau khi đã hiển thị xong
         newlySplitOrderId = null;
     }
 
     /**
-     * Tạo một card hóa đơn cho một order - Sử dụng XML layout
+     * Tạo một card hóa đơn cho một order
      */
     private void createInvoiceCard(Order order) {
         // Inflate XML layout cho card
         View cardView = LayoutInflater.from(this).inflate(R.layout.card_invoice, llOrderCards, false);
         CardView cardViewContainer = cardView.findViewById(R.id.cardInvoice);
-        
+
         // Highlight hóa đơn mới vừa tách
         if (newlySplitOrderId != null && order.getId() != null && order.getId().equals(newlySplitOrderId)) {
             cardViewContainer.setCardBackgroundColor(0xFFE8F5E9); // Màu xanh nhạt
@@ -332,7 +323,7 @@ public class InvoiceActivity extends AppCompatActivity {
 
         // Hiển thị các món ăn
         List<Order.OrderItem> orderItems = order.getItems();
-        
+
         // Kiểm tra xem order này có đang được chỉnh sửa không
         // CÁCH 1: So sánh ID
         boolean isEditingThisOrder = false;
@@ -344,31 +335,31 @@ public class InvoiceActivity extends AppCompatActivity {
             Log.d(TAG, "editingOrderId: '" + editingId + "' (length: " + editingId.length() + ")");
             Log.d(TAG, "orderId: '" + orderId + "' (length: " + orderId.length() + ")");
             Log.d(TAG, "isEditingThisOrder: " + isEditingThisOrder);
-            
+
             if (!isEditingThisOrder) {
                 Log.w(TAG, "ID mismatch! Comparing character by character:");
                 int minLen = Math.min(editingId.length(), orderId.length());
                 for (int i = 0; i < minLen; i++) {
                     if (editingId.charAt(i) != orderId.charAt(i)) {
-                        Log.w(TAG, "Difference at position " + i + ": editingId='" + editingId.charAt(i) + 
-                              "' (" + (int)editingId.charAt(i) + "), orderId='" + orderId.charAt(i) + 
+                        Log.w(TAG, "Difference at position " + i + ": editingId='" + editingId.charAt(i) +
+                              "' (" + (int)editingId.charAt(i) + "), orderId='" + orderId.charAt(i) +
                               "' (" + (int)orderId.charAt(i) + ")");
                         break;
                     }
                 }
             }
         } else {
-            Log.d(TAG, "Edit mode check failed - editingOrder: " + (editingOrder != null) + 
+            Log.d(TAG, "Edit mode check failed - editingOrder: " + (editingOrder != null) +
                   ", editingOrderId: " + (editingOrder != null ? editingOrder.getId() : "null") +
                   ", orderId: " + (order.getId() != null ? order.getId() : "null"));
         }
-        
+
         // CÁCH 2: So sánh object reference (fallback)
         if (!isEditingThisOrder && editingOrder != null && order == editingOrder) {
             Log.d(TAG, "Objects are the same reference, forcing isEditingThisOrder = true");
             isEditingThisOrder = true;
         }
-        
+
         // CÁCH 3: Kiểm tra lại một lần nữa trước khi tạo items
         // Nếu editingOrder != null và có cùng tableNumber thì kiểm tra lại ID
         if (!isEditingThisOrder && editingOrder != null && editingOrder.getTableNumber() == order.getTableNumber()) {
@@ -381,45 +372,45 @@ public class InvoiceActivity extends AppCompatActivity {
                 }
             }
         }
-        
+
         llItemsContainer.removeAllViews();
         if (orderItems != null && !orderItems.isEmpty()) {
             for (int i = 0; i < orderItems.size(); i++) {
                 final int itemIndex = i;
                 Order.OrderItem item = orderItems.get(i);
                 if (item == null) continue;
-                
+
                 // Sử dụng layout khác nhau cho edit mode và view mode
                 View itemRow;
                 if (isEditingThisOrder) {
                     Log.d(TAG, "Using edit layout for item: " + item.getName() + " at index: " + itemIndex);
                     itemRow = LayoutInflater.from(this).inflate(R.layout.item_invoice_row_edit, llItemsContainer, false);
-                    
+
                     Button btnMinus = itemRow.findViewById(R.id.btnMinus);
                     Button btnPlus = itemRow.findViewById(R.id.btnPlus);
                     TextView tvQty = itemRow.findViewById(R.id.tvItemQuantity);
-                    
+
                     if (btnMinus != null && btnPlus != null && tvQty != null) {
                         // Hiển thị số lượng
                         tvQty.setText(String.valueOf(item.getQuantity()));
-                        
+
                         // Setup click listeners
                         btnMinus.setOnClickListener(v -> {
                             Log.d(TAG, "Minus button clicked for item index: " + itemIndex);
                             decreaseItemQuantity(order, itemIndex);
                         });
-                        
+
                         btnPlus.setOnClickListener(v -> {
                             Log.d(TAG, "Plus button clicked for item index: " + itemIndex);
                             increaseItemQuantity(order, itemIndex);
                         });
-                        
+
                         // Đảm bảo buttons hiển thị
                         btnMinus.setVisibility(View.VISIBLE);
                         btnPlus.setVisibility(View.VISIBLE);
                         btnMinus.setEnabled(true);
                         btnPlus.setEnabled(true);
-                        
+
                         Log.d(TAG, "Edit buttons set up successfully for item: " + item.getName());
                     } else {
                         Log.e(TAG, "Edit layout buttons not found!");
@@ -432,27 +423,27 @@ public class InvoiceActivity extends AppCompatActivity {
                         tvQty.setText("x" + item.getQuantity());
                     }
                 }
-                
-                
+
+
                 TextView tvItemName = itemRow.findViewById(R.id.tvItemName);
                 TextView tvItemPrice = itemRow.findViewById(R.id.tvItemPrice);
-                
+
                 tvItemName.setText(item.getName() != null ? item.getName() : "(Không tên)");
                 double itemTotal = item.getPrice() * item.getQuantity();
                 tvItemPrice.setText(formatCurrency(itemTotal));
-                
+
                 llItemsContainer.addView(itemRow);
             }
         }
 
-        // Nút thêm món và action buttons (chỉ hiển thị khi đang chỉnh sửa)
+        // Nút thêm món (chỉ hiển thị khi đang chỉnh sửa)
         if (isEditingThisOrder) {
             Log.d(TAG, "Adding action buttons for editing order: " + order.getId());
             View actionLayout = LayoutInflater.from(this).inflate(R.layout.layout_invoice_actions, llItemsContainer, false);
             Button btnAddItem = actionLayout.findViewById(R.id.btnAddItem);
             Button btnSave = actionLayout.findViewById(R.id.btnSave);
             Button btnCancel = actionLayout.findViewById(R.id.btnCancel);
-            
+
             if (btnAddItem != null) {
                 btnAddItem.setOnClickListener(v -> {
                     Log.d(TAG, "btnAddItem clicked");
@@ -461,7 +452,7 @@ public class InvoiceActivity extends AppCompatActivity {
             } else {
                 Log.e(TAG, "btnAddItem not found in layout!");
             }
-            
+
             if (btnSave != null) {
                 btnSave.setOnClickListener(v -> {
                     Log.d(TAG, "btnSave clicked");
@@ -470,7 +461,7 @@ public class InvoiceActivity extends AppCompatActivity {
             } else {
                 Log.e(TAG, "btnSave not found in layout!");
             }
-            
+
             if (btnCancel != null) {
                 btnCancel.setOnClickListener(v -> {
                     Log.d(TAG, "btnCancel clicked");
@@ -480,9 +471,9 @@ public class InvoiceActivity extends AppCompatActivity {
             } else {
                 Log.e(TAG, "btnCancel not found in layout!");
             }
-            
+
             llItemsContainer.addView(actionLayout);
-            
+
             // Nếu items đã được tạo với layout thường, rebuild lại với edit layout
             if (!isEditingThisOrder) {
                 Log.w(TAG, "Action buttons added but items were created with normal layout, rebuilding...");
@@ -497,11 +488,11 @@ public class InvoiceActivity extends AppCompatActivity {
         TextView tvTotal = totalsView.findViewById(R.id.tvTotal);
         TextView tvDiscount = totalsView.findViewById(R.id.tvDiscount);
         TextView tvFinalAmount = totalsView.findViewById(R.id.tvFinalAmount);
-        
+
         tvTotal.setText(formatCurrency(order.getTotalAmount()));
         tvDiscount.setText(formatCurrency(order.getDiscount()));
         tvFinalAmount.setText(formatCurrency(order.getFinalAmount()));
-        
+
         llTotals.removeAllViews();
         llTotals.addView(totalsView);
 
@@ -548,425 +539,6 @@ public class InvoiceActivity extends AppCompatActivity {
         showInvoiceOptionsDialogForSpecificOrder(order);
     }
 
-    /**
-     * Tăng số lượng món (không còn dùng, giữ lại để tránh lỗi)
-     */
-    private void increaseQuantity(int index) {
-        Toast.makeText(this, "Vui lòng sử dụng chức năng chỉnh sửa từ menu", Toast.LENGTH_SHORT).show();
-    }
-
-    /**
-     * Giảm số lượng món (không còn dùng, giữ lại để tránh lỗi)
-     */
-    private void decreaseQuantity(int index) {
-        Toast.makeText(this, "Vui lòng sử dụng chức năng chỉnh sửa từ menu", Toast.LENGTH_SHORT).show();
-    }
-
-    /**
-     * Bật/tắt chế độ chỉnh sửa (không còn dùng, giữ lại để tránh lỗi)
-     */
-    private void toggleEditMode() {
-        Toast.makeText(this, "Vui lòng sử dụng chức năng chỉnh sửa từ menu của từng hóa đơn", Toast.LENGTH_SHORT).show();
-    }
-
-    /**
-     * Lưu thay đổi hóa đơn lên server (không còn dùng, giữ lại để tránh lỗi)
-     */
-    private void saveInvoiceChanges() {
-        if (orders.isEmpty()) {
-            isEditMode = false;
-            return;
-        }
-
-        progressBar.setVisibility(View.VISIBLE);
-
-        Order firstOrder = orders.get(0);
-        firstOrder.setItems(allItems);
-
-        double newTotal = 0;
-        for (Order.OrderItem item : allItems) {
-            newTotal += item.getPrice() * item.getQuantity();
-        }
-        firstOrder.setTotalAmount(newTotal);
-        firstOrder.setFinalAmount(newTotal - firstOrder.getDiscount());
-
-        Map<String, Object> updates = new HashMap<>();
-        updates.put("items", allItems);
-        updates.put("totalAmount", newTotal);
-        updates.put("finalAmount", firstOrder.getFinalAmount());
-
-        orderRepository.updateOrder(firstOrder.getId(), updates, new OrderRepository.RepositoryCallback<Order>() {
-            @Override
-            public void onSuccess(Order result) {
-                runOnUiThread(() -> {
-                    isEditMode = false;
-                    progressBar.setVisibility(View.GONE);
-                    Toast.makeText(InvoiceActivity.this, "Đã lưu thay đổi", Toast.LENGTH_SHORT).show();
-                    loadInvoiceData();
-                });
-            }
-
-            @Override
-            public void onError(String message) {
-                runOnUiThread(() -> {
-                    progressBar.setVisibility(View.GONE);
-                    Toast.makeText(InvoiceActivity.this, "Lỗi lưu thay đổi: " + message, Toast.LENGTH_LONG).show();
-                });
-            }
-        });
-    }
-
-    /**
-     * Cập nhật hiển thị tổng tiền (không còn dùng, giữ lại để tránh lỗi)
-     */
-    private void updateTotals(double totalAmount, double totalDiscount) {
-        // Method này không còn cần thiết vì mỗi hóa đơn được hiển thị riêng trong card
-    }
-
-    /**
-     * Hiển thị danh sách các hóa đơn riêng biệt (sau khi tách) - Sử dụng XML layout
-     */
-    private void displaySplitOrders() {
-        if (llOrderCards == null) return;
-
-        llOrderCards.removeAllViews();
-
-        if (orders == null || orders.isEmpty()) {
-            return;
-        }
-
-        for (Order order : orders) {
-            if (order == null) continue;
-
-            // Inflate XML layout
-            View cardView = LayoutInflater.from(this).inflate(R.layout.card_split_order, llOrderCards, false);
-            CardView cardViewContainer = cardView.findViewById(R.id.cardSplitOrder);
-            
-            TextView tvCode = cardView.findViewById(R.id.tvCode);
-            TextView tvInfo = cardView.findViewById(R.id.tvInfo);
-            TextView tvStatus = cardView.findViewById(R.id.tvStatus);
-            LinearLayout llItems = cardView.findViewById(R.id.llItems);
-
-            // Thiết lập thông tin
-            tvCode.setText("Mã: " + (order.getId() != null ? order.getId() : generateOrderCode()));
-            
-            int totalQty = 0;
-            if (order.getItems() != null) {
-                for (Order.OrderItem item : order.getItems()) {
-                    if (item != null) totalQty += item.getQuantity();
-                }
-            }
-            tvInfo.setText("Tổng món: " + totalQty + " • Thanh tiền: " + formatCurrency(order.getFinalAmount()));
-            tvStatus.setText("Trạng thái: " + (order.getOrderStatus() != null ? order.getOrderStatus() : "pending"));
-
-            // Thêm các món ăn
-            if (order.getItems() != null && !order.getItems().isEmpty()) {
-                for (Order.OrderItem item : order.getItems()) {
-                    if (item == null) continue;
-                    View itemView = LayoutInflater.from(this).inflate(R.layout.item_split_order_item, llItems, false);
-                    TextView tvItem = itemView.findViewById(R.id.tvItem);
-                    tvItem.setText("- " + (item.getName() != null ? item.getName() : "Món") +
-                            " x" + item.getQuantity() + " (" + formatCurrency(item.getPrice() * item.getQuantity()) + ")");
-                    llItems.addView(itemView);
-                }
-            }
-
-            llOrderCards.addView(cardView);
-        }
-    }
-
-    /**
-     * Hiển thị dialog hủy hóa đơn
-     */
-    private void showCancelInvoiceDialog() {
-        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_cancel_invoice, null);
-        EditText etReason = dialogView.findViewById(R.id.etReason);
-
-        new AlertDialog.Builder(this)
-            .setTitle("Hủy hóa đơn")
-            .setView(dialogView)
-            .setPositiveButton("Hủy đơn", (dialog, which) -> {
-                String reason = etReason.getText().toString().trim();
-                if (reason.isEmpty()) {
-                    Toast.makeText(this, "Vui lòng nhập lý do hủy", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-                cancelInvoice(reason);
-            })
-            .setNegativeButton("Không", null)
-            .show();
-    }
-
-    /**
-     * Hủy hóa đơn
-     */
-    private void cancelInvoice(String reason) {
-        progressBar.setVisibility(View.VISIBLE);
-
-        if (orders.isEmpty()) {
-            progressBar.setVisibility(View.GONE);
-            return;
-        }
-
-        // Xóa order đầu tiên
-        Order firstOrder = orders.get(0);
-        orderRepository.deleteOrder(firstOrder.getId(), new OrderRepository.RepositoryCallback<Void>() {
-            @Override
-            public void onSuccess(Void result) {
-                runOnUiThread(() -> {
-                    progressBar.setVisibility(View.GONE);
-                    Toast.makeText(InvoiceActivity.this, "Đã hủy hóa đơn. Lý do: " + reason, Toast.LENGTH_LONG).show();
-                    Log.d(TAG, "Invoice cancelled. Reason: " + reason);
-                    finish();
-                });
-            }
-
-            @Override
-            public void onError(String message) {
-                runOnUiThread(() -> {
-                    progressBar.setVisibility(View.GONE);
-                    Toast.makeText(InvoiceActivity.this, "Lỗi hủy hóa đơn: " + message, Toast.LENGTH_LONG).show();
-                });
-            }
-        });
-    }
-
-    /**
-     * Hiển thị dialog tách hóa đơn
-     */
-    private void showSplitInvoiceDialog() {
-        if (allItems.isEmpty()) {
-            Toast.makeText(this, "Không có món ăn để tách", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        // Tạo dialog chọn món để tách
-        boolean[] selectedItems = new boolean[allItems.size()];
-        String[] itemNames = new String[allItems.size()];
-        for (int i = 0; i < allItems.size(); i++) {
-            itemNames[i] = allItems.get(i).getName() + " x" + allItems.get(i).getQuantity();
-        }
-
-        new AlertDialog.Builder(this)
-            .setTitle("Chọn món ăn để tách hóa đơn")
-            .setMultiChoiceItems(itemNames, selectedItems, (dialog, which, isChecked) -> {
-                selectedItems[which] = isChecked;
-            })
-            .setPositiveButton("Tách", (dialog, which) -> {
-                splitInvoice(selectedItems);
-            })
-            .setNegativeButton("Hủy", null)
-            .show();
-    }
-
-    /**
-     * Tách hóa đơn
-     */
-    private void splitInvoice(boolean[] selectedItems) {
-        List<Order.OrderItem> itemsToSplit = new ArrayList<>();
-        List<Order.OrderItem> remainingItems = new ArrayList<>();
-
-        for (int i = 0; i < allItems.size(); i++) {
-            if (selectedItems[i]) {
-                itemsToSplit.add(allItems.get(i));
-            } else {
-                remainingItems.add(allItems.get(i));
-            }
-        }
-
-        if (itemsToSplit.isEmpty()) {
-            Toast.makeText(this, "Vui lòng chọn ít nhất một món để tách", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        progressBar.setVisibility(View.VISIBLE);
-
-        // Lấy serverId và cashierId từ order gốc (hoặc tạo fake nếu không có)
-        String serverId = null;
-        String cashierId = null;
-        String tableId = null;
-        if (!orders.isEmpty()) {
-            Order originalOrder = orders.get(0);
-            serverId = originalOrder.getServerId();
-            cashierId = originalOrder.getCashierId();
-            tableId = originalOrder.getTableId();
-        }
-        
-        // Nếu không có, sử dụng fake IDs (giống OrderActivity)
-        if (serverId == null || serverId.isEmpty()) {
-            serverId = "64a7f3b2c9d1e2f3a4b5c6d7"; // Fake server ID
-        }
-        if (cashierId == null || cashierId.isEmpty()) {
-            cashierId = "64b8e4c3d1f2a3b4c5d6e7f8"; // Fake cashier ID
-        }
-
-        // Tạo order mới cho phần tách
-        Order newOrder = new Order();
-        newOrder.setTableNumber(tableNumber);
-        newOrder.setItems(itemsToSplit);
-        newOrder.setServerId(serverId);
-        newOrder.setCashierId(cashierId);
-        if (tableId != null && !tableId.isEmpty()) {
-            newOrder.setTableId(tableId);
-        }
-        
-        double splitTotal = 0;
-        for (Order.OrderItem item : itemsToSplit) {
-            splitTotal += item.getPrice() * item.getQuantity();
-        }
-        newOrder.setTotalAmount(splitTotal);
-        newOrder.setDiscount(0);
-        newOrder.setFinalAmount(splitTotal);
-        newOrder.setPaidAmount(0);
-        newOrder.setChange(0);
-        newOrder.setPaymentMethod("cash");
-        newOrder.setOrderStatus("pending");
-        newOrder.setPaid(false);
-
-        orderRepository.createOrder(newOrder, new OrderRepository.RepositoryCallback<Order>() {
-            @Override
-            public void onSuccess(Order result) {
-                if (!orders.isEmpty()) {
-                    Order oldOrder = orders.get(0);
-                    oldOrder.setItems(remainingItems);
-                    finalizeSplitForOriginalOrder(oldOrder, remainingItems);
-                } else {
-                    runOnUiThread(() -> {
-                        progressBar.setVisibility(View.GONE);
-                        Toast.makeText(InvoiceActivity.this, "Đã tách hóa đơn thành công", Toast.LENGTH_SHORT).show();
-                        loadInvoiceData();
-                    });
-                }
-            }
-
-            @Override
-            public void onError(String message) {
-                runOnUiThread(() -> {
-                    progressBar.setVisibility(View.GONE);
-                    Toast.makeText(InvoiceActivity.this, "Lỗi tách hóa đơn: " + message, Toast.LENGTH_LONG).show();
-                });
-            }
-        });
-    }
-
-    private void finalizeSplitForOriginalOrder(Order oldOrder, List<Order.OrderItem> remainingItems) {
-        if (oldOrder == null) {
-            runOnUiThread(() -> {
-                progressBar.setVisibility(View.GONE);
-                Toast.makeText(InvoiceActivity.this, "Đã tách hóa đơn thành công", Toast.LENGTH_SHORT).show();
-                loadInvoiceData();
-            });
-            return;
-        }
-
-        if (remainingItems == null || remainingItems.isEmpty()) {
-            orderRepository.deleteOrder(oldOrder.getId(), new OrderRepository.RepositoryCallback<Void>() {
-                @Override
-                public void onSuccess(Void result) {
-                    runOnUiThread(() -> {
-                        progressBar.setVisibility(View.GONE);
-                        Toast.makeText(InvoiceActivity.this, "Đã tách hóa đơn thành công", Toast.LENGTH_SHORT).show();
-                        loadInvoiceData();
-                    });
-                }
-
-                @Override
-                public void onError(String message) {
-                    runOnUiThread(() -> {
-                        progressBar.setVisibility(View.GONE);
-                        Toast.makeText(InvoiceActivity.this, "Lỗi cập nhật hóa đơn: " + message, Toast.LENGTH_LONG).show();
-                    });
-                }
-            });
-            return;
-        }
-
-        double remainingTotal = 0;
-        for (Order.OrderItem item : remainingItems) {
-            remainingTotal += item.getPrice() * item.getQuantity();
-        }
-        oldOrder.setTotalAmount(remainingTotal);
-        oldOrder.setFinalAmount(remainingTotal - oldOrder.getDiscount());
-
-        Map<String, Object> updates = new HashMap<>();
-        updates.put("items", remainingItems);
-        updates.put("totalAmount", remainingTotal);
-        updates.put("finalAmount", oldOrder.getFinalAmount());
-        updates.put("tableNumber", oldOrder.getTableNumber());
-        if (oldOrder.getTableId() != null && !oldOrder.getTableId().isEmpty()) {
-            updates.put("tableId", oldOrder.getTableId());
-        }
-
-        orderRepository.updateOrder(oldOrder.getId(), updates, new OrderRepository.RepositoryCallback<Order>() {
-            @Override
-            public void onSuccess(Order updated) {
-                runOnUiThread(() -> {
-                    progressBar.setVisibility(View.GONE);
-                    Toast.makeText(InvoiceActivity.this, "Đã tách hóa đơn thành công", Toast.LENGTH_SHORT).show();
-                    loadInvoiceData();
-                });
-            }
-
-            @Override
-            public void onError(String message) {
-                runOnUiThread(() -> {
-                    progressBar.setVisibility(View.GONE);
-                    Toast.makeText(InvoiceActivity.this, "Lỗi cập nhật hóa đơn: " + message, Toast.LENGTH_LONG).show();
-                });
-            }
-        });
-    }
-
-    /**
-     * Yêu cầu kiểm tra lại món ăn
-     */
-    private void requestCheckItems() {
-        String[] orderIds = getOrderIds();
-        if (orderIds == null || orderIds.length == 0) {
-            Toast.makeText(this, "Không có hóa đơn để kiểm tra", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        
-        progressBar.setVisibility(View.VISIBLE);
-        
-        // Lấy user ID từ SharedPreferences
-        SharedPreferences prefs = getSharedPreferences("RestaurantPrefs", MODE_PRIVATE);
-        String userId = prefs.getString("userId", null);
-        
-        Log.d(TAG, "Starting check items request for table " + tableNumber + ", orders: " + java.util.Arrays.toString(orderIds));
-        
-        // Lưu request vào database cho từng order
-        saveCheckItemsRequestToDatabase(orderIds, userId, new Runnable() {
-            @Override
-            public void run() {
-                // Sau khi lưu vào database thành công, gửi socket event
-                runOnUiThread(() -> {
-                    // Đảm bảo socket đã được init và connect
-                    if (!socketManager.isConnected()) {
-                        Log.w(TAG, "Socket not connected, initializing...");
-                        initSocket();
-                        // Đợi một chút để socket kết nối
-                        new android.os.Handler().postDelayed(() -> {
-                            socketManager.emitCheckItemsRequest(tableNumber, orderIds);
-                        }, 1000);
-                    } else {
-                        socketManager.emitCheckItemsRequest(tableNumber, orderIds);
-                    }
-                    
-                    // Gửi broadcast trong app để màn phục vụ nhận được ngay (nếu đang mở)
-                    Intent intent = new Intent();
-                    intent.setAction("com.ph48845.datn_qlnh_rmis.ACTION_CHECK_ITEMS");
-                    intent.putExtra("tableNumber", tableNumber);
-                    intent.putExtra("orderIds", orderIds);
-                    sendBroadcast(intent);
-                    
-                    progressBar.setVisibility(View.GONE);
-                    Toast.makeText(InvoiceActivity.this, "Đã gửi yêu cầu kiểm tra lại món ăn cho bàn " + tableNumber, Toast.LENGTH_LONG).show();
-                    Log.d(TAG, "Request check items for table " + tableNumber + " sent to server and broadcast");
-                });
-            }
-        });
-    }
 
     /**
      * Lưu request kiểm tra món vào database cho các order
@@ -976,45 +548,45 @@ public class InvoiceActivity extends AppCompatActivity {
             if (onComplete != null) onComplete.run();
             return;
         }
-        
+
         String currentTime = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).format(new Date());
-        
+
         final java.util.concurrent.atomic.AtomicInteger successCount = new java.util.concurrent.atomic.AtomicInteger(0);
         final java.util.concurrent.atomic.AtomicInteger totalCount = new java.util.concurrent.atomic.AtomicInteger(0);
         final java.util.concurrent.atomic.AtomicBoolean callbackCalled = new java.util.concurrent.atomic.AtomicBoolean(false);
-        
+
         // Đếm số order hợp lệ
         for (String orderId : orderIds) {
             if (orderId != null && !orderId.trim().isEmpty()) {
                 totalCount.incrementAndGet();
             }
         }
-        
+
         if (totalCount.get() == 0) {
             if (onComplete != null) onComplete.run();
             return;
         }
-        
+
         // Cập nhật từng order với checkItemsRequestedBy và checkItemsRequestedAt
         for (String orderId : orderIds) {
             if (orderId == null || orderId.trim().isEmpty()) {
                 continue;
             }
-            
+
             Map<String, Object> updates = new HashMap<>();
             if (userId != null && !userId.trim().isEmpty()) {
                 updates.put("checkItemsRequestedBy", userId);
             }
             updates.put("checkItemsRequestedAt", currentTime);
-            
+
             Log.d(TAG, "Updating order " + orderId + " with checkItemsRequestedAt: " + currentTime);
-            
+
             orderRepository.updateOrder(orderId, updates, new OrderRepository.RepositoryCallback<Order>() {
                 @Override
                 public void onSuccess(Order result) {
                     int current = successCount.incrementAndGet();
                     Log.d(TAG, "Check items request saved to database for order: " + orderId + " (" + current + "/" + totalCount.get() + ")");
-                    
+
                     // Log chi tiết response từ server
                     if (result != null) {
                         Log.d(TAG, "Order response - checkItemsRequestedAt: " + result.getCheckItemsRequestedAt());
@@ -1025,7 +597,7 @@ public class InvoiceActivity extends AppCompatActivity {
                     } else {
                         Log.w(TAG, "WARNING: Server returned null order object!");
                     }
-                    
+
                     // Nếu tất cả đã thành công, gọi callback (chỉ gọi một lần)
                     if (current >= totalCount.get() && onComplete != null && !callbackCalled.getAndSet(true)) {
                         onComplete.run();
@@ -1036,7 +608,7 @@ public class InvoiceActivity extends AppCompatActivity {
                 public void onError(String message) {
                     Log.e(TAG, "Failed to save check items request to database for order " + orderId + ": " + message);
                     int current = successCount.incrementAndGet();
-                    
+
                     // Nếu đã xử lý hết (dù thành công hay thất bại), gọi callback
                     if (current >= totalCount.get() && onComplete != null && !callbackCalled.getAndSet(true)) {
                         runOnUiThread(() -> {
@@ -1047,96 +619,6 @@ public class InvoiceActivity extends AppCompatActivity {
                 }
             });
         }
-    }
-
-    /**
-     * Hiển thị menu tùy chọn khi nhấn giữ hóa đơn
-     */
-    private void showInvoiceOptionsDialog() {
-        List<String> options = new ArrayList<>();
-        options.add(isEditMode ? "Lưu chỉnh sửa" : "Chỉnh sửa");
-        options.add("Tách hóa đơn");
-        options.add("In tạm tính");
-        options.add("Thanh toán");
-        options.add("Yêu cầu kiểm tra");
-        options.add("Hủy hóa đơn");
-
-        String[] optionArray = options.toArray(new String[0]);
-
-        new AlertDialog.Builder(this)
-                .setTitle("Tùy chọn hóa đơn")
-                .setItems(optionArray, (dialog, which) -> {
-                    switch (which) {
-                        case 0:
-                            toggleEditMode();
-                            break;
-                        case 1:
-                            showSplitInvoiceDialog();
-                            break;
-                        case 2:
-                            printTemporaryBill();
-                            break;
-                        case 3:
-                            processPayment();
-                            break;
-                        case 4:
-                            requestCheckItems();
-                            break;
-                        case 5:
-                            showCancelInvoiceDialog();
-                            break;
-                    }
-                })
-                .setNegativeButton("Đóng", null)
-                .show();
-    }
-
-    /**
-     * Lấy danh sách order IDs
-     */
-    private String[] getOrderIds() {
-        String[] ids = new String[orders.size()];
-        for (int i = 0; i < orders.size(); i++) {
-            ids[i] = orders.get(i).getId();
-        }
-        return ids;
-    }
-
-    /**
-     * In tạm tính - Mở Activity hiển thị hóa đơn từ XML layout
-     */
-    private void printTemporaryBill() {
-        if (orders == null || orders.isEmpty()) {
-            Toast.makeText(this, "Không có hóa đơn để in", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        
-        // Lấy order đầu tiên để in
-        Order firstOrder = orders.get(0);
-        if (firstOrder == null) {
-            Toast.makeText(this, "Hóa đơn không hợp lệ", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        
-        // Mở Activity hiển thị hóa đơn từ XML layout
-        Intent intent = new Intent(this, PrintBillActivity.class);
-        intent.putExtra("order", firstOrder);
-        intent.putExtra("tableNumber", tableNumber);
-        intent.putExtra("orderCode", generateOrderCode());
-        startActivity(intent);
-    }
-
-    /**
-     * Xử lý thanh toán
-     */
-    private void processPayment() {
-        if (orders.isEmpty()) {
-            Toast.makeText(this, "Không có hóa đơn để thanh toán", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        // TODO: Mở màn hình thanh toán hoặc xử lý thanh toán
-        Toast.makeText(this, "Chức năng thanh toán đang được phát triển", Toast.LENGTH_SHORT).show();
     }
 
     /**
@@ -1172,52 +654,13 @@ public class InvoiceActivity extends AppCompatActivity {
                     }
                 }
             }
-            
+
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy", Locale.getDefault());
             String year = sdf.format(new Date());
             return "HD" + year + "-" + suffix;
         }
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MMddHHmm", Locale.getDefault());
         return "HD" + sdf.format(new Date());
-    }
-
-    /**
-     * Thanh toán cho một order cụ thể
-     */
-    private void processPaymentForSpecificOrder(Order order) {
-        if (order == null || order.getId() == null) {
-            Toast.makeText(this, "Hóa đơn không hợp lệ", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        progressBar.setVisibility(View.VISIBLE);
-
-        Map<String, Object> updates = new HashMap<>();
-        updates.put("orderStatus", "paid");
-        updates.put("paid", true);
-        updates.put("paidAmount", order.getFinalAmount());
-        updates.put("change", 0.0);
-        updates.put("paymentMethod", "cash");
-        updates.put("paidAt", new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).format(new Date()));
-
-        orderRepository.updateOrder(order.getId(), updates, new OrderRepository.RepositoryCallback<Order>() {
-            @Override
-            public void onSuccess(Order result) {
-                runOnUiThread(() -> {
-                    progressBar.setVisibility(View.GONE);
-                    Toast.makeText(InvoiceActivity.this, "Thanh toán thành công", Toast.LENGTH_SHORT).show();
-                    loadInvoiceData();
-                });
-            }
-
-            @Override
-            public void onError(String message) {
-                runOnUiThread(() -> {
-                    progressBar.setVisibility(View.GONE);
-                    Toast.makeText(InvoiceActivity.this, "Lỗi thanh toán: " + message, Toast.LENGTH_LONG).show();
-                });
-            }
-        });
     }
 
     /**
@@ -1276,21 +719,21 @@ public class InvoiceActivity extends AppCompatActivity {
         }
 
         List<Order.OrderItem> items = order.getItems();
-        
+
         // Inflate XML layout
         View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_split_invoice, null);
         LinearLayout llItemsContainer = dialogView.findViewById(R.id.llItemsContainer);
-        
+
         // Map để lưu EditText cho mỗi item
         Map<Integer, EditText> qtyEditTextMap = new HashMap<>();
-        
+
         for (int i = 0; i < items.size(); i++) {
             Order.OrderItem item = items.get(i);
             if (item == null) continue;
 
             // Inflate item layout
             View itemView = LayoutInflater.from(this).inflate(R.layout.dialog_split_invoice_item, llItemsContainer, false);
-            
+
             // Tên món và số lượng hiện tại
             TextView tvItemInfo = itemView.findViewById(R.id.tvItemInfo);
             tvItemInfo.setText(item.getName() + " (hiện có: x" + item.getQuantity() + ")");
@@ -1324,12 +767,12 @@ public class InvoiceActivity extends AppCompatActivity {
                             hasAnySplit = true;
                         }
                     }
-                    
+
                     if (!hasAnySplit) {
                         Toast.makeText(this, "Vui lòng nhập số lượng muốn tách (ít nhất 1 món)", Toast.LENGTH_SHORT).show();
                         return;
                     }
-                    
+
                     // Kiểm tra số lượng hợp lệ
                     boolean isValid = true;
                     for (Map.Entry<Integer, Integer> entry : splitQuantities.entrySet()) {
@@ -1342,7 +785,7 @@ public class InvoiceActivity extends AppCompatActivity {
                             break;
                         }
                     }
-                    
+
                     if (isValid) {
                         splitInvoiceForOrderWithQuantities(order, splitQuantities);
                     }
@@ -1366,7 +809,7 @@ public class InvoiceActivity extends AppCompatActivity {
         for (int i = 0; i < items.size(); i++) {
             Order.OrderItem item = items.get(i);
             if (item == null) continue;
-            
+
             Integer splitQty = splitQuantities.get(i);
             if (splitQty != null && splitQty > 0) {
                 // Tạo item mới cho phần tách
@@ -1376,7 +819,7 @@ public class InvoiceActivity extends AppCompatActivity {
                 splitItem.setPrice(item.getPrice());
                 splitItem.setQuantity(splitQty);
                 itemsToSplit.add(splitItem);
-                
+
                 // Tạo item mới cho phần còn lại
                 int remainingQty = item.getQuantity() - splitQty;
                 if (remainingQty > 0) {
@@ -1404,7 +847,7 @@ public class InvoiceActivity extends AppCompatActivity {
         String serverId = order.getServerId();
         String cashierId = order.getCashierId();
         String tableId = order.getTableId();
-        
+
         if (serverId == null || serverId.isEmpty()) {
             serverId = "64a7f3b2c9d1e2f3a4b5c6d7";
         }
@@ -1421,7 +864,7 @@ public class InvoiceActivity extends AppCompatActivity {
         if (tableId != null && !tableId.isEmpty()) {
             newOrder.setTableId(tableId);
         }
-        
+
         double splitTotal = 0;
         for (Order.OrderItem item : itemsToSplit) {
             splitTotal += item.getPrice() * item.getQuantity();
@@ -1442,14 +885,14 @@ public class InvoiceActivity extends AppCompatActivity {
                 if (result != null && result.getId() != null) {
                     newlySplitOrderId = result.getId();
                 }
-                
+
                 // Cập nhật order cũ với items còn lại
                 if (!remainingItems.isEmpty()) {
                     double remainingTotal = 0;
                     for (Order.OrderItem item : remainingItems) {
                         remainingTotal += item.getPrice() * item.getQuantity();
                     }
-                    
+
                     Map<String, Object> updates = new HashMap<>();
                     updates.put("items", remainingItems);
                     updates.put("totalAmount", remainingTotal);
@@ -1514,12 +957,12 @@ public class InvoiceActivity extends AppCompatActivity {
             Toast.makeText(this, "Hóa đơn không hợp lệ", Toast.LENGTH_SHORT).show();
             return;
         }
-        
+
         // Mở Activity hiển thị hóa đơn từ XML layout
         Intent intent = new Intent(this, PrintBillActivity.class);
         intent.putExtra("order", order);
         intent.putExtra("tableNumber", tableNumber);
-        String orderCode = order.getId() != null 
+        String orderCode = order.getId() != null
             ? (order.getId().length() > 12 ? "HD" + order.getId().substring(0, 12) : "HD" + order.getId())
             : generateOrderCode();
         intent.putExtra("orderCode", orderCode);
@@ -1534,17 +977,17 @@ public class InvoiceActivity extends AppCompatActivity {
             Toast.makeText(this, "Hóa đơn không hợp lệ", Toast.LENGTH_SHORT).show();
             return;
         }
-        
+
         String[] orderIds = new String[]{order.getId()};
-        
+
         progressBar.setVisibility(View.VISIBLE);
-        
+
         // Lấy user ID từ SharedPreferences
         SharedPreferences prefs = getSharedPreferences("RestaurantPrefs", MODE_PRIVATE);
         String userId = prefs.getString("userId", null);
-        
+
         Log.d(TAG, "Starting check items request for order " + order.getId());
-        
+
         // Lưu request vào database
         saveCheckItemsRequestToDatabase(orderIds, userId, new Runnable() {
             @Override
@@ -1562,14 +1005,14 @@ public class InvoiceActivity extends AppCompatActivity {
                     } else {
                         socketManager.emitCheckItemsRequest(tableNumber, orderIds);
                     }
-                    
+
                     // Gửi broadcast trong app để màn phục vụ nhận được ngay (nếu đang mở)
                     Intent intent = new Intent();
                     intent.setAction("com.ph48845.datn_qlnh_rmis.ACTION_CHECK_ITEMS");
                     intent.putExtra("tableNumber", tableNumber);
                     intent.putExtra("orderIds", orderIds);
                     sendBroadcast(intent);
-                    
+
                     progressBar.setVisibility(View.GONE);
                     Toast.makeText(InvoiceActivity.this, "Đã gửi yêu cầu kiểm tra lại món ăn", Toast.LENGTH_LONG).show();
                     Log.d(TAG, "Request check items for order " + order.getId() + " sent to server and broadcast");
@@ -1645,7 +1088,7 @@ public class InvoiceActivity extends AppCompatActivity {
             return;
         }
         Log.d(TAG, "Starting edit mode for order: " + order.getId());
-        
+
         // Tìm order trong danh sách orders hiện tại để giữ reference
         Order orderToEdit = null;
         String orderIdToFind = order.getId() != null ? order.getId().trim() : null;
@@ -1657,13 +1100,13 @@ public class InvoiceActivity extends AppCompatActivity {
                 }
             }
         }
-        
+
         if (orderToEdit == null) {
             // Nếu không tìm thấy trong danh sách, dùng order được truyền vào
             orderToEdit = order;
             Log.d(TAG, "Order not found in list, using passed order");
         }
-        
+
         // Tạo một bản copy của order để tránh thay đổi trực tiếp cho đến khi lưu
         editingOrder = new Order();
         editingOrder.setId(orderToEdit.getId());
@@ -1687,10 +1130,10 @@ public class InvoiceActivity extends AppCompatActivity {
         editingOrder.setTotalAmount(orderToEdit.getTotalAmount());
         editingOrder.setDiscount(orderToEdit.getDiscount());
         editingOrder.setFinalAmount(orderToEdit.getFinalAmount());
-        
-        Log.d(TAG, "editingOrder set with ID: '" + editingOrder.getId() + "'" + 
+
+        Log.d(TAG, "editingOrder set with ID: '" + editingOrder.getId() + "'" +
               ", items count: " + (editingOrder.getItems() != null ? editingOrder.getItems().size() : 0));
-        
+
         // Cập nhật order trong danh sách orders để khi reload, nó sẽ dùng editingOrder
         if (orders != null && editingOrder.getId() != null) {
             String editingId = editingOrder.getId().trim();
@@ -1703,7 +1146,7 @@ public class InvoiceActivity extends AppCompatActivity {
                 }
             }
         }
-        
+
         loadInvoiceData(); // Reload để hiển thị nút +/-
         Toast.makeText(this, "Đang ở chế độ chỉnh sửa", Toast.LENGTH_SHORT).show();
     }
@@ -1810,17 +1253,17 @@ public class InvoiceActivity extends AppCompatActivity {
                         Toast.makeText(InvoiceActivity.this, "Không có món ăn nào", Toast.LENGTH_SHORT).show();
                         return;
                     }
-                    
+
                     // Inflate XML layout
                     View dialogView = LayoutInflater.from(InvoiceActivity.this).inflate(R.layout.dialog_add_item, null);
                     ListView lvMenuItems = dialogView.findViewById(R.id.lvMenuItems);
-                    
+
                     // Tạo adapter cho ListView
                     String[] itemNames = new String[menuItems.size()];
                     for (int i = 0; i < menuItems.size(); i++) {
                         itemNames[i] = menuItems.get(i).getName() + " - " + formatCurrency(menuItems.get(i).getPrice());
                     }
-                    
+
                     android.widget.ArrayAdapter<String> adapter = new android.widget.ArrayAdapter<>(
                         InvoiceActivity.this,
                         R.layout.item_menu_dialog,
@@ -1828,18 +1271,18 @@ public class InvoiceActivity extends AppCompatActivity {
                         itemNames
                     );
                     lvMenuItems.setAdapter(adapter);
-                    
+
                     AlertDialog dialog = new AlertDialog.Builder(InvoiceActivity.this)
                             .setView(dialogView)
                             .setNegativeButton("Hủy", null)
                             .create();
-                    
+
                     lvMenuItems.setOnItemClickListener((parent, view, position, id) -> {
                         MenuItem selectedMenu = menuItems.get(position);
                         addItemToOrder(order, selectedMenu);
                         dialog.dismiss();
                     });
-                    
+
                     dialog.show();
                 });
             }
@@ -1941,8 +1384,4 @@ public class InvoiceActivity extends AppCompatActivity {
         return super.onOptionsItemSelected(item);
     }
 
-    @Override
-    public void onBackPressed() {
-        finish();
-    }
 }

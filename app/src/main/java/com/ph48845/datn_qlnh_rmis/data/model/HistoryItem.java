@@ -15,15 +15,18 @@ public class HistoryItem {
     private String createdAt;
 
     @SerializedName("details")
-    private Details details; // wrapper chứa items và totalAmount
+    private Details details;
 
     public HistoryItem() { }
 
+    // ====================
+    //      GETTER
+    // ====================
     public String getId() {
         return id;
     }
 
-    public int getTableNumber() {
+    public Integer getTableNumber() {
         return tableNumber;
     }
 
@@ -46,11 +49,32 @@ public class HistoryItem {
     }
 
     // Tổng tiền
-    public double getTotalAmount() {
+    public Double getTotalAmount() {
         return details != null ? details.totalAmount : 0;
     }
 
-    // Inner class Details
+    // ====================
+    //      SETTER
+    // ====================
+    public void setId(String id) {
+        this.id = id;
+    }
+
+    public void setTableNumber(int tableNumber) {
+        this.tableNumber = tableNumber;
+    }
+
+    public void setCreatedAt(String createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public void setDetails(Details details) {
+        this.details = details;
+    }
+
+    // ====================
+    //      CLASS DETAILS
+    // ====================
     public static class Details {
 
         @SerializedName("items")
@@ -68,6 +92,7 @@ public class HistoryItem {
         @SerializedName("paidAt")
         private String paidAt;
 
+        // GETTER
         public List<Item> getItems() {
             return items;
         }
@@ -88,7 +113,30 @@ public class HistoryItem {
             return paidAt;
         }
 
-        // Inner class Item
+        // SETTER
+        public void setItems(List<Item> items) {
+            this.items = items;
+        }
+
+        public void setTotalAmount(double totalAmount) {
+            this.totalAmount = totalAmount;
+        }
+
+        public void setFinalAmount(double finalAmount) {
+            this.finalAmount = finalAmount;
+        }
+
+        public void setPaymentMethod(String paymentMethod) {
+            this.paymentMethod = paymentMethod;
+        }
+
+        public void setPaidAt(String paidAt) {
+            this.paidAt = paidAt;
+        }
+
+        // ====================
+        //      CLASS ITEM
+        // ====================
         public static class Item {
 
             @SerializedName("menuItemName")
@@ -100,6 +148,7 @@ public class HistoryItem {
             @SerializedName("price")
             private double price;
 
+            // GETTER
             public String getMenuItemName() {
                 return menuItemName;
             }
@@ -110,6 +159,19 @@ public class HistoryItem {
 
             public double getPrice() {
                 return price;
+            }
+
+            // SETTER
+            public void setMenuItemName(String menuItemName) {
+                this.menuItemName = menuItemName;
+            }
+
+            public void setQuantity(int quantity) {
+                this.quantity = quantity;
+            }
+
+            public void setPrice(double price) {
+                this.price = price;
             }
         }
     }

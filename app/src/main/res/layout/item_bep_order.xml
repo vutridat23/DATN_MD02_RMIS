@@ -1,35 +1,58 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:card_view="http://schemas.android.com/apk/res-auto"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    card_view:cardBackgroundColor="#F0FFF0"
-    android:layout_marginBottom="10dp"
-    card_view:cardCornerRadius="10dp"
-    card_view:cardElevation="3dp">
+    android:layout_marginBottom="12dp"
+    android:layout_marginHorizontal="4dp"
+    app:cardBackgroundColor="#FFFFFF"
+    app:cardCornerRadius="8dp"
+    app:cardElevation="3dp">
 
     <LinearLayout
-        android:orientation="vertical"
-        android:background="@android:color/transparent"
-        android:padding="12dp"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="12dp">
 
-        <!-- Row: thumbnail + info -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:layout_marginBottom="8dp">
+            android:layout_marginBottom="12dp">
 
-            <ImageView
-                android:id="@+id/imgThumb"
-                android:layout_width="72dp"
-                android:layout_height="72dp"
-                android:scaleType="centerCrop"
-                android:src="@drawable/ic_menu_placeholder"
-                android:contentDescription="Ảnh món" />
+            <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1"/>
+
+            <TextView
+                android:id="@+id/txtTrangThai"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Đang chờ"
+                android:textColor="#F57F17"
+                android:textStyle="bold"
+                android:textSize="14sp"
+                android:textAllCaps="true"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="12dp">
+
+            <androidx.cardview.widget.CardView
+                android:layout_width="70dp"
+                android:layout_height="70dp"
+                app:cardCornerRadius="8dp"
+                app:cardElevation="0dp">
+                <ImageView
+                    android:id="@+id/imgThumb"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:scaleType="centerCrop"
+                    android:src="@drawable/ic_menu_placeholder" />
+            </androidx.cardview.widget.CardView>
 
             <LinearLayout
                 android:layout_width="0dp"
@@ -38,131 +61,101 @@
                 android:orientation="vertical"
                 android:paddingStart="12dp">
 
-                <!-- Top row: name left, table number right -->
-                <LinearLayout
+                <TextView
+                    android:id="@+id/txtTenMon"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical">
+                    android:text="Bò Beefsteak Sốt Tiêu"
+                    android:textColor="#333333"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:maxLines="2"
+                    android:ellipsize="end" />
 
-                    <TextView
-                        android:id="@+id/txtTenMon"
-                        android:layout_width="0dp"
-                        android:layout_weight="1"
-                        android:layout_height="wrap_content"
-                        android:text="Tên món"
-                        android:textStyle="bold"
-                        android:textSize="16sp"
-                        android:textColor="#333333"
-                        android:maxLines="2"
-                        android:ellipsize="end" />
+                <TextView
+                    android:id="@+id/txtQty"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Số lượng: 02"
+                    android:textColor="#AA0000"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:layout_marginTop="4dp"/>
 
-                    <!-- Table number (top-right) -->
-                    <TextView
-                        android:id="@+id/txtTableNumber"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-
-                        android:textSize="13sp"
-                        android:textColor="#666666"
-                        android:layout_marginStart="8dp"
-                        android:paddingStart="6dp"
-                        android:paddingEnd="6dp" />
-                </LinearLayout>
-
-                <!-- NOTE AREA: show order item note (under name). Hidden if empty. -->
                 <TextView
                     android:id="@+id/txtNote"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Ghi chú: Không hành"
-                    android:textSize="13sp"
-                    android:textColor="#FF5722"
-                    android:layout_marginTop="4dp" />
+                    android:text="Ghi chú: Chín vừa, ít sốt"
+                    android:textSize="14sp"
+                    android:textStyle="italic"
+                    android:textColor="#E65100"
+                    android:layout_marginTop="2dp" />
 
-                <!-- Qty / price row -->
-                <LinearLayout
+                <TextView
+                    android:id="@+id/txtPrice"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:layout_marginTop="4dp">
-
-                    <TextView
-                        android:id="@+id/txtQty"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Số lượng: 1"
-                        android:textSize="13sp"
-                        android:textColor="#666666" />
-
-                    <TextView
-                        android:id="@+id/txtPrice"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:textSize="13sp"
-                        android:textColor="#666666"
-                        android:layout_marginStart="8dp" />
-                </LinearLayout>
-            </LinearLayout>
+                    android:text="150.000đ"
+                    android:textSize="12sp"
+                    android:textColor="#999999"
+                    android:layout_marginTop="2dp"
+                    android:visibility="gone"/> </LinearLayout>
         </LinearLayout>
 
-        <!-- Status text -->
-        <TextView
-            android:id="@+id/txtTrangThai"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Trạng thái: pending"
-            android:layout_marginBottom="8dp"
-            android:textColor="#03A9F4"
-            android:textStyle="bold"
-            android:textSize="13sp" />
-
-        <!-- Buttons row (chỉ còn 3 nút) -->
-        <LinearLayout
-            android:orientation="horizontal"
+        <View
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:weightSum="3"
-            android:gravity="center_vertical">
+            android:layout_height="1dp"
+            android:background="#EEEEEE"
+            android:layout_marginBottom="8dp"/>
 
-            <!-- ĐÃ XÓA btnDanNhan -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="40dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
 
             <Button
                 android:id="@+id/btnDangLam"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
                 android:layout_width="0dp"
-                android:layout_height="40dp"
+                android:layout_height="match_parent"
                 android:layout_weight="1"
-                android:text="Đang làm"
-                android:textSize="10sp"
-                android:textColor="#FFFFFF"
-                android:textAllCaps="false"
-                android:paddingLeft="0dp"
-                android:paddingRight="0dp"
-                android:backgroundTint="#03A9F4" />
+                android:text="ĐANG LÀM"
+                android:textColor="#2196F3"
+                android:textStyle="bold"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"/>
+
+            <View android:layout_width="1dp" android:layout_height="20dp" android:background="#EEEEEE"/>
 
             <Button
                 android:id="@+id/btnXongMon"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
                 android:layout_width="0dp"
-                android:layout_height="42dp"
+                android:layout_height="match_parent"
                 android:layout_weight="1"
-                android:text="Xong món"
-                android:textSize="10sp"
-                android:textColor="#FFFFFF"
-                android:textAllCaps="false"
-                android:backgroundTint="#4CAF50" />
+                android:text="HOÀN TẤT"
+                android:textColor="#4CAF50"
+                android:textStyle="bold"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"/>
+
+            <View android:layout_width="1dp" android:layout_height="20dp" android:background="#EEEEEE"/>
 
             <Button
                 android:id="@+id/btnHetMon"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
                 android:layout_width="0dp"
-                android:layout_height="40dp"
-                android:layout_weight="1"
-                android:text="Hết món"
-                android:textSize="10sp"
-                android:textColor="#FFFFFF"
-                android:textAllCaps="false"
-                android:paddingLeft="0dp"
-                android:paddingRight="0dp"
-                android:backgroundTint="#F44336" />
+                android:layout_height="match_parent"
+                android:layout_weight="0.8"
+                android:text="HỦY/HẾT"
+                android:textColor="#F44336"
+                android:textSize="12sp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"/>
+
         </LinearLayout>
+
     </LinearLayout>
 </androidx.cardview.widget.CardView>

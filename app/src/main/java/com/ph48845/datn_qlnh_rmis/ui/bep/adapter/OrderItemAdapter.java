@@ -22,25 +22,29 @@ import com.ph48845.datn_qlnh_rmis.ui.bep.ItemWithOrder;
 
 import java.text.DecimalFormat;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.HashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * OrderItemAdapter - phiên bản tương thích với item_bep_order.xml bạn gửi
- * - Hỗ trợ txtTableNumber (layout bạn gửi) và fallback txtTableInfo nếu có
- * - Timer client-side với persist start times
- * - Boxed rounded inner background programmatically
- * - Giữ nút luôn enabled (không disable khi click)
+ * Adapter hiển thị các món trong detail view.
+ * - Dimming when item is finished (ready/done/completed)
+ * - Timer per item persisted to SharedPreferences
+ *
+ * Thay đổi:
+ * - Tự động start timer khi adapter được gắn vào RecyclerView (onAttachedToRecyclerView)
+ *   và dừng khi rời RecyclerView (onDetachedFromRecyclerView) -> đảm bảo countdown cập nhật liên tục
+ *   mỗi giây khi list đang hiển thị.
+ * - Thêm setter để cấu hình MAX_COOK_MS nếu cần.
  */
 public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> {
 
     private static final String TAG = "OrderItemAdapter";
     private static final String PREFS_NAME = "cook_timers_prefs";
     private static final String PREF_KEY_PREFIX = "cook_start_";
-    private static final long MAX_COOK_MS = 1L * 60L * 1000L; // 1 phút để test, thay đổi nếu cần
+    private static final long DEFAULT_MAX_COOK_MS = 1L * 60L * 1000L; // default = 1 phút
     private static final String TIMER_PAYLOAD = "payload_timer";
 
     public interface OnActionListener {
@@ -52,15 +56,13 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
     private final Context context;
     private final DecimalFormat priceFmt = new DecimalFormat("#,###");
 
-    // in-memory start times
     private final Map<String, Long> startTimes = new HashMap<>();
-
-    // RecyclerView reference for targeted updates
     private RecyclerView attachedRecyclerView;
 
-    // timer control
     private final android.os.Handler timerHandler = new android.os.Handler(android.os.Looper.getMainLooper());
     private final AtomicBoolean timerRunning = new AtomicBoolean(false);
+    private long maxCookMs = DEFAULT_MAX_COOK_MS;
+
     private final Runnable timerRunnable = new Runnable() {
         @Override
         public void run() {
@@ -75,6 +77,7 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
                         }
                     }
                 } else {
+                    // fallback: notify full dataset so when view appears it's up-to-date
                     notifyDataSetChanged();
                 }
             } catch (Exception e) {
@@ -91,28 +94,35 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
         this.listener = listener;
     }
 
+    /**
+     * Cấu hình thời gian tối đa cho phép (ms)
+     */
+    public void setMaxCookMs(long ms) {
+        if (ms > 0) this.maxCookMs = ms;
+    }
+
     public void startTimer() {
-        if (timerRunning.compareAndSet(false, true)) {
-            timerHandler.postDelayed(timerRunnable, 1000L);
-        }
+        if (timerRunning.compareAndSet(false, true)) timerHandler.postDelayed(timerRunnable, 1000L);
     }
 
     public void stopTimer() {
-        if (timerRunning.compareAndSet(true, false)) {
-            timerHandler.removeCallbacksAndMessages(null);
-        }
+        if (timerRunning.compareAndSet(true, false)) timerHandler.removeCallbacksAndMessages(null);
     }
 
     @Override
     public void onAttachedToRecyclerView(@NonNull RecyclerView recyclerView) {
         super.onAttachedToRecyclerView(recyclerView);
         this.attachedRecyclerView = recyclerView;
+        // Auto-start timer khi adapter gắn vào RecyclerView để countdown chạy liên tục
+        startTimer();
     }
 
     @Override
     public void onDetachedFromRecyclerView(@NonNull RecyclerView recyclerView) {
         super.onDetachedFromRecyclerView(recyclerView);
         if (this.attachedRecyclerView == recyclerView) this.attachedRecyclerView = null;
+        // Stop timer khi rời RecyclerView để tránh leak
+        stopTimer();
     }
 
     public void setItems(List<ItemWithOrder> newItems) {
@@ -156,7 +166,6 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
     public VH onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         View v = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_bep_order, parent, false);
 
-        // margins + boxed inner background
         if (v.getLayoutParams() instanceof ViewGroup.MarginLayoutParams) {
             ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) v.getLayoutParams();
             int m = dpToPx(8);
@@ -204,12 +213,11 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
         String name = oi.getMenuItemName() != null && !oi.getMenuItemName().isEmpty() ? oi.getMenuItemName() : oi.getName();
         holder.txtTenMon.setText(name);
 
-        // Table text: layout bạn gửi dùng txtTableNumber; fallback txtTableInfo nếu có
         if (holder.txtTableInfo != null) {
             String tableText = "";
             if (order != null) {
                 try {
-                    int tn = order.getTableNumber(); // int primitive, không so sánh với null
+                    int tn = order.getTableNumber();
                     if (tn > 0) tableText = "Bàn " + tn;
                 } catch (Exception ignored) {}
             }
@@ -245,11 +253,9 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
             holder.imgThumb.setImageResource(R.drawable.ic_menu_placeholder);
         }
 
-        // initial timer UI update
         updateTimerUI(holder, position);
 
         holder.setButtonsEnabled(true);
-
 
         holder.btnDangLam.setOnClickListener(v -> {
             if (listener != null) listener.onChangeStatus(wrapper, "preparing");
@@ -289,7 +295,7 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
         if ("pending".equals(lowerStatus) || "preparing".equals(lowerStatus) || "processing".equals(lowerStatus)) {
             if (start <= 0) start = now;
             long elapsed = Math.max(0L, now - start);
-            long remaining = MAX_COOK_MS - elapsed;
+            long remaining = maxCookMs - elapsed; // dùng maxCookMs có thể cấu hình
             if (remaining >= 0) {
                 timerText = " - Thời gian còn: " + formatDuration(remaining);
             } else {
@@ -302,7 +308,10 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
             if (prefs.contains(PREF_KEY_PREFIX + key)) prefs.edit().remove(PREF_KEY_PREFIX + key).apply();
         }
 
-        if (holder.txtTrangThai != null) holder.txtTrangThai.setText("Trạng thái: " + statusBase + timerText);
+        // Map status to Vietnamese display then show with timer text
+        String statusDisplay = mapStatus(statusBase);
+        if (statusDisplay == null) statusDisplay = statusBase;
+        holder.txtTrangThai.setText("Trạng thái: " + statusDisplay + timerText);
 
         View rootInner = null;
         try {
@@ -318,6 +327,16 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
             if (rootInner != null) rootInner.setBackground(createRoundedDrawable(Color.WHITE, Color.parseColor("#CCCCCC")));
             else holder.itemView.setBackgroundColor(Color.TRANSPARENT);
         }
+
+        boolean isFinished = false;
+        if (lowerStatus.contains("ready") || lowerStatus.contains("done") || lowerStatus.contains("completed")) {
+            isFinished = true;
+        }
+
+        float alpha = isFinished ? 0.45f : 1f;
+        if (rootInner != null) rootInner.setAlpha(alpha); else holder.itemView.setAlpha(alpha);
+
+        holder.setButtonsEnabled(!isFinished);
     }
 
     private GradientDrawable createRoundedDrawable(int fillColor, int strokeColor) {
@@ -328,7 +347,10 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
         return gd;
     }
 
-    private void clearStartTimeForItem(Order order, Order.OrderItem oi) {
+    /**
+     * Make clearStartTimeForItem public so callers (e.g. fragment) can clear timer when item finished.
+     */
+    public void clearStartTimeForItem(Order order, Order.OrderItem oi) {
         String key = buildItemKey(order, oi);
         startTimes.remove(key);
         SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
@@ -336,9 +358,7 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
     }
 
     @Override
-    public int getItemCount() {
-        return items.size();
-    }
+    public int getItemCount() { return items.size(); }
 
     private static String buildItemKey(Order order, Order.OrderItem oi) {
         String orderId = (order != null && order.getId() != null) ? order.getId() : "o?";
@@ -347,7 +367,7 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
     }
 
     private static String formatDuration(long ms) {
-        long totalSec = ms / 1000L;
+        long totalSec = Math.max(0L, ms / 1000L);
         long minutes = totalSec / 60L;
         long seconds = totalSec % 60L;
         return String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds);
@@ -358,18 +378,47 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
         return Math.round(dp * density);
     }
 
+    /**
+     * Map common english/raw statuses to Vietnamese display text.
+     */
+    private String mapStatus(String raw) {
+        if (raw == null) return "";
+        String s = raw.trim().toLowerCase();
+        switch (s) {
+            case "pending":
+            case "wait":
+            case "waiting":
+                return "ĐANG CHỜ";
+            case "preparing":
+            case "in_progress":
+            case "processing":
+                return "ĐANG LÀM";
+            case "ready":
+            case "done":
+            case "completed":
+                return "HOÀN TẤT";
+            case "soldout":
+            case "out_of_stock":
+                return "HẾT MÓN";
+            case "canceled":
+            case "cancelled":
+                return "ĐÃ HỦY";
+            default:
+                String token = s.split("[_\\- ]+")[0];
+                return token != null ? token.toUpperCase() : s.toUpperCase();
+        }
+    }
+
     static class VH extends RecyclerView.ViewHolder {
         ImageView imgThumb;
         TextView txtTenMon, txtTableInfo, txtNote, txtQty, txtPrice, txtTrangThai;
-        Button  btnDangLam, btnXongMon, btnHetMon;
+        Button btnDangLam, btnXongMon, btnHetMon;
 
         VH(@NonNull View itemView) {
             super(itemView);
             imgThumb = itemView.findViewById(R.id.imgThumb);
             txtTenMon = itemView.findViewById(R.id.txtTenMon);
-//            TextView t1 = itemView.findViewById(R.id.txtTableInfo);   // có thể null
-            TextView t2 = itemView.findViewById(R.id.txtTableNumber); // layout bạn gửi có id này
-//            txtTableInfo = t1 != null ? t1 : t2; // fallback: dùng txtTableNumber nếu txtTableInfo không có
+
             txtNote = itemView.findViewById(R.id.txtNote);
             txtQty = itemView.findViewById(R.id.txtQty);
             txtPrice = itemView.findViewById(R.id.txtPrice);
@@ -381,12 +430,10 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
         }
 
         void setButtonsEnabled(boolean enabled) {
-
             btnDangLam.setEnabled(enabled);
             btnXongMon.setEnabled(enabled);
             btnHetMon.setEnabled(enabled);
             float alpha = enabled ? 1f : 0.5f;
-
             btnDangLam.setAlpha(alpha);
             btnXongMon.setAlpha(alpha);
             btnHetMon.setAlpha(alpha);

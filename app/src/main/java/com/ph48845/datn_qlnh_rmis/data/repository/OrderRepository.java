@@ -46,8 +46,43 @@ public class OrderRepository {
         return api.getAllOrders();
     }
 
+    /**
+     * Trả về Call<Void> cho trường hợp caller muốn enqueue trực tiếp.
+     * Chú ý: ApiService.updateOrderItemStatus(...) phải tồn tại và trả về Call<Void>.
+     */
     public Call<Void> updateOrderItemStatus(String orderId, String itemId, String newStatus) {
         return api.updateOrderItemStatus(orderId, itemId, new ApiService.StatusUpdate(newStatus));
+    }
+
+    /**
+     * Hỗ trợ wrapper callback để gọi và xử lý kết quả theo phong cách RepositoryCallback.
+     * Dùng khi caller muốn không thao tác với retrofit Call trực tiếp.
+     */
+    public void updateOrderItemStatus(String orderId, String itemId, String newStatus, final RepositoryCallback<Void> callback) {
+        if (orderId == null || orderId.trim().isEmpty()) {
+            callback.onError("Invalid orderId");
+            return;
+        }
+        if (itemId == null || itemId.trim().isEmpty()) {
+            callback.onError("Invalid itemId");
+            return;
+        }
+        Call<Void> call = api.updateOrderItemStatus(orderId, itemId, new ApiService.StatusUpdate(newStatus));
+        call.enqueue(new Callback<Void>() {
+            @Override
+            public void onResponse(Call<Void> call, Response<Void> response) {
+                if (response.isSuccessful()) {
+                    callback.onSuccess(null);
+                } else {
+                    callback.onError(buildHttpError("updateOrderItemStatus", response));
+                }
+            }
+
+            @Override
+            public void onFailure(Call<Void> call, Throwable t) {
+                callback.onError(logFailure("updateOrderItemStatus onFailure", t));
+            }
+        });
     }
 
     // ===== Các wrapper callback nguyên gốc =====
@@ -140,11 +175,6 @@ public class OrderRepository {
             callback.onError("Invalid order id");
             return;
         }
-        
-        // Log request details
-        Log.d(TAG, "updateOrder - orderId: " + orderId);
-        Log.d(TAG, "updateOrder - updates: " + updates.toString());
-        
         // ApiService.updateOrder returns Call<ApiResponse<Order>> (wrapper)
         api.updateOrder(orderId, updates).enqueue(new Callback<ApiResponse<Order>>() {
             @Override
@@ -152,36 +182,18 @@ public class OrderRepository {
                 if (response.isSuccessful() && response.body() != null) {
                     ApiResponse<Order> apiResp = response.body();
                     if (apiResp.getData() != null) {
-                        Order updatedOrder = apiResp.getData();
-                        Log.d(TAG, "updateOrder SUCCESS - Order updated: " + orderId);
-                        Log.d(TAG, "updateOrder - checkItemsRequestedAt: " + updatedOrder.getCheckItemsRequestedAt());
-                        Log.d(TAG, "updateOrder - checkItemsRequestedBy: " + updatedOrder.getCheckItemsRequestedBy());
-                        callback.onSuccess(updatedOrder);
+                        callback.onSuccess(apiResp.getData());
                     } else {
-                        String errorMsg = "Server returned no order data: " + apiResp.getMessage();
-                        Log.e(TAG, "updateOrder ERROR: " + errorMsg);
-                        callback.onError(errorMsg);
+                        callback.onError("Server returned no order data: " + apiResp.getMessage());
                     }
                 } else {
-                    String errorMsg = buildHttpError("updateOrder", response);
-                    Log.e(TAG, "updateOrder HTTP ERROR: " + errorMsg);
-                    if (response.errorBody() != null) {
-                        try {
-                            String errorBody = response.errorBody().string();
-                            Log.e(TAG, "updateOrder - Error body: " + errorBody);
-                        } catch (IOException e) {
-                            Log.e(TAG, "updateOrder - Failed to read error body", e);
-                        }
-                    }
-                    callback.onError(errorMsg);
+                    callback.onError(buildHttpError("updateOrder", response));
                 }
             }
 
             @Override
             public void onFailure(Call<ApiResponse<Order>> call, Throwable t) {
-                String errorMsg = logFailure("updateOrder onFailure", t);
-                Log.e(TAG, "updateOrder FAILURE: " + errorMsg, t);
-                callback.onError(errorMsg);
+                callback.onError(logFailure("updateOrder onFailure", t));
             }
         });
     }

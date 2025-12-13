@@ -3,6 +3,9 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
 
+    <color name="itsteak_red">#AA0000</color>
+    <color name="itsteak_dark">#AA0000</color>
+
     <!-- primary green used in headers -->
     <color name="primary_green">#4CAF50</color>
     <!-- action blue used for primary actions/buttons -->
@@ -11,4 +14,11 @@
     <color name="status_ok">#4CAF50</color>
     <color name="status_low">#FF9800</color> <!-- orange -->
     <color name="status_out">#F44336</color> <!-- red -->
+
+    <!-- Primary app colors (bạn có thể thay đổi giá trị theo theme của dự án) -->
+    <color name="colorPrimary">#B71C1C</color>         <!-- đỏ đậm giống UI mẫu -->
+    <color name="colorPrimaryDark">#7F0000</color>
+    <color name="colorAccent">#FFC107</color>          <!-- vàng làm accent nếu cần -->
+    <!-- Optional: thêm màu nền nút/đỏ nhạt để tương thích nếu dùng elsewhere -->
+    <color name="colorPrimaryVariant">#C62828</color>
 </resources>

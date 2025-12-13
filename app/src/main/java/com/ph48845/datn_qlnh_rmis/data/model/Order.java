@@ -5,14 +5,20 @@ import com.google.gson.annotations.SerializedName;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-
+/**
+ * Order model - updated to tolerate server/cashier being returned either as String or as Object.
+ *
+ * Changes:
+ * - serverIdAnnotated and cashierIdAnnotated are now Object so Gson can deserialize either a String or an Object.
+ * - getServerId() and getCashierId() resolve the best string representation (prefer _id or id, fallback to name).
+ * - setServerId/setCashierId still accept String for callers that set simple ids.
+ */
 public class Order implements Serializable {
 
-    // SỬA LỖI GSON CONFLICT: Đánh dấu tất cả các trường "Legacy" hoặc không có chú thích
-    // tương ứng với trường @SerializedName là transient.
     public transient String _id;
     public transient int tableNumber;
     public transient String serverLegacy;
@@ -28,26 +34,28 @@ public class Order implements Serializable {
     public transient List<String> splitToLegacy;
     public transient String paidAtLegacy;
 
-    // Các trường khác không liên quan trực tiếp đến JSON keys nhưng cần giữ lại
+    // ✨ Thêm field mới
+    public transient String cancelReasonLegacy = "";
+
     private String orderId;
     private String tableId;
     private String waiterId;
-    private transient long createdAt; // Đã sửa thành transient ở lần trước do conflict
+    private transient long createdAt;
     private boolean paid;
-    private transient double totalAmount; // <--- ĐÃ THÊM TRANSIENT VÀO ĐÂY ĐỂ GIẢI QUYẾT LỖI XUNG ĐỘT
+    private transient double totalAmount;
 
-    // ================== Annotated Fields (Gson uses these) ==================
     @SerializedName("_id")
     private String idAnnotated;
 
     @SerializedName("tableNumber")
     private Integer tableNumberAnnotated;
 
+    // Accept either String or Object for server/cashier to be tolerant of API variations
     @SerializedName("server")
-    private String serverIdAnnotated;
+    private Object serverIdAnnotated;
 
     @SerializedName("cashier")
-    private String cashierIdAnnotated;
+    private Object cashierIdAnnotated;
 
     @SerializedName("items")
     private List<OrderItem> itemsAnnotated;
@@ -86,22 +94,27 @@ public class Order implements Serializable {
     private String paidAtAnnotated;
 
     @SerializedName("tempCalculationRequestedBy")
-    private String tempCalculationRequestedByAnnotated;
+    private Object tempCalculationRequestedByAnnotated;
 
     @SerializedName("tempCalculationRequestedAt")
     private String tempCalculationRequestedAtAnnotated;
 
+    // Tương tự, nếu trường checkItems cũng trả về object thì sửa luôn
     @SerializedName("checkItemsRequestedBy")
-    private String checkItemsRequestedByAnnotated;
+    private Object checkItemsRequestedByAnnotated;
 
     @SerializedName("checkItemsRequestedAt")
     private String checkItemsRequestedAtAnnotated;
 
-    // ================== Constructors ==================
+    // ✨ Annotated field mới
+    @SerializedName("cancelReason")
+    private String cancelReasonAnnotated;
+
     public Order() {
         if (items == null) items = new ArrayList<>();
         if (mergedFromLegacy == null) mergedFromLegacy = new ArrayList<>();
         if (splitToLegacy == null) splitToLegacy = new ArrayList<>();
+        if (cancelReasonLegacy == null) cancelReasonLegacy = "";
     }
 
     public Order(int tableNumber, String serverId, List<OrderItem> items,
@@ -111,13 +124,12 @@ public class Order implements Serializable {
         this.tableNumber = tableNumber;
         this.serverLegacy = serverId;
         this.items = items != null ? items : new ArrayList<>();
-        this.totalAmount = totalAmount; // Giá trị này chỉ dùng cho constructor và sẽ không được Gson parse
+        this.totalAmount = totalAmount;
         this.discountLegacy = discount;
         this.finalAmountLegacy = finalAmount;
         this.paymentMethodLegacy = paymentMethod;
         this.orderStatusLegacy = orderStatus;
 
-        // Cập nhật các trường Annotated trong constructor để đồng bộ (nếu cần)
         this.tableNumberAnnotated = tableNumber;
         this.serverIdAnnotated = serverId;
         this.itemsAnnotated = items;
@@ -126,9 +138,12 @@ public class Order implements Serializable {
         this.finalAmountAnnotated = finalAmount;
         this.paymentMethodAnnotated = paymentMethod;
         this.orderStatusAnnotated = orderStatus;
+
+        // ✨ ensure cancelReason exists
+        this.cancelReasonLegacy = "";
+        this.cancelReasonAnnotated = "";
     }
 
-    // ================== Normalization ==================
     public void normalizeItems() {
         List<OrderItem> list = getItems();
         for (OrderItem oi : list) {
@@ -136,7 +151,37 @@ public class Order implements Serializable {
         }
     }
 
-    // ================== Getters / Setters (unified) ==================
+    public void prepareForCreate() {
+        normalizeItems();
+        setItems(getItems());
+
+        double sum = 0.0;
+        for (OrderItem oi : getItems()) {
+            try {
+                sum += oi.getPrice() * oi.getQuantity();
+            } catch (Exception ignored) {}
+        }
+        setTotalAmount(sum);
+
+        if (discountAnnotated == null) discountAnnotated = 0.0;
+        if (finalAmountAnnotated == null) finalAmountAnnotated = totalAmountAnnotated - discountAnnotated;
+        if (createdAtAnnotated == null) createdAtAnnotated = String.valueOf(System.currentTimeMillis());
+
+        // ✨ ensure cancelReason default
+        if (cancelReasonAnnotated == null) cancelReasonAnnotated = "";
+    }
+
+    public String getCancelReason() {
+        return cancelReasonAnnotated != null ? cancelReasonAnnotated : cancelReasonLegacy;
+    }
+
+    public void setCancelReason(String cancelReason) {
+        this.cancelReasonLegacy = cancelReason;
+        this.cancelReasonAnnotated = cancelReason;
+    }
+
+    // ======================================================================
+
     public String getOrderId() { return orderId; }
     public void setOrderId(String orderId) { this.orderId = orderId; }
 
@@ -153,7 +198,6 @@ public class Order implements Serializable {
     public void setPaid(boolean paid) { this.paid = paid; }
 
     public double getTotalAmount() {
-        // Trả về trường Annotated, nếu null thì dùng trường transient (chỉ có giá trị nếu được set thủ công)
         return totalAmountAnnotated != null ? totalAmountAnnotated : totalAmount;
     }
     public void setTotalAmount(double totalAmount) {
@@ -187,16 +231,64 @@ public class Order implements Serializable {
         this.tableNumberAnnotated = tableNumber;
     }
 
+    /**
+     * Resolve server id to a String.
+     * Supports server being returned as:
+     * - String (object id)
+     * - Object/Map (with _id or id or name)
+     * Fallback to legacy field if resolution fails.
+     */
     public String getServerId() {
-        return serverIdAnnotated != null ? serverIdAnnotated : serverLegacy;
+        if (serverIdAnnotated == null) return serverLegacy;
+        if (serverIdAnnotated instanceof String) {
+            String s = (String) serverIdAnnotated;
+            if (s != null && !s.isEmpty()) return s;
+            return serverLegacy;
+        }
+        try {
+            if (serverIdAnnotated instanceof Map) {
+                Map<?,?> map = (Map<?,?>) serverIdAnnotated;
+                Object idObj = map.get("_id");
+                if (idObj == null) idObj = map.get("id");
+                if (idObj != null) return String.valueOf(idObj);
+                Object nameObj = map.get("name");
+                if (nameObj != null) return String.valueOf(nameObj);
+            } else {
+                String s = String.valueOf(serverIdAnnotated);
+                if (s != null && !s.isEmpty()) return s;
+            }
+        } catch (Exception ignored) {}
+        return serverLegacy;
     }
     public void setServerId(String serverId) {
         this.serverLegacy = serverId;
         this.serverIdAnnotated = serverId;
     }
 
+    /**
+     * Resolve cashier id similarly to server.
+     */
     public String getCashierId() {
-        return cashierIdAnnotated != null ? cashierIdAnnotated : cashierLegacy;
+        if (cashierIdAnnotated == null) return cashierLegacy;
+        if (cashierIdAnnotated instanceof String) {
+            String s = (String) cashierIdAnnotated;
+            if (s != null && !s.isEmpty()) return s;
+            return cashierLegacy;
+        }
+        try {
+            if (cashierIdAnnotated instanceof Map) {
+                Map<?,?> map = (Map<?,?>) cashierIdAnnotated;
+                Object idObj = map.get("_id");
+                if (idObj == null) idObj = map.get("id");
+                if (idObj != null) return String.valueOf(idObj);
+                Object nameObj = map.get("name");
+                if (nameObj != null) return String.valueOf(nameObj);
+            } else {
+                String s = String.valueOf(cashierIdAnnotated);
+                if (s != null && !s.isEmpty()) return s;
+            }
+        } catch (Exception ignored) {}
+        return cashierLegacy;
     }
     public void setCashierId(String cashierId) {
         this.cashierLegacy = cashierId;
@@ -276,7 +368,7 @@ public class Order implements Serializable {
     }
     public void setCreatedAt(String createdAt) {
         this.createdAtAnnotated = createdAt;
-        this.createdAt = 0; // epoch not known
+        this.createdAt = 0;
     }
 
     public String getPaidAt() {
@@ -287,30 +379,89 @@ public class Order implements Serializable {
         this.paidAtAnnotated = paidAt;
     }
 
+// ===================== GETTER & SETTER CHO CÁC TRƯỜNG DYNAMIC (OBJECT) =====================
+
+    // 1. TempCalculationRequestedBy
     public String getTempCalculationRequestedBy() {
-        return tempCalculationRequestedByAnnotated;
+        if (tempCalculationRequestedByAnnotated == null) return ""; // Trả về rỗng để an toàn hiển thị
+
+        // Trường hợp A: Server trả về Object JSON (Map)
+        if (tempCalculationRequestedByAnnotated instanceof Map) {
+            try {
+                Map<?, ?> map = (Map<?, ?>) tempCalculationRequestedByAnnotated;
+                // Ưu tiên 1: Lấy tên hiển thị ("name")
+                Object name = map.get("name");
+                if (name != null) return String.valueOf(name);
+
+                // Ưu tiên 2: Lấy username
+                Object username = map.get("username");
+                if (username != null) return String.valueOf(username);
+
+                // Ưu tiên 3: Lấy _id
+                Object id = map.get("_id");
+                return id != null ? String.valueOf(id) : "";
+            } catch (Exception e) {
+                return "";
+            }
+        }
+
+        // Trường hợp B: Server trả về String (chỉ có ID) hoặc các kiểu khác
+        if (tempCalculationRequestedByAnnotated instanceof String) {
+            return (String) tempCalculationRequestedByAnnotated;
+        }
+
+        // Trường hợp còn lại: ép kiểu về String
+        return String.valueOf(tempCalculationRequestedByAnnotated);
     }
+
     public void setTempCalculationRequestedBy(String tempCalculationRequestedBy) {
+        // Khi set từ App, ta gán String ID vào biến Object
         this.tempCalculationRequestedByAnnotated = tempCalculationRequestedBy;
     }
 
+    public String getCheckItemsRequestedBy() {
+        if (checkItemsRequestedByAnnotated == null) return "";
+
+        if (checkItemsRequestedByAnnotated instanceof Map) {
+            try {
+                Map<?, ?> map = (Map<?, ?>) checkItemsRequestedByAnnotated;
+                Object name = map.get("name");
+                if (name != null) return String.valueOf(name);
+
+                Object username = map.get("username");
+                if (username != null) return String.valueOf(username);
+
+                Object id = map.get("_id");
+                return id != null ? String.valueOf(id) : "";
+            } catch (Exception e) {
+                return "";
+            }
+        }
+
+        if (checkItemsRequestedByAnnotated instanceof String) {
+            return (String) checkItemsRequestedByAnnotated;
+        }
+
+        return String.valueOf(checkItemsRequestedByAnnotated);
+    }
+
+    public void setCheckItemsRequestedBy(String checkItemsRequestedBy) {
+        this.checkItemsRequestedByAnnotated = checkItemsRequestedBy;
+    }
+
+    // Các trường thời gian (At) vẫn giữ nguyên là String vì Server trả về chuỗi ngày tháng
     public String getTempCalculationRequestedAt() {
         return tempCalculationRequestedAtAnnotated;
     }
+
     public void setTempCalculationRequestedAt(String tempCalculationRequestedAt) {
         this.tempCalculationRequestedAtAnnotated = tempCalculationRequestedAt;
-    }
-
-    public String getCheckItemsRequestedBy() {
-        return checkItemsRequestedByAnnotated;
-    }
-    public void setCheckItemsRequestedBy(String checkItemsRequestedBy) {
-        this.checkItemsRequestedByAnnotated = checkItemsRequestedBy;
     }
 
     public String getCheckItemsRequestedAt() {
         return checkItemsRequestedAtAnnotated;
     }
+
     public void setCheckItemsRequestedAt(String checkItemsRequestedAt) {
         this.checkItemsRequestedAtAnnotated = checkItemsRequestedAt;
     }
@@ -319,6 +470,7 @@ public class Order implements Serializable {
         return createdAtAnnotated != null ? createdAtAnnotated : (createdAt > 0 ? String.valueOf(createdAt) : null);
     }
 
+    // ===================== UPDATED toString() =====================
     @Override
     public String toString() {
         return "Order{" +
@@ -334,6 +486,7 @@ public class Order implements Serializable {
                 ", change=" + getChange() +
                 ", paymentMethod='" + getPaymentMethod() + '\'' +
                 ", orderStatus='" + getOrderStatus() + '\'' +
+                ", cancelReason='" + getCancelReason() + '\'' +
                 ", mergedFrom=" + getMergedFrom() +
                 ", splitTo=" + getSplitTo() +
                 ", createdAt='" + getCreatedAt() + '\'' +
@@ -341,28 +494,54 @@ public class Order implements Serializable {
                 '}';
     }
 
-    // ================== Inner OrderItem ==================
-    public static class OrderItem implements Serializable {
+    // ===================== toMapPayload() updated =====================
+    public Map<String, Object> toMapPayload() {
+        Map<String, Object> m = new HashMap<>();
+        if (tableNumberAnnotated != null) m.put("tableNumber", tableNumberAnnotated);
+        else m.put("tableNumber", tableNumber);
+        if (serverIdAnnotated != null) m.put("server", serverIdAnnotated);
+        if (cashierIdAnnotated != null) m.put("cashier", cashierIdAnnotated);
 
+        List<Map<String, Object>> itemsList = new ArrayList<>();
+        for (OrderItem oi : getItems()) {
+            itemsList.add(oi.toMap());
+        }
+        m.put("items", itemsList);
+
+        m.put("totalAmount", getTotalAmount());
+        m.put("discount", getDiscount());
+        m.put("finalAmount", getFinalAmount());
+        if (paymentMethodAnnotated != null) m.put("paymentMethod", paymentMethodAnnotated);
+        if (orderStatusAnnotated != null) m.put("orderStatus", orderStatusAnnotated);
+        if (createdAtAnnotated != null) m.put("createdAt", createdAtAnnotated);
+        if (tempCalculationRequestedByAnnotated != null) m.put("tempCalculationRequestedBy", tempCalculationRequestedByAnnotated);
+        if (tempCalculationRequestedAtAnnotated != null) m.put("tempCalculationRequestedAt", tempCalculationRequestedAtAnnotated);
+        if (checkItemsRequestedByAnnotated != null) m.put("checkItemsRequestedBy", checkItemsRequestedByAnnotated);
+        if (checkItemsRequestedAtAnnotated != null) m.put("checkItemsRequestedAt", checkItemsRequestedAtAnnotated);
+
+        // ✨ add cancelReason
+        m.put("cancelReason", getCancelReason());
+
+        return m;
+    }
+
+    // ===================== OrderItem unchanged except cancelReason additions =====================
+    // (Nguyên vẹn để tránh xung đột)
+    // ---------------------------------------------------------------
+    public static class OrderItem implements Serializable {
         @SerializedName("_id")
-        private String id;
+        private String idAnnotated;
 
         @SerializedName("menuItem")
         private Object menuItemRaw;
 
-        @SerializedName("menuItemId") // Đặt tên JSON rõ ràng để gửi đi
+        @SerializedName("menuItemId")
         private String menuItemId;
 
         @SerializedName("status")
         private String status;
         @SerializedName("note")
         private String note;
-        @SerializedName("cancelReason")
-        private String cancelReason;
-        @SerializedName("cancelRequestedBy")
-        private String cancelRequestedBy;
-        @SerializedName("parentOrderId")
-        private String parentOrderId;
         @SerializedName("menuItemName")
         private String menuItemName;
 
@@ -375,6 +554,12 @@ public class Order implements Serializable {
         @SerializedName(value = "imageUrl", alternate = {"image", "thumbnail", "img"})
         private String imageUrl;
 
+        // ✨ cancelReason for individual item (added)
+        @SerializedName("cancelReason")
+        private String cancelReason;
+
+        private transient String parentOrderId;
+
         public OrderItem() {}
 
         public OrderItem(String menuItemId, String name, int quantity, double price, String status) {
@@ -384,6 +569,7 @@ public class Order implements Serializable {
             this.quantity = quantity;
             this.price = price;
             this.status = status;
+            this.cancelReason = this.cancelReason == null ? "" : this.cancelReason;
         }
 
         public OrderItem(String menuItemId, String name, int quantity, double price) {
@@ -423,6 +609,18 @@ public class Order implements Serializable {
                         if (imgObj != null && (imageUrl == null || imageUrl.isEmpty())) {
                             imageUrl = String.valueOf(imgObj);
                         }
+                        try {
+                            Object subId = map.get("_id");
+                            if (subId == null) subId = map.get("id");
+                            if (subId != null && (idAnnotated == null || idAnnotated.isEmpty())) {
+                                idAnnotated = String.valueOf(subId);
+                            }
+                        } catch (Exception ignored) {}
+                        // also try to read cancelReason if present in nested menuItemRaw map
+                        try {
+                            Object cr = map.get("cancelReason");
+                            if (cr != null && (cancelReason == null || cancelReason.isEmpty())) cancelReason = String.valueOf(cr);
+                        } catch (Exception ignored) {}
                     } else {
                         String rawStr = String.valueOf(menuItemRaw);
                         if (menuItemId == null || menuItemId.isEmpty()) menuItemId = rawStr;
@@ -436,18 +634,13 @@ public class Order implements Serializable {
             if (status == null) status = "";
             if (note == null) note = "";
             if (cancelReason == null) cancelReason = "";
-            if (cancelRequestedBy == null) cancelRequestedBy = "";
-            if (parentOrderId == null) parentOrderId = "";
         }
-
-        // ---------- Getters / Setters ----------
 
         public String getId() {
-            return id == null ? "" : id;
+            return idAnnotated != null ? idAnnotated : null;
         }
-
         public void setId(String id) {
-            this.id = id;
+            this.idAnnotated = id;
         }
 
         public Object getMenuItemRaw() { return menuItemRaw; }
@@ -465,7 +658,6 @@ public class Order implements Serializable {
             return menuItemId == null ? "" : menuItemId;
         }
 
-
         public String getName() { return name == null ? "" : name; }
         public void setName(String name) {
             this.name = name;
@@ -481,7 +673,32 @@ public class Order implements Serializable {
         public double getPrice() { return price; }
         public void setPrice(double price) { this.price = price; }
 
-        public String getImageUrl() { return imageUrl == null ? "" : imageUrl; }
+        @SuppressWarnings("unchecked")
+        public String getImageUrl() {
+            if (imageUrl != null && !imageUrl.trim().isEmpty()) return imageUrl.trim();
+
+            try {
+                if (menuItemRaw != null) {
+                    if (menuItemRaw instanceof Map) {
+                        Map<?, ?> map = (Map<?, ?>) menuItemRaw;
+                        Object imgObj = map.get("imageUrl");
+                        if (imgObj == null) imgObj = map.get("image");
+                        if (imgObj == null) imgObj = map.get("thumbnail");
+                        if (imgObj == null) imgObj = map.get("img");
+                        if (imgObj != null) {
+                            String s = String.valueOf(imgObj);
+                            return s != null ? s.trim() : "";
+                        }
+                    } else {
+                        String raw = String.valueOf(menuItemRaw);
+                        if (raw != null && raw.startsWith("http")) return raw.trim();
+                    }
+                }
+            } catch (Exception ignored) {}
+
+            return "";
+        }
+
         public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
 
         public String getStatus() { return status == null ? "" : status; }
@@ -490,30 +707,49 @@ public class Order implements Serializable {
         public String getNote() { return note == null ? "" : note; }
         public void setNote(String note) { this.note = note; }
 
-        public String getCancelReason() { return cancelReason == null ? "" : cancelReason; }
-        public void setCancelReason(String cancelReason) { this.cancelReason = cancelReason; }
+        // ✨ cancelReason getter/setter for item
+        public String getCancelReason() {
+            return cancelReason == null ? "" : cancelReason;
+        }
+        public void setCancelReason(String cancelReason) {
+            this.cancelReason = cancelReason == null ? "" : cancelReason;
+        }
 
-        public String getCancelRequestedBy() { return cancelRequestedBy == null ? "" : cancelRequestedBy; }
-        public void setCancelRequestedBy(String cancelRequestedBy) { this.cancelRequestedBy = cancelRequestedBy; }
-
-        public String getParentOrderId() { return parentOrderId == null ? "" : parentOrderId; }
+        public String getParentOrderId() { return parentOrderId; }
         public void setParentOrderId(String parentOrderId) { this.parentOrderId = parentOrderId; }
 
         @Override
         public String toString() {
             return "OrderItem{" +
-                    "menuItemId='" + menuItemId + '\'' +
+                    "id='" + getId() + '\'' +
+                    ", menuItemId='" + menuItemId + '\'' +
                     ", name='" + name + '\'' +
                     ", quantity=" + quantity +
                     ", price=" + price +
                     ", status='" + status + '\'' +
                     ", note='" + note + '\'' +
+                    ", cancelReason='" + getCancelReason() + '\'' +
                     ", imageUrl='" + imageUrl + '\'' +
                     '}';
         }
+
+        public Map<String, Object> toMap() {
+            Map<String, Object> m = new HashMap<>();
+            if (menuItemId != null && !menuItemId.isEmpty()) m.put("menuItemId", menuItemId);
+            m.put("menuItemName", getMenuItemName());
+            m.put("name", getName());
+            m.put("quantity", quantity);
+            m.put("price", price);
+            m.put("status", getStatus());
+            if (note != null) m.put("note", getNote());
+            if (imageUrl != null) m.put("imageUrl", getImageUrl());
+            if (menuItemId != null && !menuItemId.isEmpty()) m.put("menuItem", menuItemId);
+            // ✨ include cancelReason if present
+            if (cancelReason != null && !cancelReason.isEmpty()) m.put("cancelReason", cancelReason);
+            return m;
+        }
     }
 
-    // ================== Convenience helpers ==================
     public boolean hasItems() {
         return !getItems().isEmpty();
     }
@@ -526,7 +762,7 @@ public class Order implements Serializable {
         if (id == null) return null;
         for (OrderItem oi : getItems()) {
             if (oi == null) continue;
-            if (id.equals(oi.getMenuItemId()) || id.equals(oi.getMenuItem())) return oi;
+            if (id.equals(oi.getMenuItemId()) || id.equals(oi.getMenuItem()) || id.equals(oi.getId())) return oi;
         }
         return null;
     }

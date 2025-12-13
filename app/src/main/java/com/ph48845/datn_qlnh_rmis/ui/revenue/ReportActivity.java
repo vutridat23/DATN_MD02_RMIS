@@ -146,7 +146,7 @@ public class ReportActivity extends AppCompatActivity {
                 } else {
                     Toast.makeText(ReportActivity.this, "Không tìm thấy báo cáo trong khoảng ngày", Toast.LENGTH_SHORT).show();
                     tvInvoiceCount.setText("Số lượng hóa đơn: 0");
-                    tvTotalRevenue.setText("Tổng doanh thu: 0 VND");
+                    tvTotalRevenue.setText("0 VND");
                 }
             }
 
@@ -172,7 +172,7 @@ public class ReportActivity extends AppCompatActivity {
 
         NumberFormat formatter = NumberFormat.getInstance(Locale.US);
         String revenueStr = formatter.format(totalRevenue);
-        tvTotalRevenue.setText("Tổng doanh thu: " + revenueStr + " VND");
+        tvTotalRevenue.setText(revenueStr + " VND");
     }
     // Gộp báo cáo cùng ngày + loại bỏ báo cáo không có đơn
     // Gộp báo cáo cùng ngày + loại bỏ báo cáo không có đơn

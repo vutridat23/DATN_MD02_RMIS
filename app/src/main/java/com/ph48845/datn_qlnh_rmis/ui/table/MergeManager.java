@@ -93,26 +93,29 @@ public class MergeManager {
     }
 
     private String safeStatusLabel(TableItem t) {
-        if (t == null) return "Trống";
-        try {
-            String disp = t.getStatusDisplay();
-            if (disp != null && !disp.trim().isEmpty()) return disp.trim();
-        } catch (Exception ignored) {}
-        try {
-            TableItem.Status st = t.getStatus();
-            if (st != null) {
-                switch (st) {
-                    case OCCUPIED: return "Đã có khách";
-                    case RESERVED: return "Đã được đặt trước";
-                    case PENDING_PAYMENT: return "Chờ thanh toán";
-                    case FINISH_SERVE: return "Đã phục vụ";
-                    case AVAILABLE:
-                    case EMPTY:
-                    default: return "Trống";
-                }
-            }
-        } catch (Exception ignored) {}
-        return "Trống";
+        if (t == null) return "Khả dụng";
+        String disp = t.getStatusDisplay();
+        if (disp != null && !disp.trim().isEmpty()) {
+            return disp.trim();
+        }
+        TableItem.Status st = t.getStatus();
+        if (st == null) return "Khả dụng";
+
+        switch (st) {
+            case OCCUPIED:
+                return "Đã có khách";
+            case AVAILABLE:
+                return "Khả dụng";
+            case RESERVED:
+                return "Đã được đặt trước";
+            case PENDING_PAYMENT:
+                return "Chờ thanh toán";
+            case FINISH_SERVE:
+                return "Đã phục vụ";
+            case EMPTY:
+            default:
+                return "Khả dụng";
+        }
     }
 
     public void performMergeMultipleIntoTarget(final TableItem targetTable, final List<TableItem> sources) {

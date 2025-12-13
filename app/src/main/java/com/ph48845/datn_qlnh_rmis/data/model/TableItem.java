@@ -65,7 +65,7 @@ public class TableItem implements Serializable {
         FINISH_SERVE;
 
         public static Status fromString(String value) {
-            if (value == null) return EMPTY;
+            if (value == null) return AVAILABLE;
             String v = value.trim().toLowerCase();
             switch (v) {
                 case "occupied": return OCCUPIED;
@@ -85,7 +85,7 @@ public class TableItem implements Serializable {
                     if (v.contains("reserv")) return RESERVED;
                     if (v.contains("payment") || v.contains("thanh toán")) return PENDING_PAYMENT;
                     if (v.contains("phục vụ") || v.contains("đã phục")) return FINISH_SERVE;
-                    return EMPTY;
+                    return AVAILABLE;
             }
         }
     }
@@ -160,6 +160,7 @@ public class TableItem implements Serializable {
     public String getStatusDisplay() {
         switch (getStatus()) {
             case OCCUPIED: return "Đã có khách";
+            case AVAILABLE: return "Khả dụng";
             case RESERVED: return "Đã được đặt trước";
             case PENDING_PAYMENT: return "Chờ thanh toán";
             case FINISH_SERVE: return "Đã phục vụ";
