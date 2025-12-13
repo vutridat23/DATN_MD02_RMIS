@@ -1,3 +1,16 @@
 <resources>
     <string name="app_name">DATN_QLNH_RMIS</string>
+
+    <string-array name="bank_list">
+        <item>NCB</item>
+        <item>Vietcombank</item>
+        <item>VietinBank</item>
+        <item>BIDV</item>
+        <item>Techcombank</item>
+        <item>MB Bank</item>
+        <item>ACB</item>
+
+    </string-array>
+
 </resources>
+

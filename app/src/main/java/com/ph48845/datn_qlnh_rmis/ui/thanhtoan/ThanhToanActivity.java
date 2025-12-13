@@ -33,6 +33,7 @@ public class ThanhToanActivity extends AppCompatActivity {
     private OrderRepository orderRepository;
     private TableRepository tableRepository;
 
+
     // Launcher QR payment
     private final ActivityResultLauncher<Intent> qrLauncher =
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
@@ -123,7 +124,14 @@ public class ThanhToanActivity extends AppCompatActivity {
         });
 
         // THẺ NGÂN HÀNG
-        cardCard.setOnClickListener(v -> processPayment("Thẻ ngân hàng"));
+        cardCard.setOnClickListener(v -> {
+            Intent intent = new Intent(ThanhToanActivity.this, PaymentCardActivity.class);
+            intent.putExtra("orderId", currentOrder.getId());   // truyền id order
+            intent.putExtra("amount", totalAmount);       // truyền số tiền
+            startActivity(intent);
+        });
+
+
     }
 
     private void processPayment(String method) {
