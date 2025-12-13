@@ -1,10 +1,9 @@
 package com.ph48845.datn_qlnh_rmis.ui.bep;
 
-
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
 
 /**
- * Wrapper that holds both parent Order and its OrderItem for adapter convenience.
+ * Wrapper: pair Order + OrderItem for adapter convenience.
  */
 public class ItemWithOrder {
     private final Order order;
