@@ -446,6 +446,30 @@ public class Order implements Serializable {
         return String.valueOf(tempCalculationRequestedByAnnotated);
     }
 
+    /**
+     * Lấy ID từ tempCalculationRequestedBy (luôn trả về ID, không phải name/username)
+     * Dùng để map ID -> name trong UI
+     */
+    public String getTempCalculationRequestedById() {
+        if (tempCalculationRequestedByAnnotated == null) return "";
+        if (tempCalculationRequestedByAnnotated instanceof Map) {
+            try {
+                Map<?, ?> map = (Map<?, ?>) tempCalculationRequestedByAnnotated;
+                // Luôn ưu tiên lấy _id
+                Object id = map.get("_id");
+                if (id != null) return String.valueOf(id);
+                // Fallback: nếu không có _id, có thể là ID nằm ở key khác
+                return "";
+            } catch (Exception e) {
+                return "";
+            }
+        }
+        if (tempCalculationRequestedByAnnotated instanceof String) {
+            return (String) tempCalculationRequestedByAnnotated;
+        }
+        return String.valueOf(tempCalculationRequestedByAnnotated);
+    }
+
     public void setTempCalculationRequestedBy(String tempCalculationRequestedBy) {
         this.tempCalculationRequestedByAnnotated = tempCalculationRequestedBy;
     }

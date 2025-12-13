@@ -1,5 +1,6 @@
 package com.ph48845.datn_qlnh_rmis.ui.thungan;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.print.PrintAttributes;
 import android.print.PrintDocumentAdapter;
@@ -284,6 +285,23 @@ public class PrintBillActivity extends AppCompatActivity {
         
         if (printJob != null) {
             android.widget.Toast.makeText(this, "Đang in hóa đơn...", android.widget.Toast.LENGTH_SHORT).show();
+            
+            // Lấy orderId từ Intent
+            String orderId = getIntent().getStringExtra("orderId");
+            
+            // SetResult ngay để InvoiceActivity có thể clear temp calculation request
+            // (PrintJob không có callback rõ ràng, nên setResult ngay sau khi tạo print job)
+            if (orderId != null) {
+                Intent resultIntent = new Intent();
+                resultIntent.putExtra("orderId", orderId);
+                setResult(RESULT_OK, resultIntent);
+                Log.d("PrintBillActivity", "SetResult OK for orderId: " + orderId);
+            }
+            
+            // Có thể finish ngay hoặc để user tự đóng
+            // finish(); // Uncomment nếu muốn tự động đóng sau khi in
+        } else {
+            android.widget.Toast.makeText(this, "Không thể tạo print job", android.widget.Toast.LENGTH_SHORT).show();
         }
     }
 
