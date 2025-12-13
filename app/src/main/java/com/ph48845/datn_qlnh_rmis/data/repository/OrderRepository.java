@@ -46,8 +46,43 @@ public class OrderRepository {
         return api.getAllOrders();
     }
 
+    /**
+     * Trả về Call<Void> cho trường hợp caller muốn enqueue trực tiếp.
+     * Chú ý: ApiService.updateOrderItemStatus(...) phải tồn tại và trả về Call<Void>.
+     */
     public Call<Void> updateOrderItemStatus(String orderId, String itemId, String newStatus) {
         return api.updateOrderItemStatus(orderId, itemId, new ApiService.StatusUpdate(newStatus));
+    }
+
+    /**
+     * Hỗ trợ wrapper callback để gọi và xử lý kết quả theo phong cách RepositoryCallback.
+     * Dùng khi caller muốn không thao tác với retrofit Call trực tiếp.
+     */
+    public void updateOrderItemStatus(String orderId, String itemId, String newStatus, final RepositoryCallback<Void> callback) {
+        if (orderId == null || orderId.trim().isEmpty()) {
+            callback.onError("Invalid orderId");
+            return;
+        }
+        if (itemId == null || itemId.trim().isEmpty()) {
+            callback.onError("Invalid itemId");
+            return;
+        }
+        Call<Void> call = api.updateOrderItemStatus(orderId, itemId, new ApiService.StatusUpdate(newStatus));
+        call.enqueue(new Callback<Void>() {
+            @Override
+            public void onResponse(Call<Void> call, Response<Void> response) {
+                if (response.isSuccessful()) {
+                    callback.onSuccess(null);
+                } else {
+                    callback.onError(buildHttpError("updateOrderItemStatus", response));
+                }
+            }
+
+            @Override
+            public void onFailure(Call<Void> call, Throwable t) {
+                callback.onError(logFailure("updateOrderItemStatus onFailure", t));
+            }
+        });
     }
 
     // ===== Các wrapper callback nguyên gốc =====
