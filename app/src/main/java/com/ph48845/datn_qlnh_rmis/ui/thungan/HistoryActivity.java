@@ -4,7 +4,6 @@ import android.os.Bundle;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.widget.Toolbar;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -26,7 +25,6 @@ import retrofit2.Response;
 
 public class HistoryActivity extends AppCompatActivity {
 
-    private Toolbar toolbar;
     private RecyclerView rvHistory;
     private HistoryAdapter adapter;
     private List<HistoryItem> historyList = new ArrayList<>();
@@ -51,25 +49,16 @@ public class HistoryActivity extends AppCompatActivity {
     }
 
     private void initViews() {
-        toolbar = findViewById(R.id.toolbar);
+        // Layout không có toolbar, chỉ có ImageView btnBack
+        // Không cần setup toolbar
     }
 
     private void setupToolbar() {
-        setSupportActionBar(toolbar);
-        if (getSupportActionBar() != null) {
-            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
-            getSupportActionBar().setDisplayShowHomeEnabled(true);
+        // Layout không có toolbar, setup nút back từ ImageView btnBack
+        android.widget.ImageView btnBack = findViewById(R.id.btnBack);
+        if (btnBack != null) {
+            btnBack.setOnClickListener(v -> finish());
         }
-        // Đảm bảo nút back hoạt động
-        toolbar.setNavigationOnClickListener(v -> finish());
-        
-        // Đảm bảo navigation icon hiển thị và có thể click được
-        toolbar.post(() -> {
-            if (getSupportActionBar() != null) {
-                getSupportActionBar().setDisplayHomeAsUpEnabled(true);
-                getSupportActionBar().setDisplayShowHomeEnabled(true);
-            }
-        });
     }
 
     private void fetchHistory() {
