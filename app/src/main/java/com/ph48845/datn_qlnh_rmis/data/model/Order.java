@@ -171,8 +171,6 @@ public class Order implements Serializable {
         if (cancelReasonAnnotated == null) cancelReasonAnnotated = "";
     }
 
-    // ===================== Getter Setter cancelReason =====================
-
     public String getCancelReason() {
         return cancelReasonAnnotated != null ? cancelReasonAnnotated : cancelReasonLegacy;
     }
