@@ -9,103 +9,90 @@
     <androidx.coordinatorlayout.widget.CoordinatorLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#F5F5F5"> <com.google.android.material.appbar.AppBarLayout
-        android:id="@+id/appBarLayout"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:fitsSystemWindows="true"
-        android:background="#AA0000"
-        android:elevation="4dp"
-        android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar">
+        android:background="#F5F5F5">
 
-        <androidx.appcompat.widget.Toolbar
-            android:id="@+id/toolbar"
+        <com.google.android.material.appbar.AppBarLayout
+            android:id="@+id/appBarLayout"
             android:layout_width="match_parent"
-            android:layout_height="?attr/actionBarSize"
-            app:popupTheme="@style/ThemeOverlay.AppCompat.Light">
+            android:layout_height="wrap_content"
+            android:fitsSystemWindows="true"
+            android:background="#AA0000"
+            android:elevation="4dp"
+            android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar">
 
-            <FrameLayout
-                android:id="@+id/nav_icon_container"
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent"
-                android:layout_gravity="start|center_vertical"
-                android:background="?attr/selectableItemBackgroundBorderless">
-
-                <ImageView
-                    android:id="@+id/nav_icon"
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:layout_gravity="center"
-                    android:src="@drawable/baseline_menu_24"
-                    app:tint="#FFFFFF"/>
-
-            </FrameLayout>
-
-            <TextView
-                android:id="@+id/toolbar_title"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:text="BẾP - TỔNG HỢP BÀN"
-                android:textColor="#FFFFFF"
-                android:textSize="18sp"
-                android:textStyle="bold" />
-
-        </androidx.appcompat.widget.Toolbar>
-    </com.google.android.material.appbar.AppBarLayout>
-
-        <androidx.core.widget.NestedScrollView
-            android:id="@+id/nested_scroll"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:fillViewport="true"
-            android:clipToPadding="false"
-            android:paddingBottom="24dp"
-            app:layout_behavior="@string/appbar_scrolling_view_behavior">
-
-            <LinearLayout
+            <androidx.appcompat.widget.Toolbar
+                android:id="@+id/toolbar"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="12dp">
+                android:layout_height="?attr/actionBarSize"
+                app:popupTheme="@style/ThemeOverlay.AppCompat.Light">
 
-                <LinearLayout
-                    android:layout_width="match_parent"
+                <FrameLayout
+                    android:id="@+id/nav_icon_container"
+                    android:layout_width="wrap_content"
+                    android:layout_height="match_parent"
+                    android:layout_gravity="start|center_vertical"
+                    android:background="?attr/selectableItemBackgroundBorderless">
+
+                    <ImageView
+                        android:id="@+id/nav_icon"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:layout_gravity="center"
+                        android:src="@drawable/baseline_menu_24"
+                        app:tint="#FFFFFF" />
+
+                </FrameLayout>
+
+                <TextView
+                    android:id="@+id/toolbar_title"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:layout_marginBottom="16dp"
-                    android:gravity="center_vertical">
+                    android:layout_gravity="center"
+                    android:text="BẾP - TỔNG HỢP BÀN"
+                    android:textColor="#FFFFFF"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
 
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="DANH SÁCH CẦN LÀM"
-                        android:textColor="#AA0000"
-                        android:textStyle="bold"
-                        android:textSize="16sp"/>
-
-                    <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1"/>
+                <!-- Small header progress (keeps compatibility with code expecting R.id.progress_bep) -->
+                <FrameLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="match_parent"
+                    android:layout_gravity="end|center_vertical"
+                    android:paddingEnd="12dp">
 
                     <ProgressBar
                         android:id="@+id/progress_bep"
                         style="?android:attr/progressBarStyleSmall"
                         android:layout_width="24dp"
                         android:layout_height="24dp"
-                        android:indeterminateTint="#AA0000"
-                        android:visibility="gone" />
-                </LinearLayout>
+                        android:indeterminateTint="#FFFFFF"
+                        android:visibility="gone"
+                        android:layout_gravity="center" />
 
-                <androidx.recyclerview.widget.RecyclerView
-                    android:id="@+id/recyclerOrderBep"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:nestedScrollingEnabled="false"
-                    android:clipToPadding="false" />
+                </FrameLayout>
 
-            </LinearLayout>
+            </androidx.appcompat.widget.Toolbar>
 
-        </androidx.core.widget.NestedScrollView>
+            <com.google.android.material.tabs.TabLayout
+                android:id="@+id/tab_layout_bep"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:tabIndicatorColor="#FFFFFF"
+                app:tabSelectedTextColor="#FFFFFF"
+                app:tabTextColor="#FFCCCCCC"
+                android:background="#AA0000" />
 
+        </com.google.android.material.appbar.AppBarLayout>
+
+        <!-- ViewPager2 - holds two pages (Tables, Summary) -->
+        <androidx.viewpager2.widget.ViewPager2
+            android:id="@+id/viewpager_bep"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            app:layout_behavior="@string/appbar_scrolling_view_behavior"
+            android:padding="8dp" />
+
+        <!-- Overlay progress full-screen (existing) -->
         <ProgressBar
             android:id="@+id/progress_bar_loading"
             android:layout_width="48dp"
