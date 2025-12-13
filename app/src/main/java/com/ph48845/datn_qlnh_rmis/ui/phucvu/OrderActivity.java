@@ -6,11 +6,12 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
-import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.activity.OnBackPressedCallback;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -23,8 +24,8 @@ import com.ph48845.datn_qlnh_rmis.data.model.MenuItem;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
 import com.ph48845.datn_qlnh_rmis.data.model.Order.OrderItem;
 import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
-import com.ph48845.datn_qlnh_rmis.data.repository.MenuRepository;
 import com.ph48845.datn_qlnh_rmis.data.repository.OrderRepository;
+import com.ph48845.datn_qlnh_rmis.data.repository.MenuRepository;
 import com.ph48845.datn_qlnh_rmis.data.repository.TableRepository;
 import com.ph48845.datn_qlnh_rmis.ui.phucvu.socket.OrderSocketHandler;
 
@@ -38,10 +39,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Slimmed down OrderActivity. UI wiring only; delegates socket, long-press and order operations.
- *
- * Persist both menu notes and cancel-notes separately. MenuLongPressHandler uses getNoteForMenu/putNoteForMenu
- * with plain menuId; OrderAdapter uses getNoteForMenu/putNoteForMenu with key "cancel:<id>" for cancel reasons.
+ * OrderActivity with:
+ * - OnBackPressedDispatcher handling (menu <-> order details navigation),
+ * - Confirm add items -> return to MainActivity,
+ * - Click on items with "done/xong/served/ready" status -> show confirmation dialog and update server.
  */
 public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMenuClickListener,
         OrderSocketHandler.Listener, MenuLongPressHandler.NoteStore {
@@ -53,10 +54,8 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
     private ProgressBar progressBar;
     private TextView tvTable;
     private TextView tvTotal;
-    private ImageView imgBack;
     private Button btnAddMore;
     private Button btnConfirm;
-
 
     private MenuRepository menuRepository;
     private OrderRepository orderRepository;
@@ -95,6 +94,11 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_order);
 
+        // Repositories
+        menuRepository = new MenuRepository();
+        orderRepository = new OrderRepository();
+        tableRepository = new TableRepository();
+
         // 1. Ánh xạ các View chính
         rvOrderedList = findViewById(R.id.rv_ordered_list);
         rvMenuList = findViewById(R.id.rv_menu_list);
@@ -104,43 +108,53 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         btnAddMore = findViewById(R.id.btn_add_more);
         btnConfirm = findViewById(R.id.btn_confirm_order);
 
-        // 2. XỬ LÝ TOOLBAR & NÚT BACK (Thay thế cho imgBack cũ)
+        // Toolbar navigation -> dùng OnBackPressedDispatcher để thống nhất gesture / hardware / toolbar back
         androidx.appcompat.widget.Toolbar toolbar = findViewById(R.id.toolbar);
-        toolbar.setNavigationOnClickListener(v -> {
-            // Quay lại màn hình trước đó (thường là MainActivity hoặc Danh sách bàn)
-            // Nếu bạn muốn ép về MainActivity như code cũ, hãy dùng:
-             Intent intent = new Intent(OrderActivity.this, MainActivity.class);
-             startActivity(intent);
-             finish();
+        toolbar.setNavigationOnClickListener(v -> getOnBackPressedDispatcher().onBackPressed());
 
-            onBackPressed(); // Cách chuẩn nhất cho nút Back
-        });
+        // OnBackPressedCallback: định nghĩa hành vi back theo yêu cầu
+        OnBackPressedCallback callback = new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                try {
+                    View orderedContainer = findViewById(R.id.ordered_container);
+                    View menuContainer = findViewById(R.id.menu_container);
 
-        // 3. Load dữ liệu đã lưu (Ghi chú)
+                    // Nếu đang ở màn chi tiết đơn hàng (ordered visible) -> quay về menu (showMenuView)
+                    if (orderedContainer != null && orderedContainer.getVisibility() == View.VISIBLE) {
+                        showMenuView();
+                        return;
+                    }
+
+                    // Nếu đang ở màn menu (menu visible) -> xử lý default (finish activity -> MainActivity)
+                    if (menuContainer != null && menuContainer.getVisibility() == View.VISIBLE) {
+                        setEnabled(false); // cho dispatcher thực hiện hành vi mặc định
+                        getOnBackPressedDispatcher().onBackPressed();
+                        return;
+                    }
+
+                    // Fallback: cho hệ thống xử lý
+                    setEnabled(false);
+                    getOnBackPressedDispatcher().onBackPressed();
+                } catch (Exception e) {
+                    setEnabled(false);
+                    getOnBackPressedDispatcher().onBackPressed();
+                }
+            }
+        };
+        getOnBackPressedDispatcher().addCallback(this, callback);
+
+        // Load persisted notes
         loadNotesFromPrefs();
-
-        // 4. Khởi tạo Repository
-        menuRepository = new MenuRepository();
-        orderRepository = new OrderRepository();
-        tableRepository = new TableRepository();
-
-        // 5. Lấy dữ liệu từ Intent
-        tableId = getIntent().getStringExtra("tableId");
-        tableNumber = getIntent().getIntExtra("tableNumber", 0);
-
-        // Gán số bàn lên Toolbar (vì tvTable giờ nằm trong Toolbar)
-        if (tvTable != null) tvTable.setText("Bàn " + tableNumber);
-
-        String extraSocket = getIntent().getStringExtra("socketUrl");
-        if (extraSocket != null && !extraSocket.trim().isEmpty()) {
-            socketUrl = extraSocket.trim();
-        }
 
         // 6. Setup RecyclerView - Danh sách món ĐÃ GỌI
         rvOrderedList.setLayoutManager(new LinearLayoutManager(this));
         orderedAdapter = new OrderAdapter(new ArrayList<>(), item -> {
-            if (!isFinishing() && !isDestroyed()) {
-                runOnUiThread(() -> Toast.makeText(OrderActivity.this, "Món: " + item.getName(), Toast.LENGTH_SHORT).show());
+            // item click handler: nếu trạng thái là "done/đã xong/served/ready/completed" thì show confirm dialog
+            if (isItemDone(item.getStatus())) {
+                showConfirmServedDialog(item);
+            } else {
+                Toast.makeText(OrderActivity.this, item.getName(), Toast.LENGTH_SHORT).show();
             }
         }, this);
         rvOrderedList.setAdapter(orderedAdapter);
@@ -159,7 +173,8 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
             btnAddMore.setOnClickListener(v -> showMenuView());
         }
         if (btnConfirm != null) {
-            btnConfirm.setOnClickListener(v -> confirmAddItems());
+            // confirmAddItems(View) exists, so pass the view param
+            btnConfirm.setOnClickListener(this::confirmAddItems);
         }
 
         // 10. Socket Handler
@@ -167,8 +182,74 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         socketHandler.initAndConnect();
 
         // 11. Load dữ liệu API
+        tableId = getIntent().getStringExtra("tableId");
+        tableNumber = getIntent().getIntExtra("tableNumber", 0);
+        if (tvTable != null) tvTable.setText("Bàn " + tableNumber);
+
+        String extraSocket = getIntent().getStringExtra("socketUrl");
+        if (extraSocket != null && !extraSocket.trim().isEmpty()) {
+            socketUrl = extraSocket.trim();
+        }
+
         loadMenuItems();
         loadExistingOrdersForTable();
+    }
+
+    // Helper: xem status có được coi là "done" hay không
+    private boolean isItemDone(String status) {
+        if (status == null) return false;
+        String s = status.toLowerCase().trim();
+        return s.contains("done") || s.contains("xong") || s.contains("served") || s.contains("ready") || s.contains("completed");
+    }
+
+    // Hiện dialog xác nhận phục vụ -> call repository callback để cập nhật trạng thái
+    private void showConfirmServedDialog(OrderItem item) {
+        if (item == null) return;
+        String displayName = item.getName() != null && !item.getName().isEmpty() ? item.getName() : item.getMenuItemName();
+        new AlertDialog.Builder(this)
+                .setTitle("Xác nhận món đã phục vụ")
+                .setMessage("Bạn có chắc món \"" + displayName + "\" đã được phục vụ không?")
+                .setPositiveButton("Xác nhận", (dialog, which) -> performMarkServed(item))
+                .setNegativeButton("Hủy", null)
+                .show();
+    }
+
+    private void performMarkServed(OrderItem item) {
+        if (item == null) return;
+        String orderId = item.getParentOrderId();
+        String itemId = item.getId();
+        if (itemId == null || itemId.isEmpty()) itemId = item.getMenuItemId();
+
+        if (orderId == null || orderId.isEmpty() || itemId == null || itemId.isEmpty()) {
+            Toast.makeText(this, "Không xác định được order/item id", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // show progress
+        runOnUiThread(() -> {
+            if (progressBar != null) progressBar.setVisibility(View.VISIBLE);
+        });
+
+        // Use repository callback overload
+        orderRepository.updateOrderItemStatus(orderId, itemId, "served", new OrderRepository.RepositoryCallback<Void>() {
+            @Override
+            public void onSuccess(Void result) {
+                runOnUiThread(() -> {
+                    if (progressBar != null) progressBar.setVisibility(View.GONE);
+                    item.setStatus("served");
+                    if (orderedAdapter != null) orderedAdapter.notifyDataSetChanged();
+                    Toast.makeText(OrderActivity.this, "Đã xác nhận phục vụ", Toast.LENGTH_SHORT).show();
+                });
+            }
+
+            @Override
+            public void onError(String message) {
+                runOnUiThread(() -> {
+                    if (progressBar != null) progressBar.setVisibility(View.GONE);
+                    Toast.makeText(OrderActivity.this, "Cập nhật thất bại: " + message, Toast.LENGTH_LONG).show();
+                });
+            }
+        });
     }
 
     @Override
@@ -401,40 +482,36 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         if (btnConfirm != null) btnConfirm.setEnabled(!addQtyMap.isEmpty());
     }
 
-    // Tìm đến dòng khoảng 305 trong file OrderActivity.java
     private void showMenuView() {
-        View v1 = findViewById(R.id.ordered_container);
-        View v2 = findViewById(R.id.order_summary);
-        View v3 = findViewById(R.id.menu_container);
+        View vOrdered = findViewById(R.id.ordered_container);
+        View vSummary = findViewById(R.id.order_summary);
+        View vMenu = findViewById(R.id.menu_container);
 
-        if (v1 != null) v1.setVisibility(View.GONE);
+        if (vOrdered != null) vOrdered.setVisibility(View.GONE);
+        if (vSummary != null) vSummary.setVisibility(View.VISIBLE);
+        if (vMenu != null) vMenu.setVisibility(View.VISIBLE);
 
-        // SỬA: Luôn hiện order_summary vì nó chứa nút bấm
-        if (v2 != null) v2.setVisibility(View.VISIBLE);
-
-        if (v3 != null) v3.setVisibility(View.VISIBLE);
-
-        // SỬA THÊM: Đảo trạng thái 2 nút
-        if (btnAddMore != null) btnAddMore.setVisibility(View.GONE);      // Ẩn nút Thêm
-        if (btnConfirm != null) btnConfirm.setVisibility(View.VISIBLE);   // Hiện nút Xác nhận
+        if (btnAddMore != null) btnAddMore.setVisibility(View.GONE);
+        if (btnConfirm != null) btnConfirm.setVisibility(View.VISIBLE);
     }
 
     private void hideMenuView() {
-        View v1 = findViewById(R.id.menu_container);
-        View v2 = findViewById(R.id.ordered_container);
-        View v3 = findViewById(R.id.order_summary);
+        View vMenu = findViewById(R.id.menu_container);
+        View vOrdered = findViewById(R.id.ordered_container);
+        View vSummary = findViewById(R.id.order_summary);
 
-        if (v1 != null) v1.setVisibility(View.GONE);
-        if (v2 != null) v2.setVisibility(View.VISIBLE);
-        if (v3 != null) v3.setVisibility(View.VISIBLE);
+        if (vMenu != null) vMenu.setVisibility(View.GONE);
+        if (vOrdered != null) vOrdered.setVisibility(View.VISIBLE);
+        if (vSummary != null) vSummary.setVisibility(View.VISIBLE);
 
-        // SỬA THÊM: Đảo trạng thái 2 nút về ban đầu
-        if (btnAddMore != null) btnAddMore.setVisibility(View.VISIBLE);   // Hiện nút Thêm
-        if (btnConfirm != null) btnConfirm.setVisibility(View.GONE);      // Ẩn nút Xác nhận
+        if (btnAddMore != null) btnAddMore.setVisibility(View.VISIBLE);
+        if (btnConfirm != null) btnConfirm.setVisibility(View.GONE);
     }
 
+    // Called by button OnClick (method reference)
     public void confirmAddItems(View view) { confirmAddItems(); }
 
+    // Internal confirm logic (same as before). After success you may navigateBackToMain()
     private void confirmAddItems() {
         OrderHelper.showConfirmationDialog(this, addQtyMap, notesMap, menuAdapter, (confirmed) -> {
             if (!confirmed) return;
@@ -457,8 +534,8 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
                                     notesMap.clear();
                                     saveNotesToPrefs();
                                     Toast.makeText(OrderActivity.this, "Thêm món vào order hiện có thành công", Toast.LENGTH_SHORT).show();
-                                    hideMenuView();
-                                    loadExistingOrdersForTable();
+                                    // Trở về MainActivity sau khi xác nhận thành công
+                                    navigateBackToMain();
                                 });
                             }
                             @Override
@@ -480,8 +557,7 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
                                     addQtyMap.clear();
                                     notesMap.clear();
                                     saveNotesToPrefs();
-                                    hideMenuView();
-                                    loadExistingOrdersForTable();
+                                    navigateBackToMain();
                                 });
                             }
 
@@ -499,6 +575,7 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
 
                 @Override
                 public void onError(String message) {
+                    // fallback create new order
                     OrderHelper.createNewOrderFromAddMap(addQtyMap, notesMap, menuAdapter, tableNumber, fakeServerId, fakeCashierId, orderRepository, new OrderHelper.OrderCallback() {
                         @Override
                         public void onSuccess() {
@@ -508,8 +585,7 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
                                 addQtyMap.clear();
                                 notesMap.clear();
                                 saveNotesToPrefs();
-                                hideMenuView();
-                                loadExistingOrdersForTable();
+                                navigateBackToMain();
                             });
                         }
                         @Override
@@ -524,6 +600,19 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
                 }
             });
         });
+    }
+
+    // --- helper: điều hướng về MainActivity ---
+    private void navigateBackToMain() {
+        try {
+            Intent intent = new Intent(this, MainActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            startActivity(intent);
+        } catch (Exception e) {
+            Log.w(TAG, "navigateBackToMain failed", e);
+        } finally {
+            finish();
+        }
     }
 
     @Override
