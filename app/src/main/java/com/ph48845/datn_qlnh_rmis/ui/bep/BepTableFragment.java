@@ -1,6 +1,9 @@
 package com.ph48845.datn_qlnh_rmis.ui.bep;
 
+import android.app.AlertDialog;
+import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -17,18 +20,30 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.ph48845.datn_qlnh_rmis.R;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
 import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
+import com.ph48845.datn_qlnh_rmis.data.remote.ApiResponse;
 import com.ph48845.datn_qlnh_rmis.data.repository.OrderRepository;
 import com.ph48845.datn_qlnh_rmis.ui.bep.adapter.BepAdapter;
 import com.ph48845.datn_qlnh_rmis.ui.bep.adapter.OrderItemAdapter;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
 
 /**
  * Left fragment: table list + per-table detail (in-place).
  */
 public class BepTableFragment extends Fragment {
+
+    private static final String TAG = "BepTableFragment";
 
     private RecyclerView rvTables;
     private BepAdapter tableAdapter;
@@ -101,34 +116,108 @@ public class BepTableFragment extends Fragment {
 
             if (getActivity() != null) Toast.makeText(getActivity(), "Đang gửi yêu cầu cập nhật trạng thái...", Toast.LENGTH_SHORT).show();
 
-            orderRepository.updateOrderItemStatus(orderId, itemId, newStatus).enqueue(new retrofit2.Callback<Void>() {
-                @Override
-                public void onResponse(retrofit2.Call<Void> call, retrofit2.Response<Void> response) {
-                    if (getActivity() == null) return;
-                    if (response.isSuccessful()) {
-                        // Cập nhật local model ngay để UI phản hồi tức thì
-                        item.setStatus(newStatus);
-                        // Nếu là trạng thái hoàn tất/hết thì xóa start time của timer để UI phản hồi
-                        String ns = newStatus == null ? "" : newStatus.trim().toLowerCase();
-                        if ("ready".equals(ns) || "soldout".equals(ns) || "done".equals(ns) || "completed".equals(ns)) {
-                            orderItemAdapter.clearStartTimeForItem(order, item);
-                        }
-                        // refresh adapter UI
-                        getActivity().runOnUiThread(() -> {
-                            orderItemAdapter.notifyDataSetChanged();
-                            Toast.makeText(getActivity(), "Cập nhật trạng thái thành công", Toast.LENGTH_SHORT).show();
-                        });
-                    } else {
-                        getActivity().runOnUiThread(() -> Toast.makeText(getActivity(), "Cập nhật thất bại: HTTP " + response.code(), Toast.LENGTH_LONG).show());
-                    }
-                }
+            // If user requests "preparing", consume ingredients first (server will deduct)
+            if ("preparing".equals(newStatus)) {
+                double qty = item.getQuantity() <= 0 ? 1.0 : item.getQuantity();
+                Call<ApiResponse<Void>> consumeCall = orderRepository.consumeRecipeCall(item.getMenuItemId(), qty, orderId);
 
-                @Override
-                public void onFailure(retrofit2.Call<Void> call, Throwable t) {
-                    if (getActivity() == null) return;
-                    getActivity().runOnUiThread(() -> Toast.makeText(getActivity(), "Lỗi mạng: " + (t.getMessage() != null ? t.getMessage() : ""), Toast.LENGTH_LONG).show());
-                }
-            });
+                // show quick toast so user knows consume started
+                if (getActivity() != null) getActivity().runOnUiThread(() ->
+                        Toast.makeText(getActivity(), "Đang kiểm tra và trừ nguyên liệu...", Toast.LENGTH_SHORT).show());
+
+                consumeCall.enqueue(new Callback<ApiResponse<Void>>() {
+                    @Override
+                    public void onResponse(Call<ApiResponse<Void>> call, Response<ApiResponse<Void>> response) {
+                        try {
+                            if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
+                                // proceed to update status
+                                orderRepository.updateOrderItemStatus(orderId, itemId, newStatus).enqueue(new retrofit2.Callback<Void>() {
+                                    @Override
+                                    public void onResponse(retrofit2.Call<Void> call, retrofit2.Response<Void> response) {
+                                        if (getActivity() == null) return;
+                                        if (response.isSuccessful()) {
+                                            // Cập nhật local model ngay để UI phản hồi tức thì
+                                            item.setStatus(newStatus);
+                                            String ns = newStatus == null ? "" : newStatus.trim().toLowerCase();
+                                            if ("ready".equals(ns) || "soldout".equals(ns) || "done".equals(ns) || "completed".equals(ns)) {
+                                                orderItemAdapter.clearStartTimeForItem(order, item);
+                                            }
+                                            getActivity().runOnUiThread(() -> {
+                                                orderItemAdapter.notifyDataSetChanged();
+                                                Toast.makeText(getActivity(), "Bắt đầu làm món và trừ nguyên liệu thành công", Toast.LENGTH_SHORT).show();
+                                            });
+                                        } else {
+                                            getActivity().runOnUiThread(() -> Toast.makeText(getActivity(), "Cập nhật trạng thái thất bại: HTTP " + response.code(), Toast.LENGTH_LONG).show());
+                                        }
+                                    }
+
+                                    @Override
+                                    public void onFailure(retrofit2.Call<Void> call, Throwable t) {
+                                        if (getActivity() == null) return;
+                                        getActivity().runOnUiThread(() -> Toast.makeText(getActivity(), "Lỗi mạng khi cập nhật trạng thái: " + (t.getMessage() != null ? t.getMessage() : ""), Toast.LENGTH_LONG).show());
+                                    }
+                                });
+                                return;
+                            }
+
+                            // Handle consume failure: try to extract meaningful message / shortages
+                            String errBody = null;
+                            if (response != null && response.errorBody() != null) {
+                                try { errBody = response.errorBody().string(); } catch (Exception ignored) { errBody = null; }
+                            } else if (response != null && response.body() != null && response.body().getMessage() != null) {
+                                // uncommon: server returned 2xx but success=false
+                                showShortageDialog("Không thể trừ nguyên liệu", response.body().getMessage());
+                                return;
+                            }
+
+                            if (errBody != null && !errBody.isEmpty()) {
+                                parseAndShowShortages(errBody);
+                            } else {
+                                showShortageDialog("Không thể trừ nguyên liệu", "Server trả về lỗi khi trừ nguyên liệu.");
+                            }
+                        } catch (Exception ex) {
+                            Log.e(TAG, "consumeRecipe onResponse exception", ex);
+                            showShortageDialog("Lỗi", "Lỗi xử lý phản hồi từ server: " + ex.getMessage());
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Call<ApiResponse<Void>> call, Throwable t) {
+                        Log.e(TAG, "consumeRecipe onFailure", t);
+                        if (getActivity() != null) getActivity().runOnUiThread(() ->
+                                showShortageDialog("Lỗi kết nối", "Không thể kết nối tới server: " + (t.getMessage() != null ? t.getMessage() : "")));
+                    }
+                });
+            } else {
+                // other statuses: update directly
+                orderRepository.updateOrderItemStatus(orderId, itemId, newStatus).enqueue(new retrofit2.Callback<Void>() {
+                    @Override
+                    public void onResponse(retrofit2.Call<Void> call, retrofit2.Response<Void> response) {
+                        if (getActivity() == null) return;
+                        if (response.isSuccessful()) {
+                            // Cập nhật local model ngay để UI phản hồi tức thì
+                            item.setStatus(newStatus);
+                            String ns = newStatus == null ? "" : newStatus.trim().toLowerCase();
+                            if ("ready".equals(ns) || "soldout".equals(ns) || "done".equals(ns) || "completed".equals(ns)) {
+                                orderItemAdapter.clearStartTimeForItem(order, item);
+                            }
+                            // refresh adapter UI
+                            getActivity().runOnUiThread(() -> {
+                                orderItemAdapter.notifyDataSetChanged();
+                                Toast.makeText(getActivity(), "Cập nhật trạng thái thành công", Toast.LENGTH_SHORT).show();
+                            });
+                        } else {
+                            getActivity().runOnUiThread(() -> Toast.makeText(getActivity(), "Cập nhật thất bại: HTTP " + response.code(), Toast.LENGTH_LONG).show());
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(retrofit2.Call<Void> call, Throwable t) {
+                        if (getActivity() == null) return;
+                        getActivity().runOnUiThread(() -> Toast.makeText(getActivity(), "Lỗi mạng: " + (t.getMessage() != null ? t.getMessage() : ""), Toast.LENGTH_LONG).show());
+                    }
+                });
+            }
         });
 
         rvDetailOrders.setLayoutManager(new GridLayoutManager(requireContext(), 1));
@@ -194,5 +283,71 @@ public class BepTableFragment extends Fragment {
 
         // Stop timer to avoid leaking handler ticks when detail hidden
         orderItemAdapter.stopTimer();
+    }
+
+    // Parse server errorBody for shortages JSON and show dialog with readable content
+    private void parseAndShowShortages(String errBody) {
+        if (getActivity() == null) return;
+        try {
+            JSONObject root = new JSONObject(errBody);
+            String message = root.optString("message", "Không đủ nguyên liệu");
+            JSONObject data = root.optJSONObject("data");
+            JSONArray shortages = data != null ? data.optJSONArray("shortages") : null;
+
+            StringBuilder details = new StringBuilder();
+            if (shortages != null && shortages.length() > 0) {
+                for (int i = 0; i < shortages.length(); i++) {
+                    JSONObject s = shortages.optJSONObject(i);
+                    if (s == null) continue;
+                    String name = s.optString("ingredientName", s.optString("ingredientId", "Unknown"));
+                    double required = s.optDouble("required", -1);
+                    double available = s.optDouble("available", -1);
+                    String unit = s.optString("unit", "");
+                    details.append(name)
+                            .append(" — cần: ")
+                            .append(formatNumber(required)).append(" ").append(unit)
+                            .append(", còn: ")
+                            .append(formatNumber(available)).append(" ").append(unit);
+                    if (i < shortages.length() - 1) details.append("\n");
+                }
+            } else {
+                details.append(message);
+            }
+
+            final String title = "Không thể trừ nguyên liệu";
+            final String body = details.toString();
+            showShortageDialog(title, body);
+        } catch (JSONException e) {
+            Log.w(TAG, "parseAndShowShortages JSON error", e);
+            showShortageDialog("Không thể trừ nguyên liệu", errBody);
+        }
+    }
+
+    private void showShortageDialog(String title, String body) {
+        if (getActivity() == null) return;
+        getActivity().runOnUiThread(() -> {
+            try {
+                AlertDialog.Builder b = new AlertDialog.Builder(getActivity());
+                b.setTitle(title);
+                b.setMessage(body != null && !body.isEmpty() ? body : "Vui lòng kiểm tra kho");
+                b.setPositiveButton("Mở kho", (d, w) -> {
+                    try {
+                        Intent it = new Intent(getActivity(), NguyenLieuActivity.class);
+                        startActivity(it);
+                    } catch (Exception ignored) {}
+                });
+                b.setNegativeButton("Đóng", (d, w) -> {});
+                b.show();
+            } catch (Exception e) {
+                // fallback to toast
+                Toast.makeText(getActivity(), title + ": " + (body != null ? body : ""), Toast.LENGTH_LONG).show();
+            }
+        });
+    }
+
+    private String formatNumber(double v) {
+        if (v == (long) v) return String.valueOf((long) v);
+        DecimalFormat df = new DecimalFormat("#.##");
+        return df.format(v);
     }
 }

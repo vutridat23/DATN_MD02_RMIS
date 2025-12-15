@@ -231,13 +231,7 @@ public class Order implements Serializable {
         this.tableNumberAnnotated = tableNumber;
     }
 
-    /**
-     * Resolve server id to a String.
-     * Supports server being returned as:
-     * - String (object id)
-     * - Object/Map (with _id or id or name)
-     * Fallback to legacy field if resolution fails.
-     */
+
     public String getServerId() {
         if (serverIdAnnotated == null) return serverLegacy;
         if (serverIdAnnotated instanceof String) {

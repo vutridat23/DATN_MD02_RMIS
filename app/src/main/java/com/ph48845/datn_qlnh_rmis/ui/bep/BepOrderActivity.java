@@ -15,15 +15,23 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.ph48845.datn_qlnh_rmis.R;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
+import com.ph48845.datn_qlnh_rmis.data.remote.ApiResponse;
+import com.ph48845.datn_qlnh_rmis.data.remote.ApiService;
+import com.ph48845.datn_qlnh_rmis.data.remote.RetrofitClient;
 import com.ph48845.datn_qlnh_rmis.data.repository.OrderRepository;
 import com.ph48845.datn_qlnh_rmis.ui.bep.adapter.OrderItemAdapter;
 
 import org.json.JSONObject;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
 
 /**
  * BepOrderActivity - show items for a single table to kitchen staff.
@@ -248,28 +256,84 @@ public class BepOrderActivity extends AppCompatActivity implements OrderItemAdap
 
                     progressBar.setVisibility(android.view.View.VISIBLE);
 
-                    orderRepository.updateOrderItemStatus(orderId, itemId, newStatus).enqueue(new retrofit2.Callback<Void>() {
-                        @Override
-                        public void onResponse(retrofit2.Call<Void> call, retrofit2.Response<Void> response) {
-                            runOnUiThread(() -> progressBar.setVisibility(android.view.View.GONE));
-                            if (response.isSuccessful()) {
-                                item.setStatus(newStatus);
-                                runOnUiThread(() -> {
-                                    Toast.makeText(BepOrderActivity.this, "Cập nhật trạng thái thành công", Toast.LENGTH_SHORT).show();
-                                    loadTableOrders();
-                                });
-                            } else {
-                                runOnUiThread(() -> Toast.makeText(BepOrderActivity.this, "Cập nhật thất bại: HTTP " + response.code(), Toast.LENGTH_LONG).show());
+                    // If preparing, first consume recipe on server to deduct ingredients
+                    if ("preparing".equals(newStatus)) {
+                        ApiService api = RetrofitClient.getInstance().getApiService();
+                        HashMap<String, Object> body = new HashMap<>();
+                        body.put("menuItemId", item.getMenuItemId());
+                        body.put("quantity", item.getQuantity());
+                        body.put("orderId", orderId);
+
+                        api.consumeRecipe(body).enqueue(new Callback<ApiResponse<Void>>() {
+                            @Override
+                            public void onResponse(Call<ApiResponse<Void>> call, Response<ApiResponse<Void>> response) {
+                                if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
+                                    // now update status
+                                    orderRepository.updateOrderItemStatus(orderId, itemId, newStatus).enqueue(new retrofit2.Callback<Void>() {
+                                        @Override
+                                        public void onResponse(retrofit2.Call<Void> call, retrofit2.Response<Void> response) {
+                                            runOnUiThread(() -> progressBar.setVisibility(android.view.View.GONE));
+                                            if (response.isSuccessful()) {
+                                                item.setStatus(newStatus);
+                                                runOnUiThread(() -> {
+                                                    Toast.makeText(BepOrderActivity.this, "Bắt đầu làm món và trừ nguyên liệu thành công", Toast.LENGTH_SHORT).show();
+                                                    loadTableOrders();
+                                                });
+                                            } else {
+                                                runOnUiThread(() -> Toast.makeText(BepOrderActivity.this, "Cập nhật thất bại: HTTP " + response.code(), Toast.LENGTH_LONG).show());
+                                            }
+                                        }
+
+                                        @Override
+                                        public void onFailure(retrofit2.Call<Void> call, Throwable t) {
+                                            runOnUiThread(() -> {
+                                                progressBar.setVisibility(android.view.View.GONE);
+                                                Toast.makeText(BepOrderActivity.this, "Lỗi mạng khi cập nhật trạng thái: " + (t.getMessage() != null ? t.getMessage() : ""), Toast.LENGTH_LONG).show();
+                                            });
+                                        }
+                                    });
+                                } else {
+                                    runOnUiThread(() -> {
+                                        progressBar.setVisibility(android.view.View.GONE);
+                                        String msg = "Không thể trừ nguyên liệu trên server.";
+                                        if (response != null && response.body() != null && response.body().getMessage() != null) msg += " " + response.body().getMessage();
+                                        Toast.makeText(BepOrderActivity.this, msg, Toast.LENGTH_LONG).show();
+                                    });
+                                }
                             }
-                        }
-                        @Override
-                        public void onFailure(retrofit2.Call<Void> call, Throwable t) {
-                            runOnUiThread(() -> {
-                                progressBar.setVisibility(android.view.View.GONE);
-                                Toast.makeText(BepOrderActivity.this, "Lỗi mạng: " + (t.getMessage() != null ? t.getMessage() : ""), Toast.LENGTH_LONG).show();
-                            });
-                        }
-                    });
+
+                            @Override
+                            public void onFailure(Call<ApiResponse<Void>> call, Throwable t) {
+                                runOnUiThread(() -> {
+                                    progressBar.setVisibility(android.view.View.GONE);
+                                    Toast.makeText(BepOrderActivity.this, "Lỗi kết nối khi trừ nguyên liệu: " + (t.getMessage() != null ? t.getMessage() : ""), Toast.LENGTH_LONG).show();
+                                });
+                            }
+                        });
+                    } else {
+                        orderRepository.updateOrderItemStatus(orderId, itemId, newStatus).enqueue(new retrofit2.Callback<Void>() {
+                            @Override
+                            public void onResponse(retrofit2.Call<Void> call, retrofit2.Response<Void> response) {
+                                runOnUiThread(() -> progressBar.setVisibility(android.view.View.GONE));
+                                if (response.isSuccessful()) {
+                                    item.setStatus(newStatus);
+                                    runOnUiThread(() -> {
+                                        Toast.makeText(BepOrderActivity.this, "Cập nhật trạng thái thành công", Toast.LENGTH_SHORT).show();
+                                        loadTableOrders();
+                                    });
+                                } else {
+                                    runOnUiThread(() -> Toast.makeText(BepOrderActivity.this, "Cập nhật thất bại: HTTP " + response.code(), Toast.LENGTH_LONG).show());
+                                }
+                            }
+                            @Override
+                            public void onFailure(retrofit2.Call<Void> call, Throwable t) {
+                                runOnUiThread(() -> {
+                                    progressBar.setVisibility(android.view.View.GONE);
+                                    Toast.makeText(BepOrderActivity.this, "Lỗi mạng: " + (t.getMessage() != null ? t.getMessage() : ""), Toast.LENGTH_LONG).show();
+                                });
+                            }
+                        });
+                    }
                 })
                 .show();
     }
