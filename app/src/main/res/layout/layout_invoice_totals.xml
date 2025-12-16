@@ -54,6 +54,46 @@
             android:textColor="#000000" />
     </LinearLayout>
 
+    <!-- Voucher Section -->
+    <LinearLayout
+        android:id="@+id/ll_voucher_card"
+        android:orientation="horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="8dp"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Voucher:"
+            android:textSize="14sp"
+            android:textColor="#757575"/>
+
+        <TextView
+            android:id="@+id/tv_voucher_card"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="end"
+            android:text="Chưa chọn"
+            android:textColor="#757575"
+            android:textSize="14sp"
+            android:layout_marginRight="10dp"/>
+
+        <Button
+            android:id="@+id/btn_select_voucher_card"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:text="Chọn"
+            android:textSize="11sp"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:backgroundTint="#4CAF50"/>
+    </LinearLayout>
+
     <!-- Thành tiền -->
     <LinearLayout
         android:orientation="horizontal"
@@ -80,6 +120,12 @@
     </LinearLayout>
 
 </LinearLayout>
+
+
+
+
+
+
 
 
 

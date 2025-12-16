@@ -37,6 +37,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Collections;
 
 /**
  * BepActivity: TabLayout + ViewPager2 hosting two fragments:
@@ -169,8 +170,10 @@ public class BepActivity extends BaseMenuActivity implements BepTableFragment.On
     /**
      * Build active table list and per-table items + global summary, then update fragments.
      * Only tables with at least one active item (pending/preparing/processing) are considered active.
+     *
+     * NOTE: Made public to allow BepSummaryFragment to request a refresh after batch updates.
      */
-    private void refreshActiveTables() {
+    public void refreshActiveTables() {
         if (progressBar != null) progressBar.setVisibility(View.VISIBLE);
 
         orderRepository.getOrdersByTableNumber(null, null, new OrderRepository.RepositoryCallback<List<Order>>() {
@@ -245,6 +248,9 @@ public class BepActivity extends BaseMenuActivity implements BepTableFragment.On
                 for (Map.Entry<String, SummaryAccumulator> e : acc.entrySet()) {
                     globalSummaryList.add(new SummaryEntry(e.getKey(), e.getValue().qty, e.getValue().image));
                 }
+
+                // Sort descending by qty (món cần làm nhiều lên đầu)
+                Collections.sort(globalSummaryList, (a, b) -> Integer.compare(b.getQty(), a.getQty()));
 
                 if (activeTableNumbers.isEmpty()) {
                     runOnUiThread(() -> {

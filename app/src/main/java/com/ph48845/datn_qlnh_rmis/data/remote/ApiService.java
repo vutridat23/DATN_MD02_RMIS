@@ -8,6 +8,7 @@ import com.ph48845.datn_qlnh_rmis.data.model.Order;
 import com.ph48845.datn_qlnh_rmis.data.model.ReportItem;
 import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
 import com.ph48845.datn_qlnh_rmis.data.model.User;
+import com.ph48845.datn_qlnh_rmis.data.model.Voucher;
 
 import java.util.List;
 import java.util.Map;
@@ -26,6 +27,8 @@ import retrofit2.http.QueryMap;
 /**
  * ApiService: Gộp tất cả endpoint cũ.
  * Nhóm rõ ràng theo module: User / Menu / Order / Table / Ingredient / History / Report
+ *
+ * LƯU Ý: file này bao gồm cả các endpoint mới như recipes/consume (client giả định).
  */
 public interface ApiService {
 
@@ -35,6 +38,7 @@ public interface ApiService {
     @GET("users")
     Call<List<User>> getAllUsers();
 
+    // login: gửi User (username/password) và nhận LoginResponse
     @POST("/users/login")
     Call<LoginResponse> login(@Body User user);
 
@@ -100,10 +104,9 @@ public interface ApiService {
     @POST("orders/{id}/request-temp-calculation")
     Call<ApiResponse<Order>> requestTempCalculation(@Path("id") String orderId, @Body Map<String, Object> body);
 
-
-
     // ===========================
-    // pay endpoint (file B had this)
+    // pay endpoint
+    // ===========================
     @POST("orders/pay")
     Call<ApiResponse<Order>> payOrder(@Body Map<String, Object> body);
 
@@ -116,13 +119,9 @@ public interface ApiService {
     @PUT("tables/{id}")
     Call<TableItem> updateTable(@Path("id") String tableId, @Body Map<String, Object> updates);
 
-    // Keep both: merge and reserve (reserve có ở file A)
     @POST("tables/{id}/merge")
     Call<TableItem> mergeTable(@Path("id") String targetTableId, @Body Map<String, String> body);
 
-    // ===========================
-    // --- INGREDIENT ENDPOINTS ---
-    // ===========================
     @POST("tables/{id}/reserve")
     Call<TableItem> reserveTable(@Path("id") String id, @Body Map<String, Object> body);
 
@@ -134,6 +133,12 @@ public interface ApiService {
 
     @POST("ingredients/{id}/take")
     Call<ApiResponse<Ingredient>> takeIngredient(@Path("id") String ingredientId, @Body Map<String, Object> body);
+
+    // ===========================
+    // --- RECIPES / CONSUME (NEW) ---
+    // POST to ask server to deduct ingredient stock according to recipe for a menuItem
+    @POST("recipes/consume")
+    Call<ApiResponse<Void>> consumeRecipe(@Body Map<String, Object> body);
 
     // ===========================
     // --- HISTORY ENDPOINTS ---
@@ -164,6 +169,18 @@ public interface ApiService {
 
     @POST("reports/weekly")
     Call<ApiResponse<ReportItem>> createWeeklyReport(@Body Map<String, String> body);
+
+    // ===========================
+    // --- VOUCHER ENDPOINTS ---
+    // ===========================
+    @GET("vouchers")
+    Call<ApiResponse<List<Voucher>>> getAllVouchers(@Query("status") String status);
+
+    @GET("vouchers/{id}")
+    Call<ApiResponse<Voucher>> getVoucherById(@Path("id") String voucherId);
+
+    @GET("vouchers/code/{code}")
+    Call<ApiResponse<Voucher>> getVoucherByCode(@Path("code") String code);
 
     // ===========================
     // --- HELPER CLASSES ---
