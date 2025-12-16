@@ -291,6 +291,9 @@ public class InvoiceActivity extends AppCompatActivity {
                     displayInvoice();
                     updateVoucherDisplay();
                     updateTotalSummary();
+                    // Cập nhật trạng thái nút chọn voucher sau khi load dữ liệu
+                    updateVoucherButtonState();
+                    updateOrderVoucherButtonsState();
                 });
             }
 
@@ -421,10 +424,60 @@ public class InvoiceActivity extends AppCompatActivity {
         
         if (btnSelectVoucher != null) {
             btnSelectVoucher.setOnClickListener(v -> showVoucherSelectionDialog());
+            // Cập nhật trạng thái nút dựa trên điều kiện
+            updateVoucherButtonState();
         }
         
         if (btnProceedPayment != null) {
             btnProceedPayment.setOnClickListener(v -> processPaymentForAllOrders());
+        }
+    }
+    
+    /**
+     * Cập nhật trạng thái nút chọn voucher chung (enable/disable)
+     */
+    private void updateVoucherButtonState() {
+        Button btnSelectVoucher = findViewById(R.id.btn_select_voucher);
+        if (btnSelectVoucher != null) {
+            // Nếu đã có voucher cho bất kỳ order nào, disable nút chọn voucher chung
+            boolean hasOrderVoucher = orderVoucherMap != null && !orderVoucherMap.isEmpty();
+            btnSelectVoucher.setEnabled(!hasOrderVoucher);
+            if (hasOrderVoucher) {
+                btnSelectVoucher.setAlpha(0.5f); // Làm mờ nút
+            } else {
+                btnSelectVoucher.setAlpha(1.0f); // Bình thường
+            }
+        }
+    }
+    
+    /**
+     * Cập nhật trạng thái nút chọn voucher cho tất cả các order (enable/disable)
+     */
+    private void updateOrderVoucherButtonsState() {
+        if (orders == null || orderCardMap == null) {
+            return;
+        }
+        
+        // Nếu đã có voucher chung, disable tất cả nút chọn voucher cho các order
+        boolean hasGlobalVoucher = selectedVoucher != null;
+        
+        for (Order order : orders) {
+            if (order == null || order.getId() == null) {
+                continue;
+            }
+            
+            CardView cardView = orderCardMap.get(order.getId());
+            if (cardView != null) {
+                Button btnSelectVoucherCard = cardView.findViewById(R.id.btn_select_voucher_card);
+                if (btnSelectVoucherCard != null) {
+                    btnSelectVoucherCard.setEnabled(!hasGlobalVoucher);
+                    if (hasGlobalVoucher) {
+                        btnSelectVoucherCard.setAlpha(0.5f); // Làm mờ nút
+                    } else {
+                        btnSelectVoucherCard.setAlpha(1.0f); // Bình thường
+                    }
+                }
+            }
         }
     }
 
@@ -432,6 +485,12 @@ public class InvoiceActivity extends AppCompatActivity {
      * Hiển thị dialog chọn voucher
      */
     private void showVoucherSelectionDialog() {
+        // Kiểm tra xem đã có voucher cho bất kỳ order nào chưa
+        if (orderVoucherMap != null && !orderVoucherMap.isEmpty()) {
+            Toast.makeText(this, "Không thể sử dụng voucher chung khi đã chọn voucher cho từng hóa đơn. Vui lòng xóa voucher ở các hóa đơn trước.", Toast.LENGTH_LONG).show();
+            return;
+        }
+        
         progressBar.setVisibility(View.VISIBLE);
         
         // Load danh sách vouchers (thử cả null và "active")
@@ -497,6 +556,12 @@ public class InvoiceActivity extends AppCompatActivity {
     private void showVoucherDialogForOrder(Order order) {
         if (order == null || order.getId() == null) {
             Toast.makeText(this, "Hóa đơn không hợp lệ", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        // Kiểm tra xem đã có voucher chung chưa
+        if (selectedVoucher != null) {
+            Toast.makeText(this, "Không thể chọn voucher cho từng hóa đơn khi đã chọn voucher chung. Vui lòng xóa voucher chung trước.", Toast.LENGTH_LONG).show();
             return;
         }
         
@@ -572,6 +637,12 @@ public class InvoiceActivity extends AppCompatActivity {
                 .setPositiveButton("Xác nhận", (dialog, which) -> {
                     int selectedPosition = ((AlertDialog) dialog).getListView().getCheckedItemPosition();
                     runOnUiThread(() -> {
+                        // Kiểm tra lại điều kiện trước khi xác nhận (phòng trường hợp voucher chung được chọn trong lúc này)
+                        if (selectedVoucher != null && selectedPosition != 0) {
+                            Toast.makeText(InvoiceActivity.this, "Không thể chọn voucher cho từng hóa đơn khi đã chọn voucher chung. Vui lòng xóa voucher chung trước.", Toast.LENGTH_LONG).show();
+                            return;
+                        }
+                        
                         if (selectedPosition == 0) {
                             // Không sử dụng voucher
                             orderVoucherMap.remove(order.getId());
@@ -581,10 +652,17 @@ public class InvoiceActivity extends AppCompatActivity {
                             Voucher selectedV = vouchers.get(selectedPosition - 1);
                             orderVoucherMap.put(order.getId(), selectedV);
                             Log.d(TAG, "Voucher selected for order " + order.getId() + ": " + selectedV.getCode());
+                            // Xóa voucher chung nếu có (đảm bảo chỉ dùng một loại)
+                            if (selectedVoucher != null) {
+                                selectedVoucher = null;
+                                updateVoucherDisplay();
+                            }
                         }
                         // Refresh lại card để hiển thị tổng tiền mới
                         refreshOrderCard(order);
                         updateTotalSummary(); // Cập nhật tổng tiền chung
+                        // Cập nhật trạng thái nút chọn voucher chung
+                        updateVoucherButtonState();
                     });
                 })
                 .setNegativeButton("Hủy", null)
@@ -686,6 +764,12 @@ public class InvoiceActivity extends AppCompatActivity {
                 .setTitle("Chọn voucher")
                 .setItems(voucherArray, (dialog, which) -> {
                     runOnUiThread(() -> {
+                        // Kiểm tra lại điều kiện trước khi xác nhận (phòng trường hợp voucher order được chọn trong lúc này)
+                        if (orderVoucherMap != null && !orderVoucherMap.isEmpty() && which != 0) {
+                            Toast.makeText(InvoiceActivity.this, "Không thể chọn voucher chung khi đã chọn voucher cho từng hóa đơn. Vui lòng xóa voucher ở các hóa đơn trước.", Toast.LENGTH_LONG).show();
+                            return;
+                        }
+                        
                         if (which == 0) {
                             // Không sử dụng voucher
                             selectedVoucher = null;
@@ -697,6 +781,16 @@ public class InvoiceActivity extends AppCompatActivity {
                                   ", valid: " + selectedVoucher.isValid() +
                                   ", type: " + selectedVoucher.getDiscountType() +
                                   ", value: " + selectedVoucher.getDiscountValue());
+                            // Xóa tất cả voucher của các order (đảm bảo chỉ dùng một loại)
+                            if (orderVoucherMap != null && !orderVoucherMap.isEmpty()) {
+                                orderVoucherMap.clear();
+                                // Refresh lại tất cả các card
+                                for (Order order : orders) {
+                                    if (order != null && order.getId() != null) {
+                                        refreshOrderCard(order);
+                                    }
+                                }
+                            }
                         }
                         updateVoucherDisplay();
                         updateTotalSummary();
@@ -720,6 +814,8 @@ public class InvoiceActivity extends AppCompatActivity {
                 tvVoucherSelected.setTextColor(Color.parseColor("#757575"));
             }
         }
+        // Cập nhật trạng thái nút chọn voucher chung
+        updateVoucherButtonState();
     }
 
     /**
@@ -1117,6 +1213,15 @@ public class InvoiceActivity extends AppCompatActivity {
         if (btnSelectVoucherCard != null) {
             final Order currentOrder = order;
             btnSelectVoucherCard.setOnClickListener(v -> showVoucherDialogForOrder(currentOrder));
+            // Cập nhật trạng thái nút dựa trên điều kiện
+            if (selectedVoucher != null) {
+                // Nếu đã có voucher chung, disable nút chọn voucher cho order
+                btnSelectVoucherCard.setEnabled(false);
+                btnSelectVoucherCard.setAlpha(0.5f); // Làm mờ nút
+            } else {
+                btnSelectVoucherCard.setEnabled(true);
+                btnSelectVoucherCard.setAlpha(1.0f); // Bình thường
+            }
         }
 
         llTotals.removeAllViews();
@@ -2678,4 +2783,5 @@ public class InvoiceActivity extends AppCompatActivity {
     }
 
 }
+
 
