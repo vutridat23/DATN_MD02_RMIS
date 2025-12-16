@@ -36,7 +36,7 @@ public interface ApiService {
     // --- USER ENDPOINTS ---
     // ===========================
     @GET("users")
-    Call<List<User>> getAllUsers();
+    Call<ApiResponse<List<User>>> getAllUsers();
 
     // login: gửi User (username/password) và nhận LoginResponse
     @POST("/users/login")
