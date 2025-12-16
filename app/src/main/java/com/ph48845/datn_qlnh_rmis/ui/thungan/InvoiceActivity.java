@@ -22,6 +22,7 @@ import androidx.cardview.widget.CardView;
 import com.ph48845.datn_qlnh_rmis.R;
 import com.ph48845.datn_qlnh_rmis.data.model.MenuItem;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
+import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
 import com.ph48845.datn_qlnh_rmis.data.repository.MenuRepository;
 import com.ph48845.datn_qlnh_rmis.data.repository.OrderRepository;
 import com.ph48845.datn_qlnh_rmis.ui.bep.SocketManager;
@@ -506,7 +507,7 @@ public class InvoiceActivity extends AppCompatActivity {
 
         // Nhấn giữ vào card để mở menu tùy chọn, chạm nhanh để thanh toán
         final Order currentOrder = order;
-        cardViewContainer.setOnClickListener(v -> processPaymentForOrder(currentOrder));
+
         cardViewContainer.setOnLongClickListener(v -> {
             showInvoiceOptionsDialogForOrder(currentOrder);
             return true;
@@ -691,12 +692,9 @@ public class InvoiceActivity extends AppCompatActivity {
                             printTemporaryBillForOrder(order);
                             break;
                         case 3:
-                            // Chuyển sang màn hình thanh toán
-                            Intent intent = new Intent(InvoiceActivity.this, ThanhToanActivity.class);
-                            intent.putExtra("orderId", order.getId());
-                            intent.putExtra("tableNumber", tableNumber);
-                            startActivity(intent);
+                            handlePayment(order);
                             break;
+
                         case 4:
                             requestCheckItemsForOrder(order);
                             break;
@@ -1383,5 +1381,79 @@ public class InvoiceActivity extends AppCompatActivity {
         }
         return super.onOptionsItemSelected(item);
     }
+
+    private int countUnreadyItems(Order order) {
+        if (order == null || order.getItems() == null) return 0;
+
+        int count = 0;
+        for (Order.OrderItem item : order.getItems()) {
+            if (item == null) continue;
+            if (!"ready".equalsIgnoreCase(item.getStatus())) {
+                count += item.getQuantity();
+            }
+        }
+        return count;
+    }
+
+
+    private void handlePayment(Order order) {
+        if (order == null || order.getId() == null) {
+            Toast.makeText(this, "Hóa đơn không hợp lệ", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        int unreadyCount = countUnreadyItems(order);
+
+        // ✅ TẤT CẢ ĐÃ READY → THANH TOÁN BÌNH THƯỜNG
+        if (unreadyCount == 0) {
+            goToPayment(order, false);
+            return;
+        }
+
+        // ⚠️ CÒN MÓN CHƯA LÊN → HỎI XÁC NHẬN
+        showPendingItemsPaymentDialog(order, unreadyCount);
+    }
+
+    private void showPendingItemsPaymentDialog(Order order, int unreadyCount) {
+        new AlertDialog.Builder(this)
+                .setTitle("Xác nhận thanh toán")
+                .setMessage("Còn " + unreadyCount + " món chưa lên.\nBạn muốn thanh toán ngay?")
+
+                .setNeutralButton("Thanh toán gồm món chưa lên", (d, w) -> {
+                    goToPayment(order, false);
+                })
+                .setNegativeButton("Hủy (tiếp tục dùng bữa)", null)
+                .show();
+    }
+
+
+    private void goToPayment(Order order, boolean excludeUnreadyItems) {
+        Intent intent = new Intent(InvoiceActivity.this, ThanhToanActivity.class);
+        intent.putExtra("orderId", order.getId());
+        intent.putExtra("tableNumber", tableNumber);
+        intent.putExtra("excludeUnreadyItems", excludeUnreadyItems);
+
+        if (excludeUnreadyItems) {
+            ArrayList<Order.OrderItem> readyItems = getReadyItems(order);
+            intent.putExtra("pay_items", readyItems);
+
+        }
+
+        startActivity(intent);
+    }
+
+
+    private ArrayList<Order.OrderItem> getReadyItems(Order order) {
+        ArrayList<Order.OrderItem> readyItems = new ArrayList<>();
+        if (order == null || order.getItems() == null) return readyItems;
+
+        for (Order.OrderItem item : order.getItems()) {
+            if (item != null && "ready".equalsIgnoreCase(item.getStatus())) {
+                readyItems.add(item);
+            }
+        }
+        return readyItems;
+    }
+
 
 }

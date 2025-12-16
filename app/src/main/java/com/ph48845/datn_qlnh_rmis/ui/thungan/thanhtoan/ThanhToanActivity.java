@@ -19,6 +19,7 @@ import com.ph48845.datn_qlnh_rmis.data.repository.OrderRepository;
 import com.ph48845.datn_qlnh_rmis.data.repository.TableRepository;
 import com.ph48845.datn_qlnh_rmis.ui.thungan.ThuNganActivity;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class ThanhToanActivity extends AppCompatActivity {
@@ -32,6 +33,9 @@ public class ThanhToanActivity extends AppCompatActivity {
 
     private OrderRepository orderRepository;
     private TableRepository tableRepository;
+    private boolean excludeUnreadyItems = false;
+    private List<Order.OrderItem> payItems;
+
 
 
     // Launcher QR payment
@@ -48,6 +52,15 @@ public class ThanhToanActivity extends AppCompatActivity {
         setContentView(R.layout.activity_thanh_toan);
 
         initViews();
+
+        excludeUnreadyItems = getIntent().getBooleanExtra("excludeUnreadyItems", false);
+
+        if (excludeUnreadyItems) {
+            payItems = (ArrayList<Order.OrderItem>)
+                    getIntent().getSerializableExtra("pay_items");
+
+        }
+
 
         orderRepository = new OrderRepository();
         tableRepository = new TableRepository();
@@ -85,14 +98,25 @@ public class ThanhToanActivity extends AppCompatActivity {
 
                 runOnUiThread(() -> {
                     if (currentOrder != null) {
-                        totalAmount = currentOrder.getFinalAmount();
+
+                        if (excludeUnreadyItems && payItems != null && !payItems.isEmpty()) {
+                            totalAmount = 0;
+                            for (Order.OrderItem item : payItems) {
+                                totalAmount += item.getPrice() * item.getQuantity();
+                            }
+                        } else {
+                            totalAmount = currentOrder.getFinalAmount();
+                        }
+
                         tvTotalAmount.setText("Tổng: " + String.format("%,.0f₫", totalAmount));
                         setupPaymentButtons();
+
                     } else {
                         Toast.makeText(ThanhToanActivity.this, "Không tìm thấy đơn hàng", Toast.LENGTH_SHORT).show();
                         finish();
                     }
                 });
+
             }
 
             @Override

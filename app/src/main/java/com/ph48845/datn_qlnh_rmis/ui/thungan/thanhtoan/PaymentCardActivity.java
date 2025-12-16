@@ -1,5 +1,4 @@
-package com.ph48845.datn_qlnh_rmis.ui.thanhtoan;
-
+package com.ph48845.datn_qlnh_rmis.ui.thungan.thanhtoan;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;

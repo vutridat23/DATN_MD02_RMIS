@@ -288,17 +288,22 @@ public class ThuNganActivity extends BaseMenuActivity {
 
         for (Order order : orders) {
             if (order == null || order.getItems() == null) continue;
+
             for (Order.OrderItem item : order.getItems()) {
                 if (item == null) continue;
+
                 String status = item.getStatus();
-                // Nếu có bất kỳ món nào chưa "done" -> Chưa xong
-                if (status == null || !status.toLowerCase().contains("done")) {
+                if (status == null) return false;
+
+                // ❗ CHỈ CẦN 1 MÓN CHƯA READY → FALSE
+                if (!status.equalsIgnoreCase("ready")) {
                     return false;
                 }
             }
         }
-        return true;
+        return true; // ✅ tất cả món đều ready
     }
+
 
     // =========================================================================
     // KHÔI PHỤC HÀM BỊ MẤT (FIX LỖI)
