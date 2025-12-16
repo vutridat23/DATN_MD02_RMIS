@@ -46,6 +46,15 @@ public class OrderRepository {
         return api.getAllOrders();
     }
 
+    // New: call to consume recipe on server (deduct ingredients based on recipe)
+    public Call<ApiResponse<Void>> consumeRecipeCall(String menuItemId, double quantity, String orderId) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("menuItemId", menuItemId);
+        body.put("quantity", quantity);
+        if (orderId != null) body.put("orderId", orderId);
+        return api.consumeRecipe(body);
+    }
+
     /**
      * Trả về Call<Void> cho trường hợp caller muốn enqueue trực tiếp.
      * Chú ý: ApiService.updateOrderItemStatus(...) phải tồn tại và trả về Call<Void>.
@@ -223,11 +232,10 @@ public class OrderRepository {
 
                 List<Order> toMove = new ArrayList<>();
                 for (Order o : orders) {
-                    if (o != null) {
-                        try {
-                            if (o.getTableNumber() == fromTableNumber) toMove.add(o);
-                        } catch (Exception ignored) {
-                        }
+                    if (o == null) continue;
+                    try {
+                        if (o.getTableNumber() == fromTableNumber) toMove.add(o);
+                    } catch (Exception ignored) {
                     }
                 }
 
