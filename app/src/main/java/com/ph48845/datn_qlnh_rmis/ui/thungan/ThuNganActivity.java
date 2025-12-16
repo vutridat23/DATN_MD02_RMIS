@@ -35,6 +35,7 @@ import com.ph48845.datn_qlnh_rmis.data.model.Order;
 import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
 import com.ph48845.datn_qlnh_rmis.data.model.User;
 import com.ph48845.datn_qlnh_rmis.data.repository.OrderRepository;
+import com.ph48845.datn_qlnh_rmis.data.remote.ApiResponse;
 import com.ph48845.datn_qlnh_rmis.data.remote.ApiService;
 import com.ph48845.datn_qlnh_rmis.data.remote.RetrofitClient;
 import retrofit2.Call;
@@ -380,24 +381,49 @@ public class ThuNganActivity extends BaseMenuActivity {
      */
     private void loadUsersForNameMapping(Runnable callback) {
         ApiService api = RetrofitClient.getInstance().getApiService();
-        api.getAllUsers().enqueue(new Callback<List<User>>() {
+        api.getAllUsers().enqueue(new Callback<ApiResponse<List<User>>>() {
             @Override
-            public void onResponse(Call<List<User>> call, Response<List<User>> response) {
+            public void onResponse(Call<ApiResponse<List<User>>> call, Response<ApiResponse<List<User>>> response) {
                 if (response.isSuccessful() && response.body() != null) {
-                    userIdToNameMap.clear();
-                    for (User user : response.body()) {
-                        if (user != null && user.getId() != null) {
-                            // Ưu tiên fullName, nếu không có thì dùng username
-                            String name = user.getFullName();
-                            if (name == null || name.trim().isEmpty()) {
-                                name = user.getUsername();
-                            }
-                            if (name != null && !name.trim().isEmpty()) {
-                                userIdToNameMap.put(user.getId(), name);
+                    ApiResponse<List<User>> apiResponse = response.body();
+                    List<User> users = apiResponse.getData();
+                    
+                    if (users != null && !users.isEmpty()) {
+                        userIdToNameMap.clear();
+                        for (User user : users) {
+                            if (user != null && user.getId() != null) {
+                                String userId = user.getId().trim();
+                                
+                                // Ưu tiên fullName (từ field "name" trong JSON), nếu không có thì dùng username
+                                String name = user.getFullName();
+                                if (name == null || name.trim().isEmpty()) {
+                                    name = user.getUsername();
+                                }
+                                
+                                if (name != null && !name.trim().isEmpty()) {
+                                    // Normalize: trim cả key và value
+                                    userIdToNameMap.put(userId, name.trim());
+                                    Log.d(TAG, "loadUsersForNameMapping: Mapped userId '" + userId + "' -> '" + name.trim() + "'");
+                                } else {
+                                    Log.w(TAG, "loadUsersForNameMapping: User " + userId + " has no name or username");
+                                }
+                            } else {
+                                Log.w(TAG, "loadUsersForNameMapping: Skipping null user or user with null ID");
                             }
                         }
+                        Log.d(TAG, "loadUsersForNameMapping: Loaded " + userIdToNameMap.size() + " users for name mapping");
+                        // Log một vài entries để debug
+                        int count = 0;
+                        for (Map.Entry<String, String> entry : userIdToNameMap.entrySet()) {
+                            if (count++ < 5) {
+                                Log.d(TAG, "loadUsersForNameMapping: Sample entry - ID: '" + entry.getKey() + "', Name: '" + entry.getValue() + "'");
+                            }
+                        }
+                    } else {
+                        Log.e(TAG, "loadUsersForNameMapping: Response data is null or empty. Success: " + apiResponse.isSuccess() + ", Message: " + apiResponse.getMessage());
                     }
-                    Log.d(TAG, "Loaded " + userIdToNameMap.size() + " users for name mapping");
+                } else {
+                    Log.e(TAG, "loadUsersForNameMapping: Response not successful. Code: " + (response != null ? response.code() : "null"));
                 }
                 // Gọi callback sau khi load xong (dù thành công hay thất bại)
                 if (callback != null) {
@@ -406,8 +432,8 @@ public class ThuNganActivity extends BaseMenuActivity {
             }
 
             @Override
-            public void onFailure(Call<List<User>> call, Throwable t) {
-                Log.w(TAG, "Failed to load users for name mapping: " + t.getMessage());
+            public void onFailure(Call<ApiResponse<List<User>>> call, Throwable t) {
+                Log.e(TAG, "loadUsersForNameMapping: Failed to load users: " + t.getMessage(), t);
                 // Vẫn gọi callback dù thất bại
                 if (callback != null) {
                     runOnUiThread(callback);
@@ -429,35 +455,57 @@ public class ThuNganActivity extends BaseMenuActivity {
      */
     private String getEmployeeNameFromOrder(Order order) {
         if (order == null) {
+            Log.w(TAG, "getEmployeeNameFromOrder: order is null");
             return "Nhân viên";
         }
         
-        // Lấy ID từ order (luôn trả về ID, không phải name/username)
+        // Bước 1: Thử lấy ID từ getTempCalculationRequestedById() (ưu tiên)
         String userId = order.getTempCalculationRequestedById();
+        Log.d(TAG, "getEmployeeNameFromOrder: getTempCalculationRequestedById() returned: '" + userId + "'");
+        
         if (userId != null && !userId.trim().isEmpty()) {
-            // Sử dụng ID để tra cứu trong map
-            String name = getEmployeeName(userId.trim());
-            return name;
+            userId = userId.trim();
+            
+            // Tra cứu trong map (đã được normalize khi load)
+            String name = userIdToNameMap.get(userId);
+            Log.d(TAG, "getEmployeeNameFromOrder: Looking up userId '" + userId + "' in map");
+            Log.d(TAG, "getEmployeeNameFromOrder: Map size: " + userIdToNameMap.size());
+            
+            if (name != null && !name.trim().isEmpty()) {
+                Log.d(TAG, "getEmployeeNameFromOrder: ✓ Found name: '" + name + "' for userId: '" + userId + "'");
+                return name.trim();
+            } else {
+                // Thử tìm với các biến thể của ID (nếu có)
+                Log.w(TAG, "getEmployeeNameFromOrder: ✗ UserId '" + userId + "' not found in map");
+                Log.d(TAG, "getEmployeeNameFromOrder: Available keys in map (first 10): " + 
+                      userIdToNameMap.keySet().stream().limit(10).collect(java.util.stream.Collectors.toList()));
+            }
         }
         
-        // Fallback: nếu không lấy được ID, thử lấy từ getTempCalculationRequestedBy()
-        // (có thể trả về name/username nếu server trả về Map)
+        // Bước 2: Fallback - thử lấy từ getTempCalculationRequestedBy()
         String requester = order.getTempCalculationRequestedBy();
+        Log.d(TAG, "getEmployeeNameFromOrder: getTempCalculationRequestedBy() returned: '" + requester + "'");
+        
         if (requester != null && !requester.trim().isEmpty()) {
             requester = requester.trim();
-            // Nếu có khoảng trắng, có vẻ đã là tên rồi
+            
+            // Nếu có khoảng trắng, có vẻ đã là tên rồi (full name như "Nhân viên 2")
             if (requester.contains(" ")) {
+                Log.d(TAG, "getEmployeeNameFromOrder: ✓ Requester contains space, assuming it's a name: '" + requester + "'");
                 return requester;
             }
+            
             // Thử check xem có trong map không (có thể là ID)
             String name = userIdToNameMap.get(requester);
             if (name != null && !name.trim().isEmpty()) {
-                return name;
+                Log.d(TAG, "getEmployeeNameFromOrder: ✓ Found name from requester in map: '" + name + "'");
+                return name.trim();
             }
-            // Nếu không có trong map và không có khoảng trắng, có thể là username
-            // Nhưng vì không có username trong map, trả về "Nhân viên"
+            
+            Log.w(TAG, "getEmployeeNameFromOrder: ✗ Requester '" + requester + "' not found in map");
         }
         
+        Log.w(TAG, "getEmployeeNameFromOrder: ✗ Could not find employee name, returning default 'Nhân viên'");
         return "Nhân viên";
     }
 
@@ -483,29 +531,46 @@ public class ThuNganActivity extends BaseMenuActivity {
      * Hiển thị dialog danh sách yêu cầu tạm tính.
      */
     private void showTempCalculationRequestsDialog(List<Order> orders) {
-        // Tạo danh sách hiển thị (thêm tên nhân viên yêu cầu)
+        // Tạo danh sách hiển thị với format rõ ràng, luôn bao gồm tên nhân viên
         String[] items = new String[orders.size()];
         for (int i = 0; i < orders.size(); i++) {
             Order order = orders.get(i);
+            
+            // Thông tin bàn
             String tableInfo = "Bàn " + order.getTableNumber();
+            
+            // Thông tin thời gian
             String timeInfo = "";
             if (order.getTempCalculationRequestedAt() != null) {
                 try {
                     java.text.SimpleDateFormat inputFormat = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US);
                     java.text.SimpleDateFormat outputFormat = new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault());
                     java.util.Date date = inputFormat.parse(order.getTempCalculationRequestedAt());
-                    timeInfo = " - " + outputFormat.format(date);
+                    timeInfo = outputFormat.format(date);
                 } catch (Exception e) {
-                    timeInfo = " - " + order.getTempCalculationRequestedAt();
+                    timeInfo = order.getTempCalculationRequestedAt();
                 }
             }
             
-            // Lấy tên nhân viên thay vì ID
+            // Lấy tên nhân viên yêu cầu (luôn có giá trị, ít nhất là "Nhân viên")
             String requesterName = getEmployeeNameFromOrder(order);
-            if (!requesterName.isEmpty()) {
-                timeInfo += " • NV: " + requesterName;
+            if (requesterName == null || requesterName.trim().isEmpty()) {
+                requesterName = "Nhân viên";
             }
-            items[i] = tableInfo + timeInfo;
+            
+            // Format hiển thị: "Bàn X - DD/MM/YYYY HH:mm • NV: Tên nhân viên"
+            // Luôn hiển thị tên nhân viên để người dùng biết ai yêu cầu
+            StringBuilder displayText = new StringBuilder();
+            displayText.append(tableInfo);
+            
+            if (!timeInfo.isEmpty()) {
+                displayText.append(" - ").append(timeInfo);
+            }
+            
+            // Luôn thêm thông tin nhân viên
+            displayText.append(" • NV: ").append(requesterName);
+            
+            items[i] = displayText.toString();
         }
 
         new android.app.AlertDialog.Builder(this)
