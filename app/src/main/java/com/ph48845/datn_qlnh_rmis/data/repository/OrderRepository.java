@@ -316,6 +316,14 @@ public class OrderRepository {
                          String paymentMethod,
                          double amountCustomerGiven,
                          RepositoryCallback<Order> callback) {
+        payOrder(orderId, paymentMethod, amountCustomerGiven, null, callback);
+    }
+
+    public void payOrder(String orderId,
+                         String paymentMethod,
+                         double amountCustomerGiven,
+                         String voucherId,
+                         RepositoryCallback<Order> callback) {
 
         if (orderId == null || orderId.trim().isEmpty()) {
             callback.onError("Invalid orderId");
@@ -328,6 +336,9 @@ public class OrderRepository {
         // gửi cả 2 trường paidAmount & amountCustomerGiven để backend ko bị thiếu dữ liệu
         body.put("paidAmount", amountCustomerGiven);        // backend cũ có thể gọi là paidAmount
         body.put("amountCustomerGiven", amountCustomerGiven);// backend mới có thể dùng amountCustomerGiven
+        if (voucherId != null && !voucherId.trim().isEmpty()) {
+            body.put("voucherId", voucherId);              // ID voucher nếu có
+        }
 
         api.payOrder(body).enqueue(new Callback<ApiResponse<Order>>() {
             @Override

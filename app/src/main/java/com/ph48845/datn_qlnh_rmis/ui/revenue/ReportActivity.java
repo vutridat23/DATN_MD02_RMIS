@@ -15,12 +15,11 @@ import java.util.Map;
 import java.util.ArrayList;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.ph48845.datn_qlnh_rmis.R;
-import androidx.appcompat.widget.Toolbar;
-
 
 import com.ph48845.datn_qlnh_rmis.data.model.ReportItem;
 import com.ph48845.datn_qlnh_rmis.data.remote.ApiResponse;
@@ -35,6 +34,7 @@ import java.text.SimpleDateFormat;
 
 public class ReportActivity extends AppCompatActivity {
 
+    private Toolbar toolbar;
     private EditText etFromDate, etToDate;
     private Button btnSearch;
     private RecyclerView rvReports;
@@ -49,6 +49,9 @@ public class ReportActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_revenue);
+
+        initViews();
+        setupToolbar();
 
         etFromDate = findViewById(R.id.etFromDate);
         etToDate = findViewById(R.id.etToDate);
@@ -69,16 +72,34 @@ public class ReportActivity extends AppCompatActivity {
         etToDate.setOnClickListener(v -> showDatePicker(etToDate));
 
         btnSearch.setOnClickListener(v -> fetchReportsByDate());
-        Toolbar toolbar = findViewById(R.id.toolbar);
-        setSupportActionBar(toolbar);
-
-        toolbar.setNavigationOnClickListener(v -> {
-            finish(); // Quay về màn hình trước
-        });
-
 
         // Load tất cả báo cáo khi mở activity
         fetchAllReports();
+    }
+
+    private void initViews() {
+        toolbar = findViewById(R.id.toolbar);
+    }
+
+    private void setupToolbar() {
+        setSupportActionBar(toolbar);
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+            getSupportActionBar().setDisplayShowHomeEnabled(true);
+            // Ẩn title mặc định để chỉ hiển thị TextView custom
+            getSupportActionBar().setDisplayShowTitleEnabled(false);
+        }
+        // Đảm bảo nút back hoạt động
+        toolbar.setNavigationOnClickListener(v -> finish());
+        
+        // Đảm bảo navigation icon hiển thị và có thể click được
+        toolbar.post(() -> {
+            if (getSupportActionBar() != null) {
+                getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+                getSupportActionBar().setDisplayShowHomeEnabled(true);
+                getSupportActionBar().setDisplayShowTitleEnabled(false);
+            }
+        });
     }
 
     private void showDatePicker(final EditText editText) {
@@ -103,10 +124,9 @@ public class ReportActivity extends AppCompatActivity {
             public void onResponse(Call<ApiResponse<List<ReportItem>>> call, Response<ApiResponse<List<ReportItem>>> response) {
                 if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
                     reportList.clear();
-                    reportList.addAll(mergeReports(response.body().getData()));
+                    reportList.addAll(response.body().getData());
                     adapter.notifyDataSetChanged();
-                    updateSummary(reportList);
-                    // cập nhật tổng hợp
+                    updateSummary(reportList); // cập nhật tổng hợp
                 } else {
                     Toast.makeText(ReportActivity.this, "Không lấy được danh sách báo cáo", Toast.LENGTH_SHORT).show();
                 }
@@ -139,10 +159,9 @@ public class ReportActivity extends AppCompatActivity {
             public void onResponse(Call<ApiResponse<List<ReportItem>>> call, Response<ApiResponse<List<ReportItem>>> response) {
                 if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
                     reportList.clear();
-                    reportList.addAll(mergeReports(response.body().getData()));
+                    reportList.addAll(response.body().getData());
                     adapter.notifyDataSetChanged();
-                    updateSummary(reportList);
-                    // cập nhật tổng hợp
+                    updateSummary(reportList); // cập nhật tổng hợp
                 } else {
                     Toast.makeText(ReportActivity.this, "Không tìm thấy báo cáo trong khoảng ngày", Toast.LENGTH_SHORT).show();
                     tvInvoiceCount.setText("Số lượng hóa đơn: 0");
@@ -174,41 +193,18 @@ public class ReportActivity extends AppCompatActivity {
         String revenueStr = formatter.format(totalRevenue);
         tvTotalRevenue.setText(revenueStr + " VND");
     }
-    // Gộp báo cáo cùng ngày + loại bỏ báo cáo không có đơn
-    // Gộp báo cáo cùng ngày + loại bỏ báo cáo không có đơn
-    private List<ReportItem> mergeReports(List<ReportItem> rawList) {
-        Map<String, ReportItem> map = new HashMap<>();
 
-        for (ReportItem item : rawList) {
-
-            // Bỏ ngày không có đơn
-            if (item.getTotalOrders() == 0 || item.getTotalRevenue() == 0) {
-                continue;
-            }
-
-            // Format date từ Date -> String yyyy-MM-dd
-            String date = sdf.format(item.getDate());
-
-            if (!map.containsKey(date)) {
-                map.put(date, item);
-            } else {
-                // Gộp nếu trùng ngày
-                ReportItem exist = map.get(date);
-
-                exist.setTotalOrders(exist.getTotalOrders() + item.getTotalOrders());
-                exist.setTotalRevenue(exist.getTotalRevenue() + item.getTotalRevenue());
-            }
+    @Override
+    public boolean onOptionsItemSelected(android.view.MenuItem item) {
+        if (item.getItemId() == android.R.id.home) {
+            finish();
+            return true;
         }
-
-        // Chuyển map -> list
-        List<ReportItem> mergedList = new ArrayList<>(map.values());
-
-        // Sắp xếp giảm dần theo ngày
-        mergedList.sort((a, b) -> b.getDate().compareTo(a.getDate()));
-
-        return mergedList;
+        return super.onOptionsItemSelected(item);
     }
 
-
-
+    @Override
+    public void onBackPressed() {
+        finish();
+    }
 }

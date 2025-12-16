@@ -8,6 +8,7 @@ import com.ph48845.datn_qlnh_rmis.data.model.Order;
 import com.ph48845.datn_qlnh_rmis.data.model.ReportItem;
 import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
 import com.ph48845.datn_qlnh_rmis.data.model.User;
+import com.ph48845.datn_qlnh_rmis.data.model.Voucher;
 
 import java.util.List;
 import java.util.Map;
@@ -168,6 +169,18 @@ public interface ApiService {
 
     @POST("reports/weekly")
     Call<ApiResponse<ReportItem>> createWeeklyReport(@Body Map<String, String> body);
+
+    // ===========================
+    // --- VOUCHER ENDPOINTS ---
+    // ===========================
+    @GET("vouchers")
+    Call<ApiResponse<List<Voucher>>> getAllVouchers(@Query("status") String status);
+
+    @GET("vouchers/{id}")
+    Call<ApiResponse<Voucher>> getVoucherById(@Path("id") String voucherId);
+
+    @GET("vouchers/code/{code}")
+    Call<ApiResponse<Voucher>> getVoucherByCode(@Path("code") String code);
 
     // ===========================
     // --- HELPER CLASSES ---
