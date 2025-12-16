@@ -344,7 +344,6 @@ public class BepTableFragment extends Fragment {
             }
         });
     }
-
     private String formatNumber(double v) {
         if (v == (long) v) return String.valueOf((long) v);
         DecimalFormat df = new DecimalFormat("#.##");
