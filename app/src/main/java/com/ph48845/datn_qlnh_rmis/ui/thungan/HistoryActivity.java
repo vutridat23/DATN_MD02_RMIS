@@ -38,26 +38,26 @@ public class HistoryActivity extends AppCompatActivity {
         initViews();
         setupToolbar();
 
-        rvHistory = findViewById(R.id.rvHistory);
         adapter = new HistoryAdapter(historyList);
         rvHistory.setLayoutManager(new LinearLayoutManager(this));
         rvHistory.setAdapter(adapter);
-
-        apiService = RetrofitClient.getInstance().getApiService();
 
         fetchHistory();
     }
 
     private void initViews() {
-        // Layout không có toolbar, chỉ có ImageView btnBack
-        // Không cần setup toolbar
+        rvHistory = findViewById(R.id.rvHistory);
+        apiService = RetrofitClient.getInstance().getApiService();
     }
 
     private void setupToolbar() {
-        // Layout không có toolbar, setup nút back từ ImageView btnBack
-        android.widget.ImageView btnBack = findViewById(R.id.btnBack);
-        if (btnBack != null) {
-            btnBack.setOnClickListener(v -> finish());
+        androidx.appcompat.widget.Toolbar toolbar = findViewById(R.id.toolbar);
+        if (toolbar != null) {
+            setSupportActionBar(toolbar);
+            if (getSupportActionBar() != null) {
+                getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+                getSupportActionBar().setDisplayShowTitleEnabled(false);
+            }
         }
     }
 
@@ -68,7 +68,8 @@ public class HistoryActivity extends AppCompatActivity {
         Call<ApiResponse<List<HistoryItem>>> call = apiService.getAllHistory(queryMap);
         call.enqueue(new Callback<ApiResponse<List<HistoryItem>>>() {
             @Override
-            public void onResponse(Call<ApiResponse<List<HistoryItem>>> call, Response<ApiResponse<List<HistoryItem>>> response) {
+            public void onResponse(Call<ApiResponse<List<HistoryItem>>> call,
+                    Response<ApiResponse<List<HistoryItem>>> response) {
                 if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
                     List<HistoryItem> data = response.body().getData();
                     if (data != null && !data.isEmpty()) {

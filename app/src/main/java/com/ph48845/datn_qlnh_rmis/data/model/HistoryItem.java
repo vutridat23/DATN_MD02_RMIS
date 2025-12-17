@@ -17,10 +17,11 @@ public class HistoryItem {
     @SerializedName("details")
     private Details details;
 
-    public HistoryItem() { }
+    public HistoryItem() {
+    }
 
     // ====================
-    //      GETTER
+    // GETTER
     // ====================
     public String getId() {
         return id;
@@ -40,7 +41,8 @@ public class HistoryItem {
 
     // Tổng số món
     public int getTotalItems() {
-        if (details == null || details.items == null) return 0;
+        if (details == null || details.items == null)
+            return 0;
         int sum = 0;
         for (Details.Item item : details.items) {
             sum += item.getQuantity();
@@ -53,8 +55,55 @@ public class HistoryItem {
         return details != null ? details.totalAmount : 0;
     }
 
+    // Helper method để lấy danh sách items
+    public List<OrderItemDetail> getItems() {
+        if (details == null || details.items == null)
+            return null;
+
+        List<OrderItemDetail> orderItems = new java.util.ArrayList<>();
+        for (Details.Item item : details.items) {
+            OrderItemDetail orderItem = new OrderItemDetail();
+            orderItem.setDishName(item.getMenuItemName());
+            orderItem.setQuantity(item.getQuantity());
+            orderItem.setPrice(item.getPrice());
+            orderItems.add(orderItem);
+        }
+        return orderItems;
+    }
+
+    // Inner class để adapter dễ sử dụng
+    public static class OrderItemDetail {
+        private String dishName;
+        private int quantity;
+        private double price;
+
+        public String getDishName() {
+            return dishName;
+        }
+
+        public void setDishName(String dishName) {
+            this.dishName = dishName;
+        }
+
+        public int getQuantity() {
+            return quantity;
+        }
+
+        public void setQuantity(int quantity) {
+            this.quantity = quantity;
+        }
+
+        public double getPrice() {
+            return price;
+        }
+
+        public void setPrice(double price) {
+            this.price = price;
+        }
+    }
+
     // ====================
-    //      SETTER
+    // SETTER
     // ====================
     public void setId(String id) {
         this.id = id;
@@ -73,7 +122,7 @@ public class HistoryItem {
     }
 
     // ====================
-    //      CLASS DETAILS
+    // CLASS DETAILS
     // ====================
     public static class Details {
 
@@ -135,7 +184,7 @@ public class HistoryItem {
         }
 
         // ====================
-        //      CLASS ITEM
+        // CLASS ITEM
         // ====================
         public static class Item {
 
