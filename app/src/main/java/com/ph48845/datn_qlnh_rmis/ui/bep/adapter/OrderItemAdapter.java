@@ -1,4 +1,4 @@
-package com.ph48845.datn_qlnh_rmis.ui.bep.adapter;
+package com.ph48845.datn_qlnh_rmis. ui. bep. adapter;
 
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -14,9 +14,10 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
-import androidx.recyclerview.widget.RecyclerView;
-import com.bumptech.glide.Glide;
-import com.ph48845.datn_qlnh_rmis.R;
+import androidx.appcompat.app.AlertDialog;
+import androidx.recyclerview.widget. RecyclerView;
+import com.bumptech.glide. Glide;
+import com. ph48845.datn_qlnh_rmis.R;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
 import com.ph48845.datn_qlnh_rmis.ui.bep.ItemWithOrder;
 
@@ -24,8 +25,8 @@ import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util. Locale;
+import java.util. Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -38,6 +39,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *   và dừng khi rời RecyclerView (onDetachedFromRecyclerView) -> đảm bảo countdown cập nhật liên tục
  *   mỗi giây khi list đang hiển thị.
  * - Thêm setter để cấu hình MAX_COOK_MS nếu cần.
+ * - Thêm dialog xác nhận khi bấm nút hủy món
  */
 public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> {
 
@@ -59,7 +61,7 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
     private final Map<String, Long> startTimes = new HashMap<>();
     private RecyclerView attachedRecyclerView;
 
-    private final android.os.Handler timerHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final android.os.Handler timerHandler = new android.os. Handler(android.os.Looper. getMainLooper());
     private final AtomicBoolean timerRunning = new AtomicBoolean(false);
     private long maxCookMs = DEFAULT_MAX_COOK_MS;
 
@@ -77,7 +79,7 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
                         }
                     }
                 } else {
-                    // fallback: notify full dataset so when view appears it's up-to-date
+                    // fallback:  notify full dataset so when view appears it's up-to-date
                     notifyDataSetChanged();
                 }
             } catch (Exception e) {
@@ -90,7 +92,7 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
 
     public OrderItemAdapter(Context ctx, OnActionListener listener) {
         if (ctx == null) throw new IllegalArgumentException("Context is required");
-        this.context = ctx.getApplicationContext();
+        this.context = ctx. getApplicationContext();
         this.listener = listener;
     }
 
@@ -148,7 +150,7 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
             }
 
             if ("pending".equals(status) || "preparing".equals(status) || "processing".equals(status)) {
-                if (!startTimes.containsKey(key)) {
+                if (! startTimes.containsKey(key)) {
                     startTimes.put(key, now);
                     prefs.edit().putLong(PREF_KEY_PREFIX + key, now).apply();
                 }
@@ -166,7 +168,7 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
     public VH onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         View v = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_bep_order, parent, false);
 
-        if (v.getLayoutParams() instanceof ViewGroup.MarginLayoutParams) {
+        if (v. getLayoutParams() instanceof ViewGroup. MarginLayoutParams) {
             ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) v.getLayoutParams();
             int m = dpToPx(8);
             lp.setMargins(m, m, m, m);
@@ -177,7 +179,7 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
             if (v instanceof ViewGroup && ((ViewGroup) v).getChildCount() > 0) {
                 View inner = ((ViewGroup) v).getChildAt(0);
                 GradientDrawable gd = new GradientDrawable();
-                gd.setColor(Color.WHITE);
+                gd.setColor(Color. WHITE);
                 gd.setCornerRadius(dpToPx(8));
                 gd.setStroke(dpToPx(1), Color.parseColor("#CCCCCC"));
                 inner.setBackground(gd);
@@ -185,7 +187,7 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
                 inner.setPadding(pad, pad, pad, pad);
             }
         } catch (Exception e) {
-            Log.w(TAG, "Failed to apply boxed background programmatically: " + e.getMessage());
+            Log.w(TAG, "Failed to apply boxed background programmatically:  " + e.getMessage());
         }
 
         return new VH(v);
@@ -198,7 +200,7 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
 
     @Override
     public void onBindViewHolder(@NonNull VH holder, int position, @NonNull List<Object> payloads) {
-        if (payloads != null && payloads.size() == 1 && TIMER_PAYLOAD.equals(payloads.get(0))) {
+        if (payloads != null && payloads. size() == 1 && TIMER_PAYLOAD.equals(payloads.get(0))) {
             updateTimerUI(holder, position);
         } else {
             bindFull(holder, position);
@@ -228,8 +230,8 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
         String note = oi.getNote() != null ? oi.getNote().trim() : "";
         if (!note.isEmpty()) {
             if (holder.txtNote != null) {
-                holder.txtNote.setVisibility(View.VISIBLE);
-                holder.txtNote.setText(note);
+                holder.txtNote. setVisibility(View.VISIBLE);
+                holder.txtNote. setText(note);
             }
         } else {
             if (holder.txtNote != null) {
@@ -265,9 +267,36 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
             clearStartTimeForItem(order, oi);
         });
         holder.btnHetMon.setOnClickListener(v -> {
-            if (listener != null) listener.onChangeStatus(wrapper, "soldout");
-            clearStartTimeForItem(order, oi);
+            // Hiển thị dialog xác nhận trước khi hủy món
+            showCancelConfirmDialog(holder.itemView. getContext(), wrapper, order, oi);
         });
+    }
+
+    /**
+     * Hiển thị dialog xác nhận khi bấm nút hủy món
+     */
+    private void showCancelConfirmDialog(Context ctx, ItemWithOrder wrapper, Order order, Order.OrderItem oi) {
+        String itemName = oi.getMenuItemName() != null && !oi.getMenuItemName().isEmpty()
+                ? oi.getMenuItemName()
+                : oi.getName();
+
+        new AlertDialog.Builder(ctx)
+                .setTitle("Xác nhận hủy món")
+                .setMessage("Bạn có chắc chắn muốn hủy món \"" + itemName + "\" không?")
+                .setPositiveButton("Xác nhận", (dialog, which) -> {
+                    // Thực hiện hủy món
+                    if (listener != null) {
+                        listener.onChangeStatus(wrapper, "soldout");
+                    }
+                    clearStartTimeForItem(order, oi);
+                    dialog.dismiss();
+                })
+                .setNegativeButton("Hủy bỏ", (dialog, which) -> {
+                    // Đóng dialog, không làm gì
+                    dialog.dismiss();
+                })
+                .setCancelable(true)
+                .show();
     }
 
     private void updateTimerUI(@NonNull VH holder, int position) {
@@ -275,7 +304,7 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
         ItemWithOrder wrapper = items.get(position);
         Order order = wrapper.getOrder();
         Order.OrderItem oi = wrapper.getItem();
-        String statusBase = oi.getStatus() == null ? "" : oi.getStatus();
+        String statusBase = oi. getStatus() == null ? "" : oi.getStatus();
         String lowerStatus = statusBase.trim().toLowerCase();
         String key = buildItemKey(order, oi);
         long now = System.currentTimeMillis();
@@ -297,9 +326,9 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
             long elapsed = Math.max(0L, now - start);
             long remaining = maxCookMs - elapsed; // dùng maxCookMs có thể cấu hình
             if (remaining >= 0) {
-                timerText = " - Thời gian còn: " + formatDuration(remaining);
+                timerText = " - Thời gian còn:  " + formatDuration(remaining);
             } else {
-                timerText = " - Quá giờ: " + formatDuration(-remaining);
+                timerText = " - Quá giờ:  " + formatDuration(-remaining);
                 shouldWarn = true;
             }
         } else {
@@ -324,8 +353,8 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
             if (rootInner != null) rootInner.setBackground(createRoundedDrawable(Color.parseColor("#FFF3E0"), Color.parseColor("#FF7043")));
             else holder.itemView.setBackgroundColor(Color.parseColor("#FFF3E0"));
         } else {
-            if (rootInner != null) rootInner.setBackground(createRoundedDrawable(Color.WHITE, Color.parseColor("#CCCCCC")));
-            else holder.itemView.setBackgroundColor(Color.TRANSPARENT);
+            if (rootInner != null) rootInner.setBackground(createRoundedDrawable(Color. WHITE, Color.parseColor("#CCCCCC")));
+            else holder.itemView.setBackgroundColor(Color. TRANSPARENT);
         }
 
         boolean isFinished = false;
@@ -336,7 +365,7 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
         float alpha = isFinished ? 0.45f : 1f;
         if (rootInner != null) rootInner.setAlpha(alpha); else holder.itemView.setAlpha(alpha);
 
-        holder.setButtonsEnabled(!isFinished);
+        holder.setButtonsEnabled(! isFinished);
     }
 
     private GradientDrawable createRoundedDrawable(int fillColor, int strokeColor) {
@@ -360,9 +389,9 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
     @Override
     public int getItemCount() { return items.size(); }
 
-    private static String buildItemKey(Order order, Order.OrderItem oi) {
-        String orderId = (order != null && order.getId() != null) ? order.getId() : "o?";
-        String itemId = (oi != null && oi.getMenuItemId() != null && !oi.getMenuItemId().isEmpty()) ? oi.getMenuItemId() : ("i?" + (oi != null ? oi.getName() : "unknown"));
+    private static String buildItemKey(Order order, Order. OrderItem oi) {
+        String orderId = (order != null && order.getId() != null) ? order.getId() : "o? ";
+        String itemId = (oi != null && oi. getMenuItemId() != null && !oi.getMenuItemId().isEmpty()) ? oi.getMenuItemId() : ("i?" + (oi != null ? oi.getName() : "unknown"));
         return orderId + ":" + itemId;
     }
 
@@ -405,7 +434,7 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
                 return "ĐÃ HỦY";
             default:
                 String token = s.split("[_\\- ]+")[0];
-                return token != null ? token.toUpperCase() : s.toUpperCase();
+                return token != null ? token. toUpperCase() : s. toUpperCase();
         }
     }
 
@@ -416,24 +445,24 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.VH> 
 
         VH(@NonNull View itemView) {
             super(itemView);
-            imgThumb = itemView.findViewById(R.id.imgThumb);
+            imgThumb = itemView. findViewById(R.id.imgThumb);
             txtTenMon = itemView.findViewById(R.id.txtTenMon);
 
-            txtNote = itemView.findViewById(R.id.txtNote);
+            txtNote = itemView.findViewById(R. id.txtNote);
             txtQty = itemView.findViewById(R.id.txtQty);
-            txtPrice = itemView.findViewById(R.id.txtPrice);
-            txtTrangThai = itemView.findViewById(R.id.txtTrangThai);
+            txtPrice = itemView. findViewById(R.id.txtPrice);
+            txtTrangThai = itemView.findViewById(R. id.txtTrangThai);
 
-            btnDangLam = itemView.findViewById(R.id.btnDangLam);
+            btnDangLam = itemView.findViewById(R.id. btnDangLam);
             btnXongMon = itemView.findViewById(R.id.btnXongMon);
-            btnHetMon = itemView.findViewById(R.id.btnHetMon);
+            btnHetMon = itemView. findViewById(R.id.btnHetMon);
         }
 
         void setButtonsEnabled(boolean enabled) {
             btnDangLam.setEnabled(enabled);
-            btnXongMon.setEnabled(enabled);
+            btnXongMon. setEnabled(enabled);
             btnHetMon.setEnabled(enabled);
-            float alpha = enabled ? 1f : 0.5f;
+            float alpha = enabled ? 1f :  0.5f;
             btnDangLam.setAlpha(alpha);
             btnXongMon.setAlpha(alpha);
             btnHetMon.setAlpha(alpha);
