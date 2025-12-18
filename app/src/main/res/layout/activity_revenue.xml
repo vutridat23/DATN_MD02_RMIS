@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.coordinatorlayout.widget.CoordinatorLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F5F5F5"
-    android:fitsSystemWindows="true">
+    android:background="#FFFFFF">
 
+    <!-- Toolbar -->
     <com.google.android.material.appbar.AppBarLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="#AA0000"
         android:fitsSystemWindows="true"
         android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar">
 
@@ -17,9 +17,10 @@
             android:id="@+id/toolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
-            app:navigationIcon="@drawable/btn_back"
-            app:popupTheme="@style/ThemeOverlay.AppCompat.Light">
-
+            android:background="#B71C1C"
+            app:navigationIcon="?attr/homeAsUpIndicator"
+            app:navigationIconTint="#FFFFFF">
+            
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -31,6 +32,7 @@
         </androidx.appcompat.widget.Toolbar>
     </com.google.android.material.appbar.AppBarLayout>
 
+    <!-- Scrollable content -->
     <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -43,146 +45,101 @@
             android:orientation="vertical"
             android:padding="16dp">
 
+            <!-- Chọn ngày -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="16dp">
+
+                <EditText
+                    android:id="@+id/etFromDate"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:hint="Từ ngày"
+                    android:focusable="false"
+                    android:padding="8dp"/>
+
+                <View
+                    android:layout_width="8dp"
+                    android:layout_height="match_parent"/>
+
+                <EditText
+                    android:id="@+id/etToDate"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:hint="Đến ngày"
+                    android:focusable="false"
+                    android:padding="8dp"/>
+
+                <View
+                    android:layout_width="8dp"
+                    android:layout_height="match_parent"/>
+
+                <Button
+                    android:id="@+id/btnSearch"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Tìm"
+                    android:backgroundTint="#B71C1C"
+                    android:textColor="#FFFFFF"/>
+            </LinearLayout>
+
+            <!-- Thông tin tóm tắt -->
             <androidx.cardview.widget.CardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:cardBackgroundColor="#FFFFFF"
-                app:cardCornerRadius="12dp"
+                app:cardCornerRadius="8dp"
                 app:cardElevation="2dp"
+                app:cardUseCompatPadding="true"
                 android:layout_marginBottom="16dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:background="@color/white"
+
                     android:orientation="vertical"
                     android:padding="16dp">
 
                     <TextView
-                        android:text="Thời gian thống kê"
-                        android:textStyle="bold"
-                        android:textColor="#555555"
-                        android:layout_marginBottom="12dp"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"/>
-
-                    <LinearLayout
+                        android:id="@+id/tv_invoice_count"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:orientation="horizontal">
-
-                        <EditText
-                            android:id="@+id/etFromDate"
-                            android:layout_width="0dp"
-                            android:layout_height="48dp"
-                            android:layout_weight="1"
-                            android:hint="Từ ngày"
-                            android:textSize="14sp"
-                            android:background="@drawable/bg_edittext_bordered"
-                            android:drawableEnd="@drawable/baseline_calendar_today_24"
-                            android:drawableTint="#757575"
-                            android:paddingStart="12dp"
-                            android:paddingEnd="12dp"
-                            android:focusable="false"
-                            android:clickable="true" />
-
-                        <View android:layout_width="12dp" android:layout_height="match_parent"/>
-
-                        <EditText
-                            android:id="@+id/etToDate"
-                            android:layout_width="0dp"
-                            android:layout_height="48dp"
-                            android:layout_weight="1"
-                            android:hint="Đến ngày"
-                            android:textSize="14sp"
-                            android:background="@drawable/bg_edittext_bordered"
-                            android:drawableEnd="@drawable/baseline_calendar_today_24"
-                            android:drawableTint="#757575"
-                            android:paddingStart="12dp"
-                            android:paddingEnd="12dp"
-                            android:focusable="false"
-                            android:clickable="true" />
-                    </LinearLayout>
-
-                    <Button
-                        android:id="@+id/btnSearch"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:text="TRA CỨU DỮ LIỆU"
-                        android:textStyle="bold"
-                        android:textColor="#FFFFFF"
-                        android:backgroundTint="#AA0000"
-                        android:layout_marginTop="16dp"
-                        app:cornerRadius="8dp"/>
-                </LinearLayout>
-            </androidx.cardview.widget.CardView>
-
-            <androidx.cardview.widget.CardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="4dp"
-                app:cardBackgroundColor="#FFFFFF"
-                android:layout_marginBottom="24dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="24dp"
-                    android:gravity="center">
-
-                    <TextView
-                        android:text="TỔNG DOANH THU"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:textColor="#757575"
-                        android:textSize="12sp"
-                        android:textStyle="bold"
-                        android:letterSpacing="0.1"/>
+                        android:text="Số lượng hóa đơn: 0"
+                        android:textColor="#000000"
+                        android:background="@color/white"
+                        android:textSize="16sp"
+                        android:layout_marginBottom="8dp"/>
 
                     <TextView
                         android:id="@+id/tv_total_revenue"
-                        android:layout_width="wrap_content"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="0 VND"
-                        android:textColor="#AA0000"
-                        android:textSize="28sp"
-                        android:textStyle="bold"
-                        android:layout_marginTop="8dp"/>
-
-                    <View
-                        android:layout_width="40dp"
-                        android:layout_height="2dp"
-                        android:background="#F0F0F0"
-                        android:layout_marginTop="16dp"
-                        android:layout_marginBottom="16dp"/>
-
-                    <TextView
-                        android:id="@+id/tv_invoice_count"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Số lượng hóa đơn: 0"
-                        android:textColor="#333333"
-                        android:textSize="14sp"/>
+                        android:text="Tổng doanh thu: 0 VND"
+                        android:textColor="#000000"
+                        android:textSize="16sp"
+                        android:textStyle="bold"/>
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
+            <!-- Danh sách chi tiết báo cáo -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Chi tiết báo cáo"
-                android:textSize="16sp"
+                android:textSize="18sp"
                 android:textStyle="bold"
-                android:textColor="#333333"
-                android:layout_marginBottom="12dp"
-                android:layout_marginStart="4dp"/>
+                android:textColor="#B71C1C"
+                android:paddingBottom="8dp"/>
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/rvRevenueDetails"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:nestedScrollingEnabled="false"/>
-
+                android:layout_height="wrap_content"/>
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
