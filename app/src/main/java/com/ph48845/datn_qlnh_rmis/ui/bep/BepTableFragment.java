@@ -1,7 +1,7 @@
-package com.ph48845.datn_qlnh_rmis.ui.bep;
+package com.ph48845.datn_qlnh_rmis.ui. bep;
 
 import android.app.AlertDialog;
-import android.content.Intent;
+import android. content.Intent;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -12,7 +12,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
+import androidx.annotation. Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -22,12 +22,12 @@ import com.ph48845.datn_qlnh_rmis.data.model.Order;
 import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
 import com.ph48845.datn_qlnh_rmis.data.remote.ApiResponse;
 import com.ph48845.datn_qlnh_rmis.data.repository.OrderRepository;
-import com.ph48845.datn_qlnh_rmis.ui.bep.adapter.BepAdapter;
-import com.ph48845.datn_qlnh_rmis.ui.bep.adapter.OrderItemAdapter;
+import com. ph48845.datn_qlnh_rmis.ui.bep.adapter.BepAdapter;
+import com.ph48845.datn_qlnh_rmis.ui.bep. adapter.OrderItemAdapter;
 
 import org.json.JSONArray;
 import org.json.JSONException;
-import org.json.JSONObject;
+import org.json. JSONObject;
 
 import java.text.DecimalFormat;
 import java.util.ArrayList;
@@ -39,7 +39,7 @@ import retrofit2.Callback;
 import retrofit2.Response;
 
 /**
- * Left fragment: table list + per-table detail (in-place).
+ * Left fragment:  table list + per-table detail (in-place).
  */
 public class BepTableFragment extends Fragment {
 
@@ -85,14 +85,15 @@ public class BepTableFragment extends Fragment {
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         rvTables = view.findViewById(R.id.rv_bep_tables);
-        rvTables.setLayoutManager(new GridLayoutManager(requireContext(), 1));
+        // THAY ĐỔI:  Từ GridLayoutManager(1) thành GridLayoutManager(3) để hiển thị 3 bàn/hàng
+        rvTables.setLayoutManager(new GridLayoutManager(requireContext(), 3));
         tableAdapter = new BepAdapter(requireContext(), table -> {
             showTableDetail(table);
             if (listener != null) listener.onTableSelected(table);
         });
         rvTables.setAdapter(tableAdapter);
 
-        layoutDetail = view.findViewById(R.id.layout_table_detail);
+        layoutDetail = view.findViewById(R. id.layout_table_detail);
         tvDetailTitle = view.findViewById(R.id.tv_detail_title);
         btnBackDetail = view.findViewById(R.id.btn_back_detail);
         rvDetailOrders = view.findViewById(R.id.rv_table_orders);
@@ -108,13 +109,13 @@ public class BepTableFragment extends Fragment {
             if (order == null || item == null) return;
 
             String orderId = order.getId();
-            String itemId = item.getMenuItemId();
+            String itemId = item. getMenuItemId();
             if (orderId == null || orderId.trim().isEmpty() || itemId == null || itemId.trim().isEmpty()) {
                 if (getActivity() != null) Toast.makeText(getActivity(), "Không thể xác định order/item id", Toast.LENGTH_SHORT).show();
                 return;
             }
 
-            if (getActivity() != null) Toast.makeText(getActivity(), "Đang gửi yêu cầu cập nhật trạng thái...", Toast.LENGTH_SHORT).show();
+            if (getActivity() != null) Toast.makeText(getActivity(), "Đang gửi yêu cầu cập nhật trạng thái.. .", Toast.LENGTH_SHORT).show();
 
             // If user requests "preparing", consume ingredients first (server will deduct)
             if ("preparing".equals(newStatus)) {
@@ -129,7 +130,7 @@ public class BepTableFragment extends Fragment {
                     @Override
                     public void onResponse(Call<ApiResponse<Void>> call, Response<ApiResponse<Void>> response) {
                         try {
-                            if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
+                            if (response. isSuccessful() && response.body() != null && response.body().isSuccess()) {
                                 // proceed to update status
                                 orderRepository.updateOrderItemStatus(orderId, itemId, newStatus).enqueue(new retrofit2.Callback<Void>() {
                                     @Override
@@ -147,25 +148,25 @@ public class BepTableFragment extends Fragment {
                                                 Toast.makeText(getActivity(), "Bắt đầu làm món và trừ nguyên liệu thành công", Toast.LENGTH_SHORT).show();
                                             });
                                         } else {
-                                            getActivity().runOnUiThread(() -> Toast.makeText(getActivity(), "Cập nhật trạng thái thất bại: HTTP " + response.code(), Toast.LENGTH_LONG).show());
+                                            getActivity().runOnUiThread(() -> Toast.makeText(getActivity(), "Cập nhật trạng thái thất bại:  HTTP " + response.code(), Toast.LENGTH_LONG).show());
                                         }
                                     }
 
                                     @Override
                                     public void onFailure(retrofit2.Call<Void> call, Throwable t) {
                                         if (getActivity() == null) return;
-                                        getActivity().runOnUiThread(() -> Toast.makeText(getActivity(), "Lỗi mạng khi cập nhật trạng thái: " + (t.getMessage() != null ? t.getMessage() : ""), Toast.LENGTH_LONG).show());
+                                        getActivity().runOnUiThread(() -> Toast.makeText(getActivity(), "Lỗi mạng khi cập nhật trạng thái:  " + (t.getMessage() != null ? t.getMessage() : ""), Toast.LENGTH_LONG).show());
                                     }
                                 });
                                 return;
                             }
 
-                            // Handle consume failure: try to extract meaningful message / shortages
+                            // Handle consume failure:  try to extract meaningful message / shortages
                             String errBody = null;
                             if (response != null && response.errorBody() != null) {
                                 try { errBody = response.errorBody().string(); } catch (Exception ignored) { errBody = null; }
                             } else if (response != null && response.body() != null && response.body().getMessage() != null) {
-                                // uncommon: server returned 2xx but success=false
+                                // uncommon:  server returned 2xx but success=false
                                 showShortageDialog("Không thể trừ nguyên liệu", response.body().getMessage());
                                 return;
                             }
@@ -177,7 +178,7 @@ public class BepTableFragment extends Fragment {
                             }
                         } catch (Exception ex) {
                             Log.e(TAG, "consumeRecipe onResponse exception", ex);
-                            showShortageDialog("Lỗi", "Lỗi xử lý phản hồi từ server: " + ex.getMessage());
+                            showShortageDialog("Lỗi", "Lỗi xử lý phản hồi từ server:  " + ex.getMessage());
                         }
                     }
 
@@ -185,18 +186,18 @@ public class BepTableFragment extends Fragment {
                     public void onFailure(Call<ApiResponse<Void>> call, Throwable t) {
                         Log.e(TAG, "consumeRecipe onFailure", t);
                         if (getActivity() != null) getActivity().runOnUiThread(() ->
-                                showShortageDialog("Lỗi kết nối", "Không thể kết nối tới server: " + (t.getMessage() != null ? t.getMessage() : "")));
+                                showShortageDialog("Lỗi kết nối", "Không thể kết nối tới server:  " + (t.getMessage() != null ? t.getMessage() : "")));
                     }
                 });
             } else {
-                // other statuses: update directly
+                // other statuses:  update directly
                 orderRepository.updateOrderItemStatus(orderId, itemId, newStatus).enqueue(new retrofit2.Callback<Void>() {
                     @Override
                     public void onResponse(retrofit2.Call<Void> call, retrofit2.Response<Void> response) {
                         if (getActivity() == null) return;
                         if (response.isSuccessful()) {
                             // Cập nhật local model ngay để UI phản hồi tức thì
-                            item.setStatus(newStatus);
+                            item. setStatus(newStatus);
                             String ns = newStatus == null ? "" : newStatus.trim().toLowerCase();
                             if ("ready".equals(ns) || "soldout".equals(ns) || "done".equals(ns) || "completed".equals(ns)) {
                                 orderItemAdapter.clearStartTimeForItem(order, item);
@@ -214,7 +215,7 @@ public class BepTableFragment extends Fragment {
                     @Override
                     public void onFailure(retrofit2.Call<Void> call, Throwable t) {
                         if (getActivity() == null) return;
-                        getActivity().runOnUiThread(() -> Toast.makeText(getActivity(), "Lỗi mạng: " + (t.getMessage() != null ? t.getMessage() : ""), Toast.LENGTH_LONG).show());
+                        getActivity().runOnUiThread(() -> Toast.makeText(getActivity(), "Lỗi mạng:  " + (t.getMessage() != null ? t.getMessage() : ""), Toast.LENGTH_LONG).show());
                     }
                 });
             }
@@ -243,9 +244,9 @@ public class BepTableFragment extends Fragment {
         this.currentRemaining = remainingCounts;
         this.currentEarliest = earliestTs;
         this.perTableItems = perTableItems;
-        tableAdapter.updateList(this.currentTables, this.currentRemaining, this.currentEarliest);
+        tableAdapter.updateList(this.currentTables, this.currentRemaining, this. currentEarliest);
 
-        if (layoutDetail.getVisibility() == View.VISIBLE) {
+        if (layoutDetail. getVisibility() == View.VISIBLE) {
             String title = tvDetailTitle.getText() != null ? tvDetailTitle.getText().toString() : "";
             int shownTableNumber = parseTableNumberFromTitle(title);
             if (shownTableNumber > 0 && perTableItems != null && perTableItems.containsKey(shownTableNumber)) {
@@ -270,7 +271,7 @@ public class BepTableFragment extends Fragment {
         List<ItemWithOrder> items = perTableItems != null ? perTableItems.get(tn) : null;
         if (items == null) items = new ArrayList<>();
         orderItemAdapter.setItems(items);
-        layoutDetail.setVisibility(View.VISIBLE);
+        layoutDetail.setVisibility(View. VISIBLE);
         rvTables.setVisibility(View.GONE);
 
         // Start per-item timer when showing detail so countdown runs continuously (independent of socket)
@@ -278,8 +279,8 @@ public class BepTableFragment extends Fragment {
     }
 
     private void hideTableDetail() {
-        layoutDetail.setVisibility(View.GONE);
-        rvTables.setVisibility(View.VISIBLE);
+        layoutDetail.setVisibility(View. GONE);
+        rvTables.setVisibility(View. VISIBLE);
 
         // Stop timer to avoid leaking handler ticks when detail hidden
         orderItemAdapter.stopTimer();
@@ -296,7 +297,7 @@ public class BepTableFragment extends Fragment {
 
             StringBuilder details = new StringBuilder();
             if (shortages != null && shortages.length() > 0) {
-                for (int i = 0; i < shortages.length(); i++) {
+                for (int i = 0; i < shortages. length(); i++) {
                     JSONObject s = shortages.optJSONObject(i);
                     if (s == null) continue;
                     String name = s.optString("ingredientName", s.optString("ingredientId", "Unknown"));
@@ -346,7 +347,7 @@ public class BepTableFragment extends Fragment {
     }
     private String formatNumber(double v) {
         if (v == (long) v) return String.valueOf((long) v);
-        DecimalFormat df = new DecimalFormat("#.##");
+        DecimalFormat df = new DecimalFormat("#. ##");
         return df.format(v);
     }
 }
