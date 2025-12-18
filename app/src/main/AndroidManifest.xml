@@ -27,7 +27,7 @@
         android:usesCleartextTraffic="true">
         <activity
             android:name=".ui.thungan.thanhtoan.PaymentCardActivity"
-            android:exported="false" />
+            />
         <activity android:name=".ui.thungan.thanhtoan.ThanhToanActivity"/>
         <activity android:name=".ui.thungan.thanhtoan.QRPaymentActivity"/>
         <activity android:name=".ui.revenue.ReportActivity"/>
@@ -37,7 +37,7 @@
 
 <!--        <activity android:name=".ui.thanhtoan.ThanhToanActivity" />-->
 <!--        <activity android:name=".ui.thanhtoan.QRPaymentActivity" />-->
-        <activity android:name=".ui.revenue.ReportActivity" />
+
         <activity
             android:name=".ui.thungan.HistoryActivity"
             android:exported="false" />

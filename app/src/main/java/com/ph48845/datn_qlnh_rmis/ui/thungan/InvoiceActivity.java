@@ -2,6 +2,7 @@ package com.ph48845.datn_qlnh_rmis.ui.thungan;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -62,6 +63,9 @@ public class InvoiceActivity extends AppCompatActivity {
     private ProgressBar progressBar;
     private LinearLayout llOrderCards;
     private NestedScrollView scrollInvoice;
+    private Button btnProceedPayment;
+    private double orderTotal;
+
 
     private OrderRepository orderRepository;
     private MenuRepository menuRepository;
@@ -421,7 +425,7 @@ public class InvoiceActivity extends AppCompatActivity {
      */
     private void setupVoucherAndPaymentButton() {
         Button btnSelectVoucher = findViewById(R.id.btn_select_voucher);
-        Button btnProceedPayment = findViewById(R.id.btn_proceed_payment);
+        btnProceedPayment = findViewById(R.id.btn_proceed_payment);
 
         if (btnSelectVoucher != null) {
             btnSelectVoucher.setOnClickListener(v -> showVoucherSelectionDialog());
@@ -430,7 +434,19 @@ public class InvoiceActivity extends AppCompatActivity {
         }
 
         if (btnProceedPayment != null) {
-            btnProceedPayment.setOnClickListener(v -> processPaymentForAllOrders());
+            btnProceedPayment.setOnClickListener(v -> {
+                if (orders == null || orders.isEmpty()) {
+                    Toast.makeText(this, "Không có hóa đơn", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+
+                int unreadyCount = countUnreadyItemsForAllOrders(orders);
+
+                handlePaymentWithConfirm(unreadyCount, () -> {
+                    processPaymentForAllOrders(); // giữ nguyên voucher
+                });
+            });
+
         }
     }
 
@@ -673,6 +689,7 @@ public class InvoiceActivity extends AppCompatActivity {
     /**
      * Refresh lại card của một order để cập nhật tổng tiền sau khi chọn voucher
      */
+
     private void refreshOrderCard(Order order) {
         if (order == null || order.getId() == null) {
             return;
@@ -701,7 +718,7 @@ public class InvoiceActivity extends AppCompatActivity {
         }
 
         // Tính lại tổng tiền với voucher
-        double orderTotal = order.getTotalAmount();
+        orderTotal = order.getTotalAmount();
         if (orderTotal <= 0) {
             // Nếu totalAmount = 0, tính từ finalAmount + discount mặc định
             double defaultDiscount = order.getDiscount();
@@ -1325,23 +1342,21 @@ public class InvoiceActivity extends AppCompatActivity {
         double totalOrderVoucherDiscount = 0.0;
 
         for (Order order : orders) {
-            if (order != null) {
-                double orderTotal = order.getTotalAmount();
-                if (orderTotal <= 0) {
-                    // Nếu totalAmount = 0, tính từ finalAmount + discount mặc định
-                    double defaultDiscount = order.getDiscount();
-                    orderTotal = order.getFinalAmount() + defaultDiscount;
-                }
-                totalBeforeVoucher += orderTotal;
+            if (order == null || order.getId() == null) continue;
 
-                // Tính discount từ voucher của order này (nếu có)
-                Voucher orderVoucher = orderVoucherMap.get(order.getId());
-                if (orderVoucher != null && orderVoucher.canApply()) {
-                    double orderVoucherDiscount = orderVoucher.calculateDiscount(orderTotal);
-                    totalOrderVoucherDiscount += orderVoucherDiscount;
-                }
+            double orderTotal = order.getTotalAmount();
+            if (orderTotal <= 0) {
+                orderTotal = order.getFinalAmount() + order.getDiscount();
+            }
+
+            totalBeforeVoucher += orderTotal;
+
+            Voucher orderVoucher = orderVoucherMap.get(order.getId());
+            if (orderVoucher != null && orderVoucher.canApply()) {
+                totalOrderVoucherDiscount += orderVoucher.calculateDiscount(orderTotal);
             }
         }
+
 
         // Áp dụng voucher chung nếu có (ưu tiên voucher chung)
         double discount = totalOrderVoucherDiscount; // Bắt đầu từ discount của các order
@@ -1631,13 +1646,30 @@ public class InvoiceActivity extends AppCompatActivity {
                         case 2:
                             printTemporaryBillForOrder(order);
                             break;
-                        case 3:
-                            // Chuyển sang màn hình thanh toán
-                            Intent intent = new Intent(InvoiceActivity.this, ThanhToanActivity.class);
-                            intent.putExtra("orderId", order.getId());
-                            intent.putExtra("tableNumber", tableNumber);
-                            startActivity(intent);
+                        case 3: // Thanh toán
+                            // Kiểm tra có voucher cho order hoặc voucher chung không
+                            Voucher orderVoucher = orderVoucherMap.get(order.getId());
+                            boolean hasVoucher =
+                                    (orderVoucher != null && orderVoucher.canApply())
+                                            || (selectedVoucher != null && selectedVoucher.canApply());
+
+                            if (hasVoucher) {
+                                // Có voucher → dùng luồng btnProceedPayment
+                                if (btnProceedPayment != null) {
+                                    btnProceedPayment.performClick();
+                                } else {
+                                    Toast.makeText(this, "Không tìm thấy nút thanh toán", Toast.LENGTH_SHORT).show();
+                                }
+                            } else {
+                                // Không có voucher → dùng luồng cũ
+                                handlePayment(order);
+                            }
                             break;
+
+
+
+
+
                         case 4:
                             requestCheckItemsForOrder(order);
                             break;
@@ -2797,6 +2829,16 @@ public class InvoiceActivity extends AppCompatActivity {
         }
         return count;
     }
+    private int countUnreadyItemsForAllOrders(List<Order> orders) {
+        if (orders == null) return 0;
+
+        int total = 0;
+        for (Order order : orders) {
+            total += countUnreadyItems(order);
+        }
+        return total;
+    }
+
 
 
     private void handlePayment(Order order) {
@@ -2816,6 +2858,7 @@ public class InvoiceActivity extends AppCompatActivity {
         // ⚠️ CÒN MÓN CHƯA LÊN → HỎI XÁC NHẬN
         showPendingItemsPaymentDialog(order, unreadyCount);
     }
+
 
     private void showPendingItemsPaymentDialog(Order order, int unreadyCount) {
         new AlertDialog.Builder(this)
@@ -2857,10 +2900,30 @@ public class InvoiceActivity extends AppCompatActivity {
         }
         return readyItems;
     }
+    private void handlePaymentWithConfirm(
+            int unreadyCount,
+            Runnable onConfirmPayment
+    ) {
+        if (unreadyCount == 0) {
+            onConfirmPayment.run();
+            return;
+        }
+
+        // Dialog xác nhận
+        new AlertDialog.Builder(this)
+                .setTitle("Xác nhận thanh toán")
+                .setMessage("Còn " + unreadyCount + " món chưa lên. Bạn vẫn muốn thanh toán?")
+                .setPositiveButton("Thanh toán", (dialog, which) -> {
+                    onConfirmPayment.run();
+                })
+                .setNegativeButton("Hủy", null)
+                .show();
+    }
+
 
 
 }
 
-}
+
 
 
