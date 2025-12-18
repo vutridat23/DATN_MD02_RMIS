@@ -1,14 +1,14 @@
 package com.ph48845.datn_qlnh_rmis.data.remote;
 
-import com.ph48845.datn_qlnh_rmis.data.model.HistoryItem;
-import com.ph48845.datn_qlnh_rmis.data.model.Ingredient;
+import com.ph48845.datn_qlnh_rmis.data.model. HistoryItem;
+import com.ph48845.datn_qlnh_rmis.data.model. Ingredient;
 import com.ph48845.datn_qlnh_rmis.data.model.LoginResponse;
 import com.ph48845.datn_qlnh_rmis.data.model.MenuItem;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
 import com.ph48845.datn_qlnh_rmis.data.model.ReportItem;
 import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
-import com.ph48845.datn_qlnh_rmis.data.model.User;
-import com.ph48845.datn_qlnh_rmis.data.model.Voucher;
+import com.ph48845.datn_qlnh_rmis.data.model. User;
+import com.ph48845.datn_qlnh_rmis.data.model. Voucher;
 
 import java.util.List;
 import java.util.Map;
@@ -25,10 +25,8 @@ import retrofit2.http.Query;
 import retrofit2.http.QueryMap;
 
 /**
- * ApiService: Gộp tất cả endpoint cũ.
- * Nhóm rõ ràng theo module: User / Menu / Order / Table / Ingredient / History / Report
- *
- * LƯU Ý: file này bao gồm cả các endpoint mới như recipes/consume (client giả định).
+ * ApiService:  Gộp tất cả endpoint
+ * Chiến lược: Giữ nguyên return types cũ, chỉ wrap ApiResponse cho endpoints MỚI
  */
 public interface ApiService {
 
@@ -38,15 +36,14 @@ public interface ApiService {
     @GET("users")
     Call<ApiResponse<List<User>>> getAllUsers();
 
-    // login: gửi User (username/password) và nhận LoginResponse
     @POST("/users/login")
     Call<LoginResponse> login(@Body User user);
 
     @POST("users")
-    Call<User> createUser(@Body User user);
+    Call<ApiResponse<User>> createUser(@Body User user);
 
     @PUT("users/{id}")
-    Call<User> updateUser(@Path("id") String userId, @Body User user);
+    Call<ApiResponse<User>> updateUser(@Path("id") String userId, @Body User user);
 
     // ===========================
     // --- MENU ITEM ENDPOINTS ---
@@ -55,10 +52,10 @@ public interface ApiService {
     Call<ApiResponse<List<MenuItem>>> getAllMenuItems();
 
     @POST("menu")
-    Call<MenuItem> createMenuItem(@Body MenuItem menuItem);
+    Call<ApiResponse<MenuItem>> createMenuItem(@Body MenuItem menuItem);
 
     @DELETE("menu/{id}")
-    Call<Void> deleteMenuItem(@Path("id") String itemId);
+    Call<ApiResponse<Void>> deleteMenuItem(@Path("id") String itemId);
 
     // ===========================
     // --- ORDER ENDPOINTS ---
@@ -85,8 +82,11 @@ public interface ApiService {
     Call<ApiResponse<Order>> updateOrderStatus(@Path("id") String orderId, @Body Map<String, Object> newStatusBody);
 
     @DELETE("orders/{id}")
-    Call<Void> deleteOrder(@Path("id") String orderId);
+    Call<ApiResponse<Void>> deleteOrder(@Path("id") String orderId);
 
+    /**
+     * GIỮ NGUYÊN Call<Void> - không ảnh hưởng code cũ
+     */
     @PATCH("orders/{orderId}/items/{itemId}/status")
     Call<Void> updateOrderItemStatus(
             @Path("orderId") String orderId,
@@ -101,8 +101,30 @@ public interface ApiService {
             @Body Map<String, Object> body
     );
 
-    @POST("orders/{id}/request-temp-calculation")
-    Call<ApiResponse<Order>> requestTempCalculation(@Path("id") String orderId, @Body Map<String, Object> body);
+    /**
+     * YÊU CẦU TẠM TÍNH - orderId trong URL path
+     * POST /orders/{orderId}/request-temp-calculation
+     * Body: { requestedBy, requestedByName }
+     */
+    @POST("orders/{orderId}/request-temp-calculation")
+    Call<ApiResponse<Order>> requestTempCalculation(
+            @Path("orderId") String orderId,
+            @Body Map<String, Object> body
+    );
+
+    /**
+     * DI CHUYỂN TẤT CẢ ORDERS SANG BÀN KHÁC (không tách hóa đơn)
+     * POST /orders/move-to-table
+     * Body: { fromTableNumber, toTableNumber, movedBy }
+     */
+    @POST("orders/move-to-table")
+    Call<ApiResponse<Map<String, Object>>> moveOrdersToTable(@Body Map<String, Object> body);
+
+    /**
+     * YÊU CẦU KIỂM TRA BÀN - MỚI (dùng ApiResponse)
+     */
+    @POST("tables/request-check")
+    Call<ApiResponse<Void>> requestTableCheck(@Body Map<String, Object> body);
 
     // ===========================
     // pay endpoint
@@ -112,18 +134,37 @@ public interface ApiService {
 
     // ===========================
     // --- TABLE ENDPOINTS ---
+    // GIỮ NGUYÊN Call<TableItem> cho tất cả
     // ===========================
     @GET("tables")
     Call<ApiResponse<List<TableItem>>> getAllTables();
 
+    @GET("tables/{id}")
+    Call<ApiResponse<TableItem>> getTableById(@Path("id") String tableId);
+
+    /**
+     * GIỮ NGUYÊN Call<TableItem>
+     */
     @PUT("tables/{id}")
     Call<TableItem> updateTable(@Path("id") String tableId, @Body Map<String, Object> updates);
 
+    /**
+     * GIỮ NGUYÊN Call<TableItem>
+     */
     @POST("tables/{id}/merge")
     Call<TableItem> mergeTable(@Path("id") String targetTableId, @Body Map<String, String> body);
 
+    /**
+     * GIỮ NGUYÊN Call<TableItem>
+     */
     @POST("tables/{id}/reserve")
     Call<TableItem> reserveTable(@Path("id") String id, @Body Map<String, Object> body);
+
+    /**
+     * TÁCH BÀN KHÔNG TÁCH HÓA ĐƠN - MỚI (dùng ApiResponse)
+     */
+    @POST("tables/{sourceTableId}/split-table-only")
+    Call<ApiResponse<Void>> splitTableOnly(@Path("sourceTableId") String sourceTableId, @Body Map<String, Object> body);
 
     // ===========================
     // --- INGREDIENT ENDPOINTS ---
@@ -134,9 +175,6 @@ public interface ApiService {
     @POST("ingredients/{id}/take")
     Call<ApiResponse<Ingredient>> takeIngredient(@Path("id") String ingredientId, @Body Map<String, Object> body);
 
-    // ===========================
-    // --- RECIPES / CONSUME (NEW) ---
-    // POST to ask server to deduct ingredient stock according to recipe for a menuItem
     @POST("recipes/consume")
     Call<ApiResponse<Void>> consumeRecipe(@Body Map<String, Object> body);
 

@@ -1,22 +1,22 @@
-package com.ph48845.datn_qlnh_rmis.ui;
+package com.ph48845.datn_qlnh_rmis. ui;
 
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.os.Build;
 import android.text.SpannableString;
-import android.text.style.RelativeSizeSpan;
+import android. text.style.RelativeSizeSpan;
 import android.util.Log;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.ImageView;
-import android.widget.ProgressBar;
+import android.widget. ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.widget.Toolbar;
-import androidx.core.view.GravityCompat;
+import androidx. core.view.GravityCompat;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
@@ -30,31 +30,30 @@ import com.ph48845.datn_qlnh_rmis.data.model.Order;
 import com.ph48845.datn_qlnh_rmis.ui.phucvu.adapter.TableAdapter;
 import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
 import com.ph48845.datn_qlnh_rmis.data.repository.OrderRepository;
-import com.ph48845.datn_qlnh_rmis.data.repository.TableRepository;
+import com. ph48845.datn_qlnh_rmis.data. repository.TableRepository;
 import com.ph48845.datn_qlnh_rmis.ui.phucvu.OrderActivity;
 import com.ph48845.datn_qlnh_rmis.ui.table.MergeManager;
 import com.ph48845.datn_qlnh_rmis.ui.table.ReservationHelper;
 import com.ph48845.datn_qlnh_rmis.ui.table.TableActionsHandler;
 import com.ph48845.datn_qlnh_rmis.ui.table.TransferManager;
-import com.ph48845.datn_qlnh_rmis.ui.table.TemporaryBillDialogFragment;
+import com.ph48845.datn_qlnh_rmis.ui.table. TemporaryBillDialogFragment;
 import com.ph48845.datn_qlnh_rmis.ui.phucvu.socket.SocketManager;
 
 import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
+import java.util. Comparator;
 import java.util.List;
-import java.util.Locale;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util. Locale;
+import java.util. regex.Matcher;
+import java. util.regex.Pattern;
 
 /**
- * MainActivity (rút gọn): setup UI, load data and listen for socket table events.
- *
- * IMPORTANT: This version delegates the popup menu handling to TableActionsHandler.
- * - onTableLongClick -> tableActionsHandler.showTableActionsMenuForLongPress(...)
- * Other features unchanged.
+ * MainActivity với:
+ * - Socket listener cho table updates VÀ order updates
+ * - Tự động refresh khi có thay đổi từ thu ngân
+ * ✅ FIX: Luôn hiển thị danh sách order khi click vào bàn (dù bàn trống hay có khách)
  */
 public class MainActivity extends BaseMenuActivity {
 
@@ -76,7 +75,6 @@ public class MainActivity extends BaseMenuActivity {
     NavigationView navigationView;
 
     private SocketManager socketManager;
-    // Default socket URL: your server IP
     private String defaultSocketUrl = "http://192.168.1.84:3000";
 
     @Override
@@ -84,10 +82,9 @@ public class MainActivity extends BaseMenuActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // views
-        progressBar = findViewById(R.id.progress_bar_loading);
-        rvFloor1 = findViewById(R.id.recycler_floor1);
-        rvFloor2 = findViewById(R.id.recycler_floor2);
+        progressBar = findViewById(R.id. progress_bar_loading);
+        rvFloor1 = findViewById(R.id. recycler_floor1);
+        rvFloor2 = findViewById(R.id. recycler_floor2);
 
         rvFloor1.setLayoutManager(new GridLayoutManager(this, 3));
         rvFloor2.setLayoutManager(new GridLayoutManager(this, 3));
@@ -96,10 +93,9 @@ public class MainActivity extends BaseMenuActivity {
 
         drawerLayout = findViewById(R.id.drawerLayout_order);
         Toolbar toolbar = findViewById(R.id.toolbar);
-        navigationView = findViewById(R.id.navigationView_order);
+        navigationView = findViewById(R.id. navigationView_order);
 
-
-        ImageView navIcon = findViewById(R.id.nav_icon);
+        ImageView navIcon = findViewById(R.id. nav_icon);
         if (navIcon != null && drawerLayout != null) {
             navIcon.setOnClickListener(v -> drawerLayout.openDrawer(GravityCompat.START));
         }
@@ -108,24 +104,23 @@ public class MainActivity extends BaseMenuActivity {
             toolbar.setNavigationOnClickListener(v -> drawerLayout.openDrawer(GravityCompat.START));
         }
 
-        // navigation menu style
         if (navigationView != null) {
             try {
                 for (int i = 0; i < navigationView.getMenu().size(); i++) {
                     MenuItem menuItem = navigationView.getMenu().getItem(i);
                     SpannableString spanString = new SpannableString(menuItem.getTitle().toString());
-                    spanString.setSpan(new RelativeSizeSpan(1.1f), 0, spanString.length(), 0);
+                    spanString. setSpan(new RelativeSizeSpan(1.1f), 0, spanString.length(), 0);
                     menuItem.setTitle(spanString);
                 }
             } catch (Exception e) {
-                Log.w(TAG, "Unable to modify navigation menu items: " + e.getMessage(), e);
+                Log. w(TAG, "Unable to modify navigation menu items:  " + e.getMessage(), e);
             }
 
             navigationView.setNavigationItemSelectedListener(item -> {
                 int id = item.getItemId();
                 if (id == R.id.nav_mood) {
                     showMoodDialog();
-                } else if (id == R.id.nav_contact) {
+                } else if (id == R.id. nav_contact) {
                     showContactDialog();
                 } else if (id == R.id.nav_logout) {
                     logout();
@@ -134,7 +129,7 @@ public class MainActivity extends BaseMenuActivity {
                 return true;
             });
         } else {
-            Log.w(TAG, "navigationView is null - check activity_main.xml: id should be navigationView_order");
+            Log.w(TAG, "navigationView is null");
         }
 
         updateNavHeaderInfo();
@@ -147,34 +142,29 @@ public class MainActivity extends BaseMenuActivity {
         reservationHelper = new ReservationHelper(this, tableRepository, progressBar);
         tableActionsHandler = new TableActionsHandler(this, transferManager, mergeManager, reservationHelper);
 
-        // register temporary bill handler
         tableActionsHandler.setTemporaryBillRequester(table -> {
             if (table == null) return;
             TemporaryBillDialogFragment f = TemporaryBillDialogFragment.newInstance(table, updatedOrder -> fetchTablesFromServer());
             f.show(getSupportFragmentManager(), "tempBill");
         });
 
-        // adapters and helpers
-        TableAdapter.OnTableClickListener listener = new TableAdapter.OnTableClickListener() {
+        TableAdapter. OnTableClickListener listener = new TableAdapter.OnTableClickListener() {
             @Override
             public void onTableClick(View v, TableItem table) {
                 if (table == null) return;
                 Intent intent = new Intent(MainActivity.this, OrderActivity.class);
                 intent.putExtra("tableId", table.getId());
                 intent.putExtra("tableNumber", table.getTableNumber());
-                boolean isCustomerPresent = false;
-                try {
-                    TableItem.Status st = table.getStatus();
-                    if (st == TableItem.Status.OCCUPIED || st == TableItem.Status.PENDING_PAYMENT) isCustomerPresent = true;
-                } catch (Exception ignored) {}
-                intent.putExtra("forceShowOrders", isCustomerPresent);
+
+                // ✅ THAY ĐỔI:  LUÔN LUÔN hiển thị danh sách order (dù bàn trống hay có món)
+                intent.putExtra("forceShowOrders", true);
+
                 startActivity(intent);
             }
 
             @Override
             public void onTableLongClick(View v, TableItem table) {
                 if (table == null) return;
-                // Delegate to TableActionsHandler which shows the popup and calls managers
                 tableActionsHandler.showTableActionsMenuForLongPress(v, table);
             }
         };
@@ -184,33 +174,50 @@ public class MainActivity extends BaseMenuActivity {
         rvFloor1.setAdapter(adapterFloor1);
         rvFloor2.setAdapter(adapterFloor2);
 
-        // Determine socket URL (intent override possible)
         String socketUrl = getIntent().getStringExtra("socketUrl");
         if (socketUrl == null || socketUrl.trim().isEmpty()) socketUrl = defaultSocketUrl;
 
-        // If running on emulator, try the special emulator host (10.0.2.2)
         if (isProbablyEmulator()) {
             try {
                 String replaced = replaceHostForEmulator(socketUrl);
                 Log.i(TAG, "Emulator detected - using socket URL: " + replaced + " (original: " + socketUrl + ")");
                 socketUrl = replaced;
             } catch (Exception e) {
-                Log.w(TAG, "Failed to adapt socketUrl for emulator: " + e.getMessage(), e);
+                Log.w(TAG, "Failed to adapt socketUrl for emulator:  " + e.getMessage(), e);
             }
         } else {
             Log.i(TAG, "Using socket URL: " + socketUrl);
         }
 
-        // Initialize socket to receive live table updates
         try {
             socketManager = SocketManager.getInstance();
             socketManager.init(socketUrl);
             socketManager.setOnEventListener(new SocketManager.OnEventListener() {
-                @Override public void onOrderCreated(JSONObject payload) {}
-                @Override public void onOrderUpdated(JSONObject payload) {}
-                @Override public void onConnect() { Log.d(TAG, "socket connected (main)"); }
-                @Override public void onDisconnect() { Log.d(TAG, "socket disconnected (main)"); }
-                @Override public void onError(Exception e) { Log.w(TAG, "socket error (main): " + (e != null ? e.getMessage() : "null")); }
+                @Override
+                public void onOrderCreated(JSONObject payload) {
+                    runOnUiThread(() -> fetchTablesFromServer());
+                }
+
+                @Override
+                public void onOrderUpdated(JSONObject payload) {
+                    runOnUiThread(() -> fetchTablesFromServer());
+                }
+
+                @Override
+                public void onConnect() {
+                    Log. d(TAG, "socket connected (main)");
+                }
+
+                @Override
+                public void onDisconnect() {
+                    Log. d(TAG, "socket disconnected (main)");
+                }
+
+                @Override
+                public void onError(Exception e) {
+                    Log. w(TAG, "socket error (main): " + (e != null ? e.getMessage() : "null"));
+                }
+
                 @Override
                 public void onTableUpdated(JSONObject payload) {
                     if (payload != null) {
@@ -222,7 +229,7 @@ public class MainActivity extends BaseMenuActivity {
                             final int shownNum = tblNum;
                             runOnUiThread(() -> {
                                 try {
-                                    String msg = "Bàn " + (shownNum > 0 ? shownNum : "") + " đã tự động hủy đặt trước.";
+                                    String msg = "Bàn " + (shownNum > 0 ? shownNum : "") + " đã tự động hủy đặt trước. ";
                                     new AlertDialog.Builder(MainActivity.this)
                                             .setTitle("Thông báo")
                                             .setMessage(msg)
@@ -233,24 +240,22 @@ public class MainActivity extends BaseMenuActivity {
                                             })
                                             .show();
                                 } catch (Exception ex) {
-                                    Log.w(TAG, "show auto-release dialog failed", ex);
+                                    Log. w(TAG, "show auto-release dialog failed", ex);
                                     fetchTablesFromServer();
                                 }
                             });
                             return;
                         }
                     }
-                    // default: refresh list
                     runOnUiThread(() -> fetchTablesFromServer());
                 }
             });
             socketManager.connect();
         } catch (Exception e) {
-            Log.w(TAG, "Failed to init socket in MainActivity: " + e.getMessage(), e);
+            Log.w(TAG, "Failed to init socket in MainActivity:  " + e.getMessage(), e);
         }
-        applyNavigationViewInsets();
 
-        // initial load
+        applyNavigationViewInsets();
         fetchTablesFromServer();
     }
 
@@ -258,20 +263,16 @@ public class MainActivity extends BaseMenuActivity {
         if (navigationView == null) return;
 
         ViewCompat.setOnApplyWindowInsetsListener(navigationView, (view, insets) -> {
-
-            int statusBar = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top;
-
-            // Lấy header của NavigationView
+            int statusBar = insets.getInsets(WindowInsetsCompat. Type.statusBars()).top;
             View header = navigationView.getHeaderView(0);
             if (header != null) {
                 header.setPadding(
                         header.getPaddingLeft(),
-                        statusBar,   // ĐẨY XUỐNG ĐỂ TRÁNH DÍNH STATUS BAR
+                        statusBar,
                         header.getPaddingRight(),
                         header.getPaddingBottom()
                 );
             }
-
             return insets;
         });
     }
@@ -298,7 +299,7 @@ public class MainActivity extends BaseMenuActivity {
             else newUrl = scheme + "://" + newHost + path + query;
             return newUrl;
         } catch (Exception e) {
-            if (url.startsWith("http://localhost")) return url.replace("localhost", "10.0.2.2");
+            if (url.startsWith("http://localhost")) return url. replace("localhost", "10.0.2.2");
             if (url.startsWith("http://127.0.0.1")) return url.replace("127.0.0.1", "10.0.2.2");
             return url;
         }
@@ -306,7 +307,7 @@ public class MainActivity extends BaseMenuActivity {
 
     private void updateNavHeaderInfo() {
         if (navigationView == null) {
-            Log.w(TAG, "updateNavHeaderInfo: navigationView is null, skip updating header");
+            Log.w(TAG, "updateNavHeaderInfo: navigationView is null");
             return;
         }
 
@@ -317,8 +318,8 @@ public class MainActivity extends BaseMenuActivity {
                 return;
             }
 
-            TextView tvName = headerView.findViewById(R.id.textViewName);
-            TextView tvRole = headerView.findViewById(R.id.textViewRole);
+            TextView tvName = headerView.findViewById(R. id.textViewName);
+            TextView tvRole = headerView.findViewById(R. id.textViewRole);
 
             SharedPreferences prefs = getSharedPreferences("RestaurantPrefs", MODE_PRIVATE);
 
@@ -334,7 +335,7 @@ public class MainActivity extends BaseMenuActivity {
 
     private String getVietnameseRole(String roleKey) {
         if (roleKey == null) return "";
-        switch (roleKey.toLowerCase()) {
+        switch (roleKey. toLowerCase()) {
             case "cashier":
                 return "Thu ngân";
             case "manager":
@@ -362,7 +363,7 @@ public class MainActivity extends BaseMenuActivity {
 
     public void fetchTablesFromServer() {
         if (progressBar != null) progressBar.setVisibility(ProgressBar.VISIBLE);
-        tableRepository.getAllTables(new TableRepository.RepositoryCallback<List<TableItem>>() {
+        tableRepository.getAllTables(new TableRepository. RepositoryCallback<List<TableItem>>() {
             @Override
             public void onSuccess(List<TableItem> result) {
                 runOnUiThread(() -> {
@@ -387,7 +388,7 @@ public class MainActivity extends BaseMenuActivity {
                         if (a == null) return 1;
                         if (b == null) return -1;
                         try { return Integer.compare(a.getTableNumber(), b.getTableNumber()); }
-                        catch (Exception e) { return String.valueOf(a.getTableNumber()).compareTo(String.valueOf(b.getTableNumber())); }
+                        catch (Exception e) { return String.valueOf(a.getTableNumber()).compareTo(String.valueOf(b. getTableNumber())); }
                     };
                     Collections.sort(floor1, byNumber);
                     Collections.sort(floor2, byNumber);
@@ -405,7 +406,7 @@ public class MainActivity extends BaseMenuActivity {
             public void onError(String message) {
                 runOnUiThread(() -> {
                     if (progressBar != null) progressBar.setVisibility(ProgressBar.GONE);
-                    Toast.makeText(MainActivity.this, "Lỗi tải danh sách bàn: " + message, Toast.LENGTH_LONG).show();
+                    Toast.makeText(MainActivity.this, "Lỗi tải danh sách bàn:  " + message, Toast.LENGTH_LONG).show();
                 });
             }
         });
@@ -429,7 +430,7 @@ public class MainActivity extends BaseMenuActivity {
             public void onSuccess(List<Order> orders) {
                 final java.util.Set<Integer> occupiedTableNumbers = new java.util.HashSet<>();
                 if (orders != null) {
-                    for (Order o : orders) if (o != null) occupiedTableNumbers.add(o.getTableNumber());
+                    for (Order o : orders) if (o != null) occupiedTableNumbers.add(o. getTableNumber());
                 }
                 List<TableItem> toUpdate = new ArrayList<>();
                 final List<String> desired = new ArrayList<>();
@@ -439,8 +440,8 @@ public class MainActivity extends BaseMenuActivity {
                     try { isReserved = t.getStatus() == TableItem.Status.RESERVED; } catch (Exception ignored) {}
                     if (isReserved) continue;
                     String cur = t.getStatus() != null ? t.getStatus().name().toLowerCase() : "";
-                    String want = occupiedTableNumbers.contains(t.getTableNumber()) ? "occupied" : "available";
-                    if (!cur.equals(want)) { toUpdate.add(t); desired.add(want); }
+                    String want = occupiedTableNumbers.contains(t. getTableNumber()) ? "occupied" : "available";
+                    if (! cur.equals(want)) { toUpdate.add(t); desired.add(want); }
                 }
                 if (toUpdate.isEmpty()) return;
                 final int total = toUpdate.size();
@@ -448,7 +449,7 @@ public class MainActivity extends BaseMenuActivity {
                 for (int i = 0; i < toUpdate.size(); i++) {
                     TableItem ti = toUpdate.get(i);
                     String want = desired.get(i);
-                    tableRepository.updateTableStatus(ti.getId(), want, new TableRepository.RepositoryCallback<TableItem>() {
+                    tableRepository.updateTableStatus(ti.getId(), want, new TableRepository. RepositoryCallback<TableItem>() {
                         @Override
                         public void onSuccess(TableItem updated) { finished[0]++; if (finished[0] >= total) runOnUiThread(() -> fetchTablesFromServer()); }
                         @Override
