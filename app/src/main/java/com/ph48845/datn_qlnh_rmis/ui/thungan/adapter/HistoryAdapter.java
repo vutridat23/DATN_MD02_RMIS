@@ -67,6 +67,16 @@ public class HistoryAdapter extends RecyclerView.Adapter<HistoryAdapter.HistoryV
         } else {
             holder.tvTotal.setText("0 đ");
         }
+
+        // 6. Click để xem chi tiết món ăn
+        holder.itemView.setOnClickListener(v -> {
+            if (item.getItems() != null && !item.getItems().isEmpty()) {
+                showOrderDetailsDialog(v.getContext(), item);
+            } else {
+                android.widget.Toast
+                        .makeText(v.getContext(), "Không có chi tiết món ăn", android.widget.Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
     @Override
@@ -89,9 +99,49 @@ public class HistoryAdapter extends RecyclerView.Adapter<HistoryAdapter.HistoryV
         }
     }
 
+    // Hiển thị dialog chi tiết món ăn
+    private void showOrderDetailsDialog(android.content.Context context, HistoryItem item) {
+        androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(context);
+        builder.setTitle("Chi tiết hóa đơn #"
+                + (item.getId() != null ? item.getId().substring(Math.max(0, item.getId().length() - 6)) : ""));
+
+        // Tạo nội dung hiển thị
+        StringBuilder details = new StringBuilder();
+        details.append("Bàn: ").append(item.getTableNumber() != null ? item.getTableNumber() : "Mang về").append("\n");
+        details.append("Ngày: ").append(formatDate(item.getCreatedAt())).append("\n\n");
+        details.append("DANH SÁCH MÓN ĂN:\n");
+        details.append("─────────────────────\n");
+
+        NumberFormat vnFormat = NumberFormat.getInstance(new Locale("vi", "VN"));
+
+        if (item.getItems() != null) {
+            for (HistoryItem.OrderItemDetail orderItem : item.getItems()) {
+                String dishName = orderItem.getDishName() != null ? orderItem.getDishName() : "Món ăn";
+                int quantity = orderItem.getQuantity();
+                double price = orderItem.getPrice();
+                double subtotal = quantity * price;
+
+                details.append(String.format("• %s\n", dishName));
+                details.append(String.format("  %d x %s đ = %s đ\n\n",
+                        quantity,
+                        vnFormat.format(price),
+                        vnFormat.format(subtotal)));
+            }
+        }
+
+        details.append("─────────────────────\n");
+        details.append(String.format("TỔNG CỘNG: %s đ",
+                vnFormat.format(item.getTotalAmount() != null ? item.getTotalAmount() : 0)));
+
+        builder.setMessage(details.toString());
+        builder.setPositiveButton("Đóng", (dialog, which) -> dialog.dismiss());
+        builder.create().show();
+    }
+
     // Hàm format ngày tháng chuẩn
     private String formatDate(String isoDate) {
-        if (isoDate == null || isoDate.isEmpty()) return "---";
+        if (isoDate == null || isoDate.isEmpty())
+            return "---";
         try {
             // Định dạng đầu vào từ Server (thường là ISO 8601)
             SimpleDateFormat isoFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.getDefault());

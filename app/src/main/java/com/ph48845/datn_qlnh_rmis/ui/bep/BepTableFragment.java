@@ -1,8 +1,10 @@
-package com.ph48845.datn_qlnh_rmis.ui.bep;
+package com.ph48845.datn_qlnh_rmis.ui. bep;
 
 import android.app.AlertDialog;
-import android.content.Intent;
+import android. content.Intent;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -12,7 +14,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
+import androidx.annotation. Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -22,28 +24,32 @@ import com.ph48845.datn_qlnh_rmis.data.model.Order;
 import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
 import com.ph48845.datn_qlnh_rmis.data.remote.ApiResponse;
 import com.ph48845.datn_qlnh_rmis.data.repository.OrderRepository;
-import com.ph48845.datn_qlnh_rmis.ui.bep.adapter.BepAdapter;
-import com.ph48845.datn_qlnh_rmis.ui.bep.adapter.OrderItemAdapter;
+import com. ph48845.datn_qlnh_rmis.ui.bep.adapter.BepAdapter;
+import com.ph48845.datn_qlnh_rmis.ui.bep. adapter.OrderItemAdapter;
 
 import org.json.JSONArray;
 import org.json.JSONException;
-import org.json.JSONObject;
+import org.json. JSONObject;
 
 import java.text.DecimalFormat;
 import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util. List;
+import java.util. Map;
+import java.util. Set;
 
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 
 /**
- * Left fragment: table list + per-table detail (in-place).
+ * Left fragment:  table list + per-table detail (in-place).
  */
 public class BepTableFragment extends Fragment {
 
     private static final String TAG = "BepTableFragment";
+    private static final int CANCEL_TIMEOUT_MS = 10000; // 10 seconds
 
     private RecyclerView rvTables;
     private BepAdapter tableAdapter;
@@ -65,6 +71,10 @@ public class BepTableFragment extends Fragment {
 
     private OrderRepository orderRepository;
 
+    // Track cancel dialogs to prevent duplicates
+    private final Map<String, AlertDialog> activeCancelDialogs = new HashMap<>();
+    private final Map<String, Handler> cancelTimeoutHandlers = new HashMap<>();
+
     public interface OnTableSelectedListener {
         void onTableSelected(TableItem table);
     }
@@ -85,21 +95,21 @@ public class BepTableFragment extends Fragment {
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         rvTables = view.findViewById(R.id.rv_bep_tables);
-        rvTables.setLayoutManager(new GridLayoutManager(requireContext(), 1));
+        // THAY ĐỔI:  Từ GridLayoutManager(1) thành GridLayoutManager(3) để hiển thị 3 bàn/hàng
+        rvTables.setLayoutManager(new GridLayoutManager(requireContext(), 3));
         tableAdapter = new BepAdapter(requireContext(), table -> {
             showTableDetail(table);
             if (listener != null) listener.onTableSelected(table);
         });
         rvTables.setAdapter(tableAdapter);
 
-        layoutDetail = view.findViewById(R.id.layout_table_detail);
+        layoutDetail = view.findViewById(R. id.layout_table_detail);
         tvDetailTitle = view.findViewById(R.id.tv_detail_title);
         btnBackDetail = view.findViewById(R.id.btn_back_detail);
         rvDetailOrders = view.findViewById(R.id.rv_table_orders);
 
         orderRepository = new OrderRepository();
 
-        // IMPORTANT: create adapter with real update behavior (call API immediately)
         orderItemAdapter = new OrderItemAdapter(requireContext(), (wrapper, newStatus) -> {
             // gọi API cập nhật trạng thái ngay khi bấm
             if (wrapper == null || newStatus == null) return;
@@ -108,13 +118,13 @@ public class BepTableFragment extends Fragment {
             if (order == null || item == null) return;
 
             String orderId = order.getId();
-            String itemId = item.getMenuItemId();
+            String itemId = item. getMenuItemId();
             if (orderId == null || orderId.trim().isEmpty() || itemId == null || itemId.trim().isEmpty()) {
                 if (getActivity() != null) Toast.makeText(getActivity(), "Không thể xác định order/item id", Toast.LENGTH_SHORT).show();
                 return;
             }
 
-            if (getActivity() != null) Toast.makeText(getActivity(), "Đang gửi yêu cầu cập nhật trạng thái...", Toast.LENGTH_SHORT).show();
+            if (getActivity() != null) Toast.makeText(getActivity(), "Đang gửi yêu cầu cập nhật trạng thái.. .", Toast.LENGTH_SHORT).show();
 
             // If user requests "preparing", consume ingredients first (server will deduct)
             if ("preparing".equals(newStatus)) {
@@ -129,7 +139,7 @@ public class BepTableFragment extends Fragment {
                     @Override
                     public void onResponse(Call<ApiResponse<Void>> call, Response<ApiResponse<Void>> response) {
                         try {
-                            if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
+                            if (response. isSuccessful() && response.body() != null && response.body().isSuccess()) {
                                 // proceed to update status
                                 orderRepository.updateOrderItemStatus(orderId, itemId, newStatus).enqueue(new retrofit2.Callback<Void>() {
                                     @Override
@@ -147,25 +157,25 @@ public class BepTableFragment extends Fragment {
                                                 Toast.makeText(getActivity(), "Bắt đầu làm món và trừ nguyên liệu thành công", Toast.LENGTH_SHORT).show();
                                             });
                                         } else {
-                                            getActivity().runOnUiThread(() -> Toast.makeText(getActivity(), "Cập nhật trạng thái thất bại: HTTP " + response.code(), Toast.LENGTH_LONG).show());
+                                            getActivity().runOnUiThread(() -> Toast.makeText(getActivity(), "Cập nhật trạng thái thất bại:  HTTP " + response.code(), Toast.LENGTH_LONG).show());
                                         }
                                     }
 
                                     @Override
                                     public void onFailure(retrofit2.Call<Void> call, Throwable t) {
                                         if (getActivity() == null) return;
-                                        getActivity().runOnUiThread(() -> Toast.makeText(getActivity(), "Lỗi mạng khi cập nhật trạng thái: " + (t.getMessage() != null ? t.getMessage() : ""), Toast.LENGTH_LONG).show());
+                                        getActivity().runOnUiThread(() -> Toast.makeText(getActivity(), "Lỗi mạng khi cập nhật trạng thái:  " + (t.getMessage() != null ? t.getMessage() : ""), Toast.LENGTH_LONG).show());
                                     }
                                 });
                                 return;
                             }
 
-                            // Handle consume failure: try to extract meaningful message / shortages
+                            // Handle consume failure:  try to extract meaningful message / shortages
                             String errBody = null;
                             if (response != null && response.errorBody() != null) {
                                 try { errBody = response.errorBody().string(); } catch (Exception ignored) { errBody = null; }
                             } else if (response != null && response.body() != null && response.body().getMessage() != null) {
-                                // uncommon: server returned 2xx but success=false
+                                // uncommon:  server returned 2xx but success=false
                                 showShortageDialog("Không thể trừ nguyên liệu", response.body().getMessage());
                                 return;
                             }
@@ -177,7 +187,7 @@ public class BepTableFragment extends Fragment {
                             }
                         } catch (Exception ex) {
                             Log.e(TAG, "consumeRecipe onResponse exception", ex);
-                            showShortageDialog("Lỗi", "Lỗi xử lý phản hồi từ server: " + ex.getMessage());
+                            showShortageDialog("Lỗi", "Lỗi xử lý phản hồi từ server:  " + ex.getMessage());
                         }
                     }
 
@@ -185,18 +195,18 @@ public class BepTableFragment extends Fragment {
                     public void onFailure(Call<ApiResponse<Void>> call, Throwable t) {
                         Log.e(TAG, "consumeRecipe onFailure", t);
                         if (getActivity() != null) getActivity().runOnUiThread(() ->
-                                showShortageDialog("Lỗi kết nối", "Không thể kết nối tới server: " + (t.getMessage() != null ? t.getMessage() : "")));
+                                showShortageDialog("Lỗi kết nối", "Không thể kết nối tới server:  " + (t.getMessage() != null ? t.getMessage() : "")));
                     }
                 });
             } else {
-                // other statuses: update directly
+                // other statuses:  update directly
                 orderRepository.updateOrderItemStatus(orderId, itemId, newStatus).enqueue(new retrofit2.Callback<Void>() {
                     @Override
                     public void onResponse(retrofit2.Call<Void> call, retrofit2.Response<Void> response) {
                         if (getActivity() == null) return;
                         if (response.isSuccessful()) {
                             // Cập nhật local model ngay để UI phản hồi tức thì
-                            item.setStatus(newStatus);
+                            item. setStatus(newStatus);
                             String ns = newStatus == null ? "" : newStatus.trim().toLowerCase();
                             if ("ready".equals(ns) || "soldout".equals(ns) || "done".equals(ns) || "completed".equals(ns)) {
                                 orderItemAdapter.clearStartTimeForItem(order, item);
@@ -214,7 +224,7 @@ public class BepTableFragment extends Fragment {
                     @Override
                     public void onFailure(retrofit2.Call<Void> call, Throwable t) {
                         if (getActivity() == null) return;
-                        getActivity().runOnUiThread(() -> Toast.makeText(getActivity(), "Lỗi mạng: " + (t.getMessage() != null ? t.getMessage() : ""), Toast.LENGTH_LONG).show());
+                        getActivity().runOnUiThread(() -> Toast.makeText(getActivity(), "Lỗi mạng:  " + (t.getMessage() != null ? t.getMessage() : ""), Toast.LENGTH_LONG).show());
                     }
                 });
             }
@@ -231,21 +241,134 @@ public class BepTableFragment extends Fragment {
     @Override
     public void onStop() {
         super.onStop();
-        // ensure timer stopped when fragment no longer visible
         if (orderItemAdapter != null) orderItemAdapter.stopTimer();
+        dismissAllCancelDialogs();
     }
 
-    /**
-     * Update tables (called by Activity).
-     */
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        dismissAllCancelDialogs();
+    }
+
+    private void handleStatusChange(ItemWithOrder wrapper, String newStatus) {
+        if (wrapper == null || newStatus == null) return;
+        Order order = wrapper.getOrder();
+        Order.OrderItem item = wrapper.getItem();
+        if (order == null || item == null) return;
+
+        String orderId = order.getId();
+        String itemId = item.getMenuItemId();
+        if (orderId == null || orderId.trim().isEmpty() || itemId == null || itemId.trim().isEmpty()) {
+            if (getActivity() != null) Toast.makeText(getActivity(), "Không thể xác định order/item id", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        if (getActivity() != null) Toast.makeText(getActivity(), "Đang gửi yêu cầu cập nhật trạng thái...", Toast. LENGTH_SHORT).show();
+
+        if ("preparing".equals(newStatus)) {
+            double qty = item.getQuantity() <= 0 ? 1.0 : item.getQuantity();
+            Call<ApiResponse<Void>> consumeCall = orderRepository.consumeRecipeCall(item.getMenuItemId(), qty, orderId);
+
+            if (getActivity() != null) getActivity().runOnUiThread(() ->
+                    Toast.makeText(getActivity(), "Đang kiểm tra và trừ nguyên liệu...", Toast.LENGTH_SHORT).show());
+
+            consumeCall. enqueue(new Callback<ApiResponse<Void>>() {
+                @Override
+                public void onResponse(Call<ApiResponse<Void>> call, Response<ApiResponse<Void>> response) {
+                    try {
+                        if (response. isSuccessful() && response.body() != null && response.body().isSuccess()) {
+                            orderRepository.updateOrderItemStatus(orderId, itemId, newStatus).enqueue(new retrofit2.Callback<Void>() {
+                                @Override
+                                public void onResponse(retrofit2.Call<Void> call, retrofit2.Response<Void> response) {
+                                    if (getActivity() == null) return;
+                                    if (response.isSuccessful()) {
+                                        item.setStatus(newStatus);
+                                        String ns = newStatus == null ? "" : newStatus. trim().toLowerCase();
+                                        if ("ready".equals(ns) || "soldout".equals(ns) || "done".equals(ns) || "completed".equals(ns)) {
+                                            orderItemAdapter.clearStartTimeForItem(order, item);
+                                        }
+                                        getActivity().runOnUiThread(() -> {
+                                            orderItemAdapter.notifyDataSetChanged();
+                                            Toast.makeText(getActivity(), "Bắt đầu làm món và trừ nguyên liệu thành công", Toast.LENGTH_SHORT).show();
+                                        });
+                                    } else {
+                                        getActivity().runOnUiThread(() -> Toast.makeText(getActivity(), "Cập nhật trạng thái thất bại:  HTTP " + response.code(), Toast.LENGTH_LONG).show());
+                                    }
+                                }
+
+                                @Override
+                                public void onFailure(retrofit2.Call<Void> call, Throwable t) {
+                                    if (getActivity() == null) return;
+                                    getActivity().runOnUiThread(() -> Toast.makeText(getActivity(), "Lỗi mạng khi cập nhật trạng thái: " + (t.getMessage() != null ? t.getMessage() : ""), Toast.LENGTH_LONG).show());
+                                }
+                            });
+                            return;
+                        }
+
+                        String errBody = null;
+                        if (response != null && response.errorBody() != null) {
+                            try { errBody = response.errorBody().string(); } catch (Exception ignored) { errBody = null; }
+                        } else if (response != null && response.body() != null && response.body().getMessage() != null) {
+                            showShortageDialog("Không thể trừ nguyên liệu", response.body().getMessage());
+                            return;
+                        }
+
+                        if (errBody != null && !errBody.isEmpty()) {
+                            parseAndShowShortages(errBody);
+                        } else {
+                            showShortageDialog("Không thể trừ nguyên liệu", "Server trả về lỗi khi trừ nguyên liệu.");
+                        }
+                    } catch (Exception ex) {
+                        Log.e(TAG, "consumeRecipe onResponse exception", ex);
+                        showShortageDialog("Lỗi", "Lỗi xử lý phản hồi từ server:  " + ex.getMessage());
+                    }
+                }
+
+                @Override
+                public void onFailure(Call<ApiResponse<Void>> call, Throwable t) {
+                    Log.e(TAG, "consumeRecipe onFailure", t);
+                    if (getActivity() != null) getActivity().runOnUiThread(() ->
+                            showShortageDialog("Lỗi kết nối", "Không thể kết nối tới server:  " + (t.getMessage() != null ? t.getMessage() : "")));
+                }
+            });
+        } else {
+            orderRepository.updateOrderItemStatus(orderId, itemId, newStatus).enqueue(new retrofit2.Callback<Void>() {
+                @Override
+                public void onResponse(retrofit2.Call<Void> call, retrofit2.Response<Void> response) {
+                    if (getActivity() == null) return;
+                    if (response.isSuccessful()) {
+                        item.setStatus(newStatus);
+                        String ns = newStatus == null ? "" : newStatus.trim().toLowerCase();
+                        if ("ready".equals(ns) || "soldout".equals(ns) || "done".equals(ns) || "completed".equals(ns)) {
+                            orderItemAdapter.clearStartTimeForItem(order, item);
+                        }
+                        getActivity().runOnUiThread(() -> {
+                            orderItemAdapter.notifyDataSetChanged();
+                            Toast.makeText(getActivity(), "Cập nhật trạng thái thành công", Toast.LENGTH_SHORT).show();
+                        });
+                    } else {
+                        getActivity().runOnUiThread(() -> Toast.makeText(getActivity(), "Cập nhật thất bại: HTTP " + response.code(), Toast.LENGTH_LONG).show());
+                    }
+                }
+
+                @Override
+                public void onFailure(retrofit2.Call<Void> call, Throwable t) {
+                    if (getActivity() == null) return;
+                    getActivity().runOnUiThread(() -> Toast.makeText(getActivity(), "Lỗi mạng:  " + (t.getMessage() != null ? t.getMessage() : ""), Toast.LENGTH_LONG).show());
+                }
+            });
+        }
+    }
+
     public void updateTables(List<TableItem> tables, Map<Integer, Integer> remainingCounts, Map<Integer, Long> earliestTs, Map<Integer, List<ItemWithOrder>> perTableItems) {
         this.currentTables = tables != null ? tables : new ArrayList<>();
         this.currentRemaining = remainingCounts;
         this.currentEarliest = earliestTs;
         this.perTableItems = perTableItems;
-        tableAdapter.updateList(this.currentTables, this.currentRemaining, this.currentEarliest);
+        tableAdapter.updateList(this.currentTables, this.currentRemaining, this. currentEarliest);
 
-        if (layoutDetail.getVisibility() == View.VISIBLE) {
+        if (layoutDetail. getVisibility() == View.VISIBLE) {
             String title = tvDetailTitle.getText() != null ? tvDetailTitle.getText().toString() : "";
             int shownTableNumber = parseTableNumberFromTitle(title);
             if (shownTableNumber > 0 && perTableItems != null && perTableItems.containsKey(shownTableNumber)) {
@@ -254,6 +377,207 @@ public class BepTableFragment extends Fragment {
             } else {
                 hideTableDetail();
             }
+        }
+    }
+
+    /**
+     * Check all items for cancel_requested status and show dialog
+     */
+    private void checkForCancelRequests(Map<Integer, List<ItemWithOrder>> perTableItems) {
+        if (perTableItems == null || getActivity() == null) return;
+
+        for (Map.Entry<Integer, List<ItemWithOrder>> entry : perTableItems.entrySet()) {
+            List<ItemWithOrder> items = entry.getValue();
+            if (items == null) continue;
+
+            for (ItemWithOrder wrapper : items) {
+                if (wrapper == null) continue;
+                Order. OrderItem item = wrapper.getItem();
+                Order order = wrapper.getOrder();
+                if (item == null || order == null) continue;
+
+                String status = item.getStatus();
+                if (status != null && "cancel_requested".equalsIgnoreCase(status. trim())) {
+                    showCancelRequestDialog(wrapper);
+                }
+            }
+        }
+    }
+
+    /**
+     * Show cancel confirmation dialog with 10s timeout
+     */
+    private void showCancelRequestDialog(ItemWithOrder wrapper) {
+        if (getActivity() == null) return;
+
+        Order order = wrapper.getOrder();
+        Order.OrderItem item = wrapper.getItem();
+        if (order == null || item == null) return;
+
+        String orderId = order. getId();
+        String itemId = item.getMenuItemId();
+        String key = orderId + ":" + itemId;
+
+        // Prevent duplicate dialogs for same item
+        if (activeCancelDialogs.containsKey(key)) {
+            return;
+        }
+
+        String dishName = (item.getMenuItemName() != null && !item.getMenuItemName().isEmpty())
+                ? item.getMenuItemName() : item.getName();
+
+        getActivity().runOnUiThread(() -> {
+            AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
+            builder.setTitle("Yêu cầu hủy món")
+                    .setMessage("Phục vụ yêu cầu hủy món \"" + dishName + "\". Xác nhận hủy?\n\n(Tự động từ chối sau 10 giây)")
+                    .setCancelable(false)
+                    .setPositiveButton("Xác nhận hủy", (dialog, which) -> {
+                        // Cancel timeout handler
+                        cancelTimeoutHandler(key);
+                        // Update to soldout
+                        updateItemStatusToSoldout(wrapper);
+                        activeCancelDialogs.remove(key);
+                    })
+                    .setNegativeButton("Từ chối", (dialog, which) -> {
+                        // Cancel timeout handler
+                        cancelTimeoutHandler(key);
+                        // Revert to pending
+                        updateItemStatusToPending(wrapper);
+                        activeCancelDialogs.remove(key);
+                    });
+
+            AlertDialog dialog = builder.create();
+            activeCancelDialogs.put(key, dialog);
+            dialog.show();
+
+            // Setup timeout handler (10 seconds)
+            Handler timeoutHandler = new Handler(Looper.getMainLooper());
+            timeoutHandler.postDelayed(() -> {
+                if (activeCancelDialogs.containsKey(key)) {
+                    AlertDialog d = activeCancelDialogs.get(key);
+                    if (d != null && d.isShowing()) {
+                        d.dismiss();
+                    }
+                    activeCancelDialogs.remove(key);
+                    // Auto revert to pending after timeout
+                    updateItemStatusToPending(wrapper);
+                }
+                cancelTimeoutHandlers.remove(key);
+            }, CANCEL_TIMEOUT_MS);
+
+            cancelTimeoutHandlers.put(key, timeoutHandler);
+        });
+    }
+
+    private void updateItemStatusToSoldout(ItemWithOrder wrapper) {
+        if (wrapper == null) return;
+        Order order = wrapper.getOrder();
+        Order.OrderItem item = wrapper.getItem();
+        if (order == null || item == null) return;
+
+        String orderId = order.getId();
+        String itemId = item.getMenuItemId();
+
+        if (getActivity() != null) {
+            Toast.makeText(getActivity(), "Đang cập nhật trạng thái hủy món...", Toast.LENGTH_SHORT).show();
+        }
+
+        orderRepository.updateOrderItemStatus(orderId, itemId, "soldout").enqueue(new retrofit2.Callback<Void>() {
+            @Override
+            public void onResponse(retrofit2.Call<Void> call, retrofit2.Response<Void> response) {
+                if (getActivity() == null) return;
+                if (response.isSuccessful()) {
+                    item.setStatus("soldout");
+                    getActivity().runOnUiThread(() -> {
+                        Toast.makeText(getActivity(), "Đã xác nhận hủy món", Toast.LENGTH_SHORT).show();
+                        refreshView();
+                    });
+                } else {
+                    getActivity().runOnUiThread(() ->
+                            Toast.makeText(getActivity(), "Lỗi cập nhật:  HTTP " + response.code(), Toast.LENGTH_LONG).show());
+                }
+            }
+
+            @Override
+            public void onFailure(retrofit2.Call<Void> call, Throwable t) {
+                if (getActivity() == null) return;
+                getActivity().runOnUiThread(() ->
+                        Toast.makeText(getActivity(), "Lỗi mạng: " + (t. getMessage() != null ? t.getMessage() : ""), Toast.LENGTH_LONG).show());
+            }
+        });
+    }
+
+    private void updateItemStatusToPending(ItemWithOrder wrapper) {
+        if (wrapper == null) return;
+        Order order = wrapper. getOrder();
+        Order.OrderItem item = wrapper.getItem();
+        if (order == null || item == null) return;
+
+        String orderId = order.getId();
+        String itemId = item. getMenuItemId();
+
+        if (getActivity() != null) {
+            Toast.makeText(getActivity(), "Đang từ chối hủy món...", Toast.LENGTH_SHORT).show();
+        }
+
+        orderRepository.updateOrderItemStatus(orderId, itemId, "pending").enqueue(new retrofit2.Callback<Void>() {
+            @Override
+            public void onResponse(retrofit2.Call<Void> call, retrofit2.Response<Void> response) {
+                if (getActivity() == null) return;
+                if (response.isSuccessful()) {
+                    item.setStatus("pending");
+                    getActivity().runOnUiThread(() -> {
+                        Toast.makeText(getActivity(), "Đã từ chối hủy món", Toast.LENGTH_SHORT).show();
+                        refreshView();
+                    });
+                } else {
+                    getActivity().runOnUiThread(() ->
+                            Toast.makeText(getActivity(), "Lỗi cập nhật: HTTP " + response.code(), Toast.LENGTH_LONG).show());
+                }
+            }
+
+            @Override
+            public void onFailure(retrofit2.Call<Void> call, Throwable t) {
+                if (getActivity() == null) return;
+                getActivity().runOnUiThread(() ->
+                        Toast.makeText(getActivity(), "Lỗi mạng: " + (t.getMessage() != null ? t.getMessage() : ""), Toast.LENGTH_LONG).show());
+            }
+        });
+    }
+
+    private void cancelTimeoutHandler(String key) {
+        if (cancelTimeoutHandlers.containsKey(key)) {
+            Handler handler = cancelTimeoutHandlers.get(key);
+            if (handler != null) {
+                handler.removeCallbacksAndMessages(null);
+            }
+            cancelTimeoutHandlers.remove(key);
+        }
+    }
+
+    private void dismissAllCancelDialogs() {
+        for (AlertDialog dialog : activeCancelDialogs.values()) {
+            if (dialog != null && dialog.isShowing()) {
+                try {
+                    dialog.dismiss();
+                } catch (Exception ignored) {}
+            }
+        }
+        activeCancelDialogs.clear();
+
+        for (Handler handler : cancelTimeoutHandlers.values()) {
+            if (handler != null) {
+                handler.removeCallbacksAndMessages(null);
+            }
+        }
+        cancelTimeoutHandlers.clear();
+    }
+
+    private void refreshView() {
+        if (getActivity() instanceof BepActivity) {
+            try {
+                ((BepActivity) getActivity()).refreshActiveTables();
+            } catch (Exception ignored) {}
         }
     }
 
@@ -270,22 +594,19 @@ public class BepTableFragment extends Fragment {
         List<ItemWithOrder> items = perTableItems != null ? perTableItems.get(tn) : null;
         if (items == null) items = new ArrayList<>();
         orderItemAdapter.setItems(items);
-        layoutDetail.setVisibility(View.VISIBLE);
+        layoutDetail.setVisibility(View. VISIBLE);
         rvTables.setVisibility(View.GONE);
 
-        // Start per-item timer when showing detail so countdown runs continuously (independent of socket)
         orderItemAdapter.startTimer();
     }
 
     private void hideTableDetail() {
-        layoutDetail.setVisibility(View.GONE);
-        rvTables.setVisibility(View.VISIBLE);
+        layoutDetail.setVisibility(View. GONE);
+        rvTables.setVisibility(View. VISIBLE);
 
-        // Stop timer to avoid leaking handler ticks when detail hidden
         orderItemAdapter.stopTimer();
     }
 
-    // Parse server errorBody for shortages JSON and show dialog with readable content
     private void parseAndShowShortages(String errBody) {
         if (getActivity() == null) return;
         try {
@@ -296,15 +617,15 @@ public class BepTableFragment extends Fragment {
 
             StringBuilder details = new StringBuilder();
             if (shortages != null && shortages.length() > 0) {
-                for (int i = 0; i < shortages.length(); i++) {
+                for (int i = 0; i < shortages. length(); i++) {
                     JSONObject s = shortages.optJSONObject(i);
                     if (s == null) continue;
                     String name = s.optString("ingredientName", s.optString("ingredientId", "Unknown"));
                     double required = s.optDouble("required", -1);
                     double available = s.optDouble("available", -1);
                     String unit = s.optString("unit", "");
-                    details.append(name)
-                            .append(" — cần: ")
+                    details. append(name)
+                            .append(" — cần:  ")
                             .append(formatNumber(required)).append(" ").append(unit)
                             .append(", còn: ")
                             .append(formatNumber(available)).append(" ").append(unit);
@@ -339,14 +660,14 @@ public class BepTableFragment extends Fragment {
                 b.setNegativeButton("Đóng", (d, w) -> {});
                 b.show();
             } catch (Exception e) {
-                // fallback to toast
                 Toast.makeText(getActivity(), title + ": " + (body != null ? body : ""), Toast.LENGTH_LONG).show();
             }
         });
     }
+
     private String formatNumber(double v) {
         if (v == (long) v) return String.valueOf((long) v);
-        DecimalFormat df = new DecimalFormat("#.##");
+        DecimalFormat df = new DecimalFormat("#. ##");
         return df.format(v);
     }
 }
