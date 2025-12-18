@@ -1,12 +1,7 @@
 package com.ph48845.datn_qlnh_rmis.data.model;
 
-
-
-
-
 import com.google.gson.annotations.SerializedName;
 import java.io.Serializable;
-
 
 public class User implements Serializable {
     @SerializedName("_id")
@@ -15,7 +10,8 @@ public class User implements Serializable {
     @SerializedName("username")
     private String username;
 
-    // Usually not returned in list endpoints, but needed when creating/updating user
+    // Usually not returned in list endpoints, but needed when creating/updating
+    // user
     @SerializedName("password")
     private String password;
 
@@ -38,11 +34,12 @@ public class User implements Serializable {
     @SerializedName("createdAt")
     private String createdAt;
 
-    public User() {}
+    public User() {
+    }
 
     // Convenience constructor (without id/createdAt)
     public User(String username, String password, String role, String fullName,
-                String phoneNumber, String email, boolean isActive) {
+            String phoneNumber, String email, boolean isActive) {
         this.username = username;
         this.password = password;
         this.role = role;
@@ -53,32 +50,86 @@ public class User implements Serializable {
     }
 
     // Getters & Setters
-    public String getId() { return id; }
-    public void setId(String id) { this.id = id; }
+    public String getId() {
+        return id;
+    }
 
-    public String getUsername() { return username; }
-    public void setUsername(String username) { this.username = username; }
+    public void setId(String id) {
+        this.id = id;
+    }
 
-    public String getPassword() { return password; }
-    public void setPassword(String password) { this.password = password; }
+    public String getUsername() {
+        return username;
+    }
 
-    public String getRole() { return role; }
-    public void setRole(String role) { this.role = role; }
+    public void setUsername(String username) {
+        this.username = username;
+    }
 
-    public String getFullName() { return fullName; }
-    public void setFullName(String fullName) { this.fullName = fullName; }
+    public String getPassword() {
+        return password;
+    }
 
-    public String getPhoneNumber() { return phoneNumber; }
-    public void setPhoneNumber(String phoneNumber) { this.phoneNumber = phoneNumber; }
+    public void setPassword(String password) {
+        this.password = password;
+    }
 
-    public String getEmail() { return email; }
-    public void setEmail(String email) { this.email = email; }
+    public String getRole() {
+        return role;
+    }
 
-    public boolean isActive() { return isActive; }
-    public void setActive(boolean active) { isActive = active; }
+    public void setRole(String role) {
+        this.role = role;
+    }
 
-    public String getCreatedAt() { return createdAt; }
-    public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
+    public String getFullName() {
+        return fullName;
+    }
+
+    public void setFullName(String fullName) {
+        this.fullName = fullName;
+    }
+
+    public String getPhoneNumber() {
+        return phoneNumber;
+    }
+
+    public void setPhoneNumber(String phoneNumber) {
+        this.phoneNumber = phoneNumber;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    public boolean isActive() {
+        return isActive;
+    }
+
+    public void setActive(boolean active) {
+        isActive = active;
+    }
+
+    public String getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(String createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    // Alias method for compatibility
+    public String getName() {
+        return fullName;
+    }
+
+    public void setName(String name) {
+        this.fullName = name;
+    }
 
     @Override
     public String toString() {

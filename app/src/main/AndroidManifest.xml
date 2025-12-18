@@ -30,6 +30,11 @@
             android:exported="false" />
         <activity android:name=".ui.thungan.thanhtoan.ThanhToanActivity"/>
         <activity android:name=".ui.thungan.thanhtoan.QRPaymentActivity"/>
+        <activity android:name=".ui.revenue.ReportActivity"/>
+        <activity android:name=".ui.warehouse.WarningActivity"/>
+        <activity android:name=".ui.shift.ShiftActivity"/>
+        <activity android:name=".ui.employee.EmployeeActivity"/>
+
 <!--        <activity android:name=".ui.thanhtoan.ThanhToanActivity" />-->
 <!--        <activity android:name=".ui.thanhtoan.QRPaymentActivity" />-->
         <activity android:name=".ui.revenue.ReportActivity" />
@@ -73,7 +78,7 @@
         <activity
             android:name=".ui.thungan.PrintBillActivity"
             android:exported="false" />
-       
+
 
         <activity
             android:name=".ui.bep.BepActivity"

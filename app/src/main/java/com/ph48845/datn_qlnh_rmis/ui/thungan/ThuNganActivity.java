@@ -1,7 +1,11 @@
 package com.ph48845.datn_qlnh_rmis.ui.thungan;
 
 import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.SharedPreferences;
+import android.os.Build;
 import android.os.Bundle;
 import android.text.SpannableString;
 import android.text.style.RelativeSizeSpan;
@@ -13,6 +17,8 @@ import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.os.Handler;
+import android.os.Looper;
 
 import androidx.appcompat.widget.Toolbar;
 import androidx.core.view.GravityCompat;
@@ -27,8 +33,16 @@ import com.ph48845.datn_qlnh_rmis.R;
 import com.ph48845.datn_qlnh_rmis.core.base.BaseMenuActivity;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
 import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
+import com.ph48845.datn_qlnh_rmis.data.model.User;
 import com.ph48845.datn_qlnh_rmis.data.repository.OrderRepository;
+import com.ph48845.datn_qlnh_rmis.data.remote.ApiResponse;
+import com.ph48845.datn_qlnh_rmis.data.remote.ApiService;
+import com.ph48845.datn_qlnh_rmis.data.remote.RetrofitClient;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
 import com.ph48845.datn_qlnh_rmis.ui.revenue.ReportActivity;
+import com.ph48845.datn_qlnh_rmis.ui.bep.SocketManager;
 // Thay thế bằng Activity xem lịch sử thanh toán thực tế của bạn
 // import com.ph48845.datn_qlnh_rmis.ui.history.HistoryActivity;
 // Thay thế bằng Activity xem chi tiết hóa đơn thực tế của bạn
@@ -61,6 +75,12 @@ public class ThuNganActivity extends BaseMenuActivity {
     private ThuNganAdapter adapterFloor2;
     private ThuNganViewModel viewModel;
     private OrderRepository orderRepository;
+    private final SocketManager socketManager = SocketManager.getInstance();
+    private Handler refreshHandler;
+    private static final long SOCKET_REFRESH_DELAY_MS = 5000;
+    private BroadcastReceiver refreshTablesReceiver;
+    private static final String ACTION_REFRESH_TABLES = "com.ph48845.datn_qlnh_rmis.ACTION_REFRESH_TABLES";
+    private Map<String, String> userIdToNameMap = new HashMap<>(); // Map user ID -> user name
 
 
     @Override
@@ -71,6 +91,7 @@ public class ThuNganActivity extends BaseMenuActivity {
         // 1. Khởi tạo ViewModel & Repository
         viewModel = new ThuNganViewModel();
         orderRepository = new OrderRepository();
+        refreshHandler = new Handler(Looper.getMainLooper());
 
         // 2. Ánh xạ View & Setup giao diện
         initViews();
@@ -82,7 +103,10 @@ public class ThuNganActivity extends BaseMenuActivity {
         // 3. Load dữ liệu ban đầu
         updateNavHeaderInfo();
         loadActiveTables();
+        loadUsersForNameMapping(); // Load danh sách users để map ID -> name
         loadTempCalculationRequestsCount();
+        startSocketRealtime();
+        registerRefreshTablesReceiver();
     }
 
     private void applyNavigationViewInsets() {
@@ -315,76 +339,255 @@ public class ThuNganActivity extends BaseMenuActivity {
     private void showTempCalculationRequests() {
         if (progressBar != null) progressBar.setVisibility(View.VISIBLE);
 
-        orderRepository.getOrdersByTableNumber(null, null, new OrderRepository.RepositoryCallback<List<Order>>() {
-            @Override
-            public void onSuccess(List<Order> allOrders) {
-                runOnUiThread(() -> {
-                    if (progressBar != null) progressBar.setVisibility(View.GONE);
+        // Đảm bảo load users trước khi load orders
+        loadUsersForNameMapping(() -> {
+            // Sau khi load users xong, mới load orders
+            orderRepository.getOrdersByTableNumber(null, null, new OrderRepository.RepositoryCallback<List<Order>>() {
+                @Override
+                public void onSuccess(List<Order> allOrders) {
+                    runOnUiThread(() -> {
+                        if (progressBar != null) progressBar.setVisibility(View.GONE);
 
-                    // Lọc các orders có tempCalculationRequestedAt
-                    List<Order> tempCalculationOrders = new ArrayList<>();
-                    if (allOrders != null) {
-                        for (Order order : allOrders) {
-                            if (order != null && order.getTempCalculationRequestedAt() != null
-                                    && !order.getTempCalculationRequestedAt().trim().isEmpty()) {
-                                tempCalculationOrders.add(order);
+                        // Lọc các orders có tempCalculationRequestedAt
+                        List<Order> tempCalculationOrders = new ArrayList<>();
+                        if (allOrders != null) {
+                            for (Order order : allOrders) {
+                                if (order != null && order.getTempCalculationRequestedAt() != null
+                                        && !order.getTempCalculationRequestedAt().trim().isEmpty()) {
+                                    tempCalculationOrders.add(order);
+                                }
                             }
                         }
-                    }
 
-                    if (tempCalculationOrders.isEmpty()) {
-                        Toast.makeText(ThuNganActivity.this, "Không có yêu cầu tạm tính nào", Toast.LENGTH_SHORT).show();
-                        return;
-                    }
+                        if (tempCalculationOrders.isEmpty()) {
+                            Toast.makeText(ThuNganActivity.this, "Không có yêu cầu tạm tính nào", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
 
-                    // Hiển thị dialog với danh sách yêu cầu
-                    showTempCalculationRequestsDialog(tempCalculationOrders);
-                });
+                        // Hiển thị dialog với danh sách yêu cầu
+                        showTempCalculationRequestsDialog(tempCalculationOrders);
+                    });
+                }
+
+                @Override
+                public void onError(String message) {
+                    runOnUiThread(() -> {
+                        if (progressBar != null) progressBar.setVisibility(View.GONE);
+                        Toast.makeText(ThuNganActivity.this, "Lỗi tải yêu cầu tạm tính: " + message, Toast.LENGTH_LONG).show();
+                    });
+                }
+            });
+        });
+    }
+
+    /**
+     * Load danh sách users để map ID -> name
+     * @param callback Callback được gọi sau khi load xong (có thể null)
+     */
+    private void loadUsersForNameMapping(Runnable callback) {
+        ApiService api = RetrofitClient.getInstance().getApiService();
+        api.getAllUsers().enqueue(new Callback<ApiResponse<List<User>>>() {
+            @Override
+            public void onResponse(Call<ApiResponse<List<User>>> call, Response<ApiResponse<List<User>>> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    ApiResponse<List<User>> apiResponse = response.body();
+                    List<User> users = apiResponse.getData();
+                    
+                    if (users != null && !users.isEmpty()) {
+                        userIdToNameMap.clear();
+                        for (User user : users) {
+                            if (user != null && user.getId() != null) {
+                                String userId = user.getId().trim();
+                                
+                                // Ưu tiên fullName (từ field "name" trong JSON), nếu không có thì dùng username
+                                String name = user.getFullName();
+                                if (name == null || name.trim().isEmpty()) {
+                                    name = user.getUsername();
+                                }
+                                
+                                if (name != null && !name.trim().isEmpty()) {
+                                    // Normalize: trim cả key và value
+                                    userIdToNameMap.put(userId, name.trim());
+                                    Log.d(TAG, "loadUsersForNameMapping: Mapped userId '" + userId + "' -> '" + name.trim() + "'");
+                                } else {
+                                    Log.w(TAG, "loadUsersForNameMapping: User " + userId + " has no name or username");
+                                }
+                            } else {
+                                Log.w(TAG, "loadUsersForNameMapping: Skipping null user or user with null ID");
+                            }
+                        }
+                        Log.d(TAG, "loadUsersForNameMapping: Loaded " + userIdToNameMap.size() + " users for name mapping");
+                        // Log một vài entries để debug
+                        int count = 0;
+                        for (Map.Entry<String, String> entry : userIdToNameMap.entrySet()) {
+                            if (count++ < 5) {
+                                Log.d(TAG, "loadUsersForNameMapping: Sample entry - ID: '" + entry.getKey() + "', Name: '" + entry.getValue() + "'");
+                            }
+                        }
+                    } else {
+                        Log.e(TAG, "loadUsersForNameMapping: Response data is null or empty. Success: " + apiResponse.isSuccess() + ", Message: " + apiResponse.getMessage());
+                    }
+                } else {
+                    Log.e(TAG, "loadUsersForNameMapping: Response not successful. Code: " + (response != null ? response.code() : "null"));
+                }
+                // Gọi callback sau khi load xong (dù thành công hay thất bại)
+                if (callback != null) {
+                    runOnUiThread(callback);
+                }
             }
 
             @Override
-            public void onError(String message) {
-                runOnUiThread(() -> {
-                    if (progressBar != null) progressBar.setVisibility(View.GONE);
-                    Toast.makeText(ThuNganActivity.this, "Lỗi tải yêu cầu tạm tính: " + message, Toast.LENGTH_LONG).show();
-                });
+            public void onFailure(Call<ApiResponse<List<User>>> call, Throwable t) {
+                Log.e(TAG, "loadUsersForNameMapping: Failed to load users: " + t.getMessage(), t);
+                // Vẫn gọi callback dù thất bại
+                if (callback != null) {
+                    runOnUiThread(callback);
+                }
             }
         });
+    }
+
+    /**
+     * Overload method không có callback (để tương thích với code cũ)
+     */
+    private void loadUsersForNameMapping() {
+        loadUsersForNameMapping(null);
+    }
+
+    /**
+     * Lấy tên nhân viên từ Order
+     * Xử lý cả trường hợp server trả về Map (object) hoặc String (ID)
+     */
+    private String getEmployeeNameFromOrder(Order order) {
+        if (order == null) {
+            Log.w(TAG, "getEmployeeNameFromOrder: order is null");
+            return "Nhân viên";
+        }
+        
+        // Bước 1: Thử lấy ID từ getTempCalculationRequestedById() (ưu tiên)
+        String userId = order.getTempCalculationRequestedById();
+        Log.d(TAG, "getEmployeeNameFromOrder: getTempCalculationRequestedById() returned: '" + userId + "'");
+        
+        if (userId != null && !userId.trim().isEmpty()) {
+            userId = userId.trim();
+            
+            // Tra cứu trong map (đã được normalize khi load)
+            String name = userIdToNameMap.get(userId);
+            Log.d(TAG, "getEmployeeNameFromOrder: Looking up userId '" + userId + "' in map");
+            Log.d(TAG, "getEmployeeNameFromOrder: Map size: " + userIdToNameMap.size());
+            
+            if (name != null && !name.trim().isEmpty()) {
+                Log.d(TAG, "getEmployeeNameFromOrder: ✓ Found name: '" + name + "' for userId: '" + userId + "'");
+                return name.trim();
+            } else {
+                // Thử tìm với các biến thể của ID (nếu có)
+                Log.w(TAG, "getEmployeeNameFromOrder: ✗ UserId '" + userId + "' not found in map");
+                Log.d(TAG, "getEmployeeNameFromOrder: Available keys in map (first 10): " + 
+                      userIdToNameMap.keySet().stream().limit(10).collect(java.util.stream.Collectors.toList()));
+            }
+        }
+        
+        // Bước 2: Fallback - thử lấy từ getTempCalculationRequestedBy()
+        String requester = order.getTempCalculationRequestedBy();
+        Log.d(TAG, "getEmployeeNameFromOrder: getTempCalculationRequestedBy() returned: '" + requester + "'");
+        
+        if (requester != null && !requester.trim().isEmpty()) {
+            requester = requester.trim();
+            
+            // Nếu có khoảng trắng, có vẻ đã là tên rồi (full name như "Nhân viên 2")
+            if (requester.contains(" ")) {
+                Log.d(TAG, "getEmployeeNameFromOrder: ✓ Requester contains space, assuming it's a name: '" + requester + "'");
+                return requester;
+            }
+            
+            // Thử check xem có trong map không (có thể là ID)
+            String name = userIdToNameMap.get(requester);
+            if (name != null && !name.trim().isEmpty()) {
+                Log.d(TAG, "getEmployeeNameFromOrder: ✓ Found name from requester in map: '" + name + "'");
+                return name.trim();
+            }
+            
+            Log.w(TAG, "getEmployeeNameFromOrder: ✗ Requester '" + requester + "' not found in map");
+        }
+        
+        Log.w(TAG, "getEmployeeNameFromOrder: ✗ Could not find employee name, returning default 'Nhân viên'");
+        return "Nhân viên";
+    }
+
+    /**
+     * Lấy tên nhân viên từ ID
+     */
+    private String getEmployeeName(String userId) {
+        if (userId == null || userId.trim().isEmpty()) {
+            return "Nhân viên";
+        }
+        
+        // Kiểm tra trong map
+        String name = userIdToNameMap.get(userId.trim());
+        if (name != null && !name.trim().isEmpty()) {
+            return name;
+        }
+        
+        // Nếu không tìm thấy, trả về "Nhân viên" thay vì ID
+        return "Nhân viên";
     }
 
     /**
      * Hiển thị dialog danh sách yêu cầu tạm tính.
      */
     private void showTempCalculationRequestsDialog(List<Order> orders) {
-        // Tạo danh sách hiển thị
+        // Tạo danh sách hiển thị với format rõ ràng, luôn bao gồm tên nhân viên
         String[] items = new String[orders.size()];
         for (int i = 0; i < orders.size(); i++) {
             Order order = orders.get(i);
+            
+            // Thông tin bàn
             String tableInfo = "Bàn " + order.getTableNumber();
+            
+            // Thông tin thời gian
             String timeInfo = "";
             if (order.getTempCalculationRequestedAt() != null) {
                 try {
-                    // Parse ISO date và format lại
                     java.text.SimpleDateFormat inputFormat = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US);
                     java.text.SimpleDateFormat outputFormat = new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault());
                     java.util.Date date = inputFormat.parse(order.getTempCalculationRequestedAt());
-                    timeInfo = " - " + outputFormat.format(date);
+                    timeInfo = outputFormat.format(date);
                 } catch (Exception e) {
-                    timeInfo = " - " + order.getTempCalculationRequestedAt();
+                    timeInfo = order.getTempCalculationRequestedAt();
                 }
             }
-            items[i] = tableInfo + timeInfo;
+            
+            // Lấy tên nhân viên yêu cầu (luôn có giá trị, ít nhất là "Nhân viên")
+            String requesterName = getEmployeeNameFromOrder(order);
+            if (requesterName == null || requesterName.trim().isEmpty()) {
+                requesterName = "Nhân viên";
+            }
+            
+            // Format hiển thị: "Bàn X - DD/MM/YYYY HH:mm • NV: Tên nhân viên"
+            // Luôn hiển thị tên nhân viên để người dùng biết ai yêu cầu
+            StringBuilder displayText = new StringBuilder();
+            displayText.append(tableInfo);
+            
+            if (!timeInfo.isEmpty()) {
+                displayText.append(" - ").append(timeInfo);
+            }
+            
+            // Luôn thêm thông tin nhân viên
+            displayText.append(" • NV: ").append(requesterName);
+            
+            items[i] = displayText.toString();
         }
 
         new android.app.AlertDialog.Builder(this)
                 .setTitle("Yêu cầu tạm tính (" + orders.size() + ")")
                 .setItems(items, (dialog, which) -> {
-                    // Mở màn hình hóa đơn cho bàn được chọn
+                    // Mở đúng hóa đơn (theo orderId) trong cùng bàn
                     Order selectedOrder = orders.get(which);
-                     Intent intent = new Intent(ThuNganActivity.this, InvoiceActivity.class);
-                     intent.putExtra("tableNumber", selectedOrder.getTableNumber());
-                     startActivity(intent);
-                    Toast.makeText(ThuNganActivity.this, "Mở hóa đơn Bàn " + selectedOrder.getTableNumber(), Toast.LENGTH_SHORT).show();
+                    Intent intent = new Intent(ThuNganActivity.this, InvoiceActivity.class);
+                    intent.putExtra("tableNumber", selectedOrder.getTableNumber());
+                    intent.putExtra("orderId", selectedOrder.getId()); // focus đúng hóa đơn
+                    startActivity(intent);
+                    Toast.makeText(ThuNganActivity.this, "Mở hóa đơn bàn " + selectedOrder.getTableNumber(), Toast.LENGTH_SHORT).show();
                 })
                 .setNegativeButton("Đóng", null)
                 .show();
@@ -461,4 +664,70 @@ public class ThuNganActivity extends BaseMenuActivity {
         loadActiveTables();
         loadTempCalculationRequestsCount();
     }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (refreshHandler != null) refreshHandler.removeCallbacksAndMessages(null);
+        try {
+            socketManager.setOnEventListener(null);
+            socketManager.disconnect();
+        } catch (Exception ignored) {}
+        try {
+            if (refreshTablesReceiver != null) unregisterReceiver(refreshTablesReceiver);
+        } catch (Exception ignored) {}
+    }
+
+    private void startSocketRealtime() {
+        try {
+            socketManager.init("http://192.168.1.84:3000");
+            socketManager.setOnEventListener(new SocketManager.OnEventListener() {
+                @Override
+                public void onOrderCreated(org.json.JSONObject payload) {
+                    scheduleRefresh();
+                }
+
+                @Override
+                public void onOrderUpdated(org.json.JSONObject payload) {
+                    scheduleRefresh();
+                }
+
+                @Override public void onConnect() {}
+                @Override public void onDisconnect() {}
+                @Override public void onError(Exception e) {}
+            });
+            socketManager.connect();
+        } catch (Exception e) {
+            Log.w(TAG, "Socket init failed: " + e.getMessage());
+        }
+    }
+
+    private void scheduleRefresh() {
+        if (refreshHandler == null) return;
+        refreshHandler.removeCallbacksAndMessages(null);
+        refreshHandler.postDelayed(() -> {
+            loadActiveTables();
+            loadTempCalculationRequestsCount();
+        }, SOCKET_REFRESH_DELAY_MS);
+    }
+
+    private void registerRefreshTablesReceiver() {
+        refreshTablesReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (ACTION_REFRESH_TABLES.equals(intent.getAction())) {
+                    // Reload danh sách yêu cầu tạm tính
+                    loadTempCalculationRequestsCount();
+                }
+            }
+        };
+
+        IntentFilter filter = new IntentFilter(ACTION_REFRESH_TABLES);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(refreshTablesReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(refreshTablesReceiver, filter);
+        }
+    }
+
 }

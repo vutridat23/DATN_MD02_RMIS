@@ -1,228 +1,42 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.coordinatorlayout.widget.CoordinatorLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F5F5F5"
-    android:fitsSystemWindows="true">
+    android:orientation="vertical"
+    android:background="#FFFFFF">
 
+    <!-- Toolbar -->
     <com.google.android.material.appbar.AppBarLayout
-        android:id="@+id/appBarLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="#AA0000"
         android:fitsSystemWindows="true"
-        android:elevation="4dp"
         android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar">
 
         <androidx.appcompat.widget.Toolbar
             android:id="@+id/toolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
-            app:navigationIcon="@drawable/btn_back"
-            app:popupTheme="@style/ThemeOverlay.AppCompat.Light">
-
+            android:background="#B71C1C"
+            app:navigationIcon="?attr/homeAsUpIndicator"
+            app:navigationIconTint="#FFFFFF">
+            
             <TextView
-                android:id="@+id/toolbar_title"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:text="LỊCH SỬ BÁO CÁO"
+                android:text="DANH SÁCH HÓA ĐƠN"
                 android:textColor="#FFFFFF"
                 android:textSize="18sp"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:layout_gravity="center" />
         </androidx.appcompat.widget.Toolbar>
     </com.google.android.material.appbar.AppBarLayout>
 
-    <androidx.core.widget.NestedScrollView
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rvHistory"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:clipToPadding="false"
-        android:paddingBottom="24dp"
-        app:layout_behavior="@string/appbar_scrolling_view_behavior">
+        android:padding="8dp"
+        android:clipToPadding="false" />
 
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="16dp">
-
-            <!-- Card chọn thời gian -->
-            <androidx.cardview.widget.CardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                app:cardBackgroundColor="#FFFFFF"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="2dp"
-                android:layout_marginBottom="16dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Chọn khoảng thời gian"
-                        android:textColor="#333333"
-                        android:textStyle="bold"
-                        android:layout_marginBottom="12dp"/>
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:baselineAligned="false">
-
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:orientation="vertical"
-                            android:layout_marginEnd="8dp">
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Từ ngày"
-                                android:textSize="12sp"
-                                android:textColor="#757575"/>
-
-                            <EditText
-                                android:id="@+id/edt_start_date"
-                                android:layout_width="match_parent"
-                                android:layout_height="48dp"
-                                android:background="@drawable/bg_edittext_bordered"
-                                android:hint="dd/mm/yyyy"
-                                android:paddingStart="12dp"
-                                android:textSize="14sp"
-                                android:drawableEnd="@drawable/baseline_calendar_today_24"
-                                android:drawableTint="#757575"
-                                android:paddingEnd="12dp"
-                                android:inputType="date"
-                                android:focusable="false"
-                                android:clickable="true"/>
-                        </LinearLayout>
-
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:orientation="vertical"
-                            android:layout_marginStart="8dp">
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Đến ngày"
-                                android:textSize="12sp"
-                                android:textColor="#757575"/>
-
-                            <EditText
-                                android:id="@+id/edt_end_date"
-                                android:layout_width="match_parent"
-                                android:layout_height="48dp"
-                                android:background="@drawable/bg_edittext_bordered"
-                                android:hint="dd/mm/yyyy"
-                                android:paddingStart="12dp"
-                                android:textSize="14sp"
-                                android:drawableEnd="@drawable/baseline_calendar_today_24"
-                                android:drawableTint="#757575"
-                                android:paddingEnd="12dp"
-                                android:inputType="date"
-                                android:focusable="false"
-                                android:clickable="true"/>
-                        </LinearLayout>
-                    </LinearLayout>
-
-                    <Button
-                        android:id="@+id/btn_search"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:layout_marginTop="16dp"
-                        android:backgroundTint="#AA0000"
-                        android:text="TRA CỨU DỮ LIỆU"
-                        android:textColor="#FFFFFF"
-                        android:textStyle="bold"
-                        app:cornerRadius="8dp"/>
-                </LinearLayout>
-            </androidx.cardview.widget.CardView>
-
-            <!-- Card tổng doanh thu -->
-            <androidx.cardview.widget.CardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                app:cardBackgroundColor="#FFFFFF"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="4dp"
-                android:layout_marginBottom="24dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="20dp"
-                    android:gravity="center">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="TỔNG DOANH THU"
-                        android:textColor="#757575"
-                        android:letterSpacing="0.05"
-                        android:textSize="12sp"
-                        android:textStyle="bold"/>
-
-                    <TextView
-                        android:id="@+id/tv_total_revenue"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="0 VND"
-                        android:textColor="#AA0000"
-                        android:textSize="28sp"
-                        android:textStyle="bold"
-                        android:layout_marginTop="4dp"/>
-
-                    <View
-                        android:layout_width="60dp"
-                        android:layout_height="2dp"
-                        android:background="#F5F5F5"
-                        android:layout_marginTop="12dp"
-                        android:layout_marginBottom="12dp"/>
-
-                    <TextView
-                        android:id="@+id/tv_total_invoices"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Tổng số hóa đơn: 44"
-                        android:textColor="#333333"
-                        android:textSize="14sp"/>
-
-                </LinearLayout>
-            </androidx.cardview.widget.CardView>
-
-            <!-- Title chi tiết -->
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Chi tiết theo ngày"
-                android:textColor="#333333"
-                android:textSize="16sp"
-                android:textStyle="bold"
-                android:layout_marginBottom="12dp"
-                android:layout_marginStart="4dp"/>
-
-            <!-- RecyclerView đổi tên -->
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/recycler_history_list"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:nestedScrollingEnabled="false"/>
-
-        </LinearLayout>
-    </androidx.core.widget.NestedScrollView>
-
-</androidx.coordinatorlayout.widget.CoordinatorLayout>
+</LinearLayout>

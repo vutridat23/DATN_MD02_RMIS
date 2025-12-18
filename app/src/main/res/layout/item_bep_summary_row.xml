@@ -51,5 +51,17 @@
         android:text="0"
         android:textColor="#AA0000"
         android:textStyle="bold"
-        android:textSize="16sp" />
+        android:textSize="16sp"
+        android:layout_marginEnd="8dp" />
+
+    <Button
+        android:id="@+id/btn_mark_done"
+        android:layout_width="wrap_content"
+        android:layout_height="36dp"
+        android:text="ĐÃ XONG"
+        android:textAllCaps="false"
+        android:backgroundTint="#4CAF50"
+        android:textColor="#FFFFFF"
+        android:paddingLeft="12dp"
+        android:paddingRight="12dp"/>
 </LinearLayout>

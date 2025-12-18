@@ -231,13 +231,7 @@ public class Order implements Serializable {
         this.tableNumberAnnotated = tableNumber;
     }
 
-    /**
-     * Resolve server id to a String.
-     * Supports server being returned as:
-     * - String (object id)
-     * - Object/Map (with _id or id or name)
-     * Fallback to legacy field if resolution fails.
-     */
+
     public String getServerId() {
         if (serverIdAnnotated == null) return serverLegacy;
         if (serverIdAnnotated instanceof String) {
@@ -411,6 +405,30 @@ public class Order implements Serializable {
         }
 
         // Trường hợp còn lại: ép kiểu về String
+        return String.valueOf(tempCalculationRequestedByAnnotated);
+    }
+
+    /**
+     * Lấy ID từ tempCalculationRequestedBy (luôn trả về ID, không phải name/username)
+     * Dùng để map ID -> name trong UI
+     */
+    public String getTempCalculationRequestedById() {
+        if (tempCalculationRequestedByAnnotated == null) return "";
+        if (tempCalculationRequestedByAnnotated instanceof Map) {
+            try {
+                Map<?, ?> map = (Map<?, ?>) tempCalculationRequestedByAnnotated;
+                // Luôn ưu tiên lấy _id
+                Object id = map.get("_id");
+                if (id != null) return String.valueOf(id);
+                // Fallback: nếu không có _id, có thể là ID nằm ở key khác
+                return "";
+            } catch (Exception e) {
+                return "";
+            }
+        }
+        if (tempCalculationRequestedByAnnotated instanceof String) {
+            return (String) tempCalculationRequestedByAnnotated;
+        }
         return String.valueOf(tempCalculationRequestedByAnnotated);
     }
 
