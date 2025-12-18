@@ -6,6 +6,10 @@ import com.ph48845.datn_qlnh_rmis.data.model.LoginResponse;
 import com.ph48845.datn_qlnh_rmis.data.model.MenuItem;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
 import com.ph48845.datn_qlnh_rmis.data.model.ReportItem;
+import com.ph48845.datn_qlnh_rmis.data.model.ReportDetail;
+import com.ph48845.datn_qlnh_rmis.data.model.HourlyRevenue;
+import com.ph48845.datn_qlnh_rmis.data.model.PeakHour;
+import com.ph48845.datn_qlnh_rmis.data.model.Shift;
 import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
 import com.ph48845.datn_qlnh_rmis.data.model.User;
 import com.ph48845.datn_qlnh_rmis.data.model.Voucher;
@@ -26,9 +30,11 @@ import retrofit2.http.QueryMap;
 
 /**
  * ApiService: Gộp tất cả endpoint cũ.
- * Nhóm rõ ràng theo module: User / Menu / Order / Table / Ingredient / History / Report
+ * Nhóm rõ ràng theo module: User / Menu / Order / Table / Ingredient / History
+ * / Report
  *
- * LƯU Ý: file này bao gồm cả các endpoint mới như recipes/consume (client giả định).
+ * LƯU Ý: file này bao gồm cả các endpoint mới như recipes/consume (client giả
+ * định).
  */
 public interface ApiService {
 
@@ -69,8 +75,7 @@ public interface ApiService {
     @GET("orders")
     Call<ApiResponse<List<Order>>> getOrdersByTable(
             @Query("tableNumber") Integer tableNumber,
-            @Query("status") String status
-    );
+            @Query("status") String status);
 
     @POST("orders")
     Call<ApiResponse<Order>> createOrder(@Body Order order);
@@ -91,15 +96,13 @@ public interface ApiService {
     Call<Void> updateOrderItemStatus(
             @Path("orderId") String orderId,
             @Path("itemId") String itemId,
-            @Body StatusUpdate statusUpdate
-    );
+            @Body StatusUpdate statusUpdate);
 
     @POST("orders/{orderId}/items/{itemId}/request-cancel")
     Call<ApiResponse<Order>> requestCancelItem(
             @Path("orderId") String orderId,
             @Path("itemId") String itemId,
-            @Body Map<String, Object> body
-    );
+            @Body Map<String, Object> body);
 
     @POST("orders/{id}/request-temp-calculation")
     Call<ApiResponse<Order>> requestTempCalculation(@Path("id") String orderId, @Body Map<String, Object> body);
@@ -136,7 +139,8 @@ public interface ApiService {
 
     // ===========================
     // --- RECIPES / CONSUME (NEW) ---
-    // POST to ask server to deduct ingredient stock according to recipe for a menuItem
+    // POST to ask server to deduct ingredient stock according to recipe for a
+    // menuItem
     @POST("recipes/consume")
     Call<ApiResponse<Void>> consumeRecipe(@Body Map<String, Object> body);
 
@@ -169,6 +173,64 @@ public interface ApiService {
 
     @POST("reports/weekly")
     Call<ApiResponse<ReportItem>> createWeeklyReport(@Body Map<String, String> body);
+
+    @GET("reports/detailed")
+    Call<ApiResponse<ReportDetail>> getDetailedReport(@QueryMap Map<String, String> params);
+
+    @GET("reports/hourly")
+    Call<ApiResponse<List<HourlyRevenue>>> getHourlyRevenue(@Query("date") String date);
+
+    @GET("reports/peak-hours")
+    Call<ApiResponse<List<PeakHour>>> getPeakHours(@QueryMap Map<String, String> params);
+
+    // ===========================
+    // --- INGREDIENT WARNINGS ---
+    // ===========================
+    @GET("ingredients/warnings")
+    Call<ApiResponse<List<Ingredient>>> getWarningIngredients();
+
+    @GET("ingredients/{id}")
+    Call<ApiResponse<Ingredient>> getIngredientById(@Path("id") String ingredientId);
+
+    @POST("ingredients")
+    Call<ApiResponse<Ingredient>> createIngredient(@Body Ingredient ingredient);
+
+    @PUT("ingredients/{id}")
+    Call<ApiResponse<Ingredient>> updateIngredient(@Path("id") String ingredientId, @Body Ingredient ingredient);
+
+    @DELETE("ingredients/{id}")
+    Call<ApiResponse<Void>> deleteIngredient(@Path("id") String ingredientId);
+
+    @POST("ingredients/{id}/restock")
+    Call<ApiResponse<Ingredient>> restockIngredient(@Path("id") String ingredientId, @Body Map<String, Object> body);
+
+    // ===========================
+    // --- SHIFT ENDPOINTS ---
+    // ===========================
+    @GET("shifts")
+    Call<ApiResponse<List<Shift>>> getAllShifts(@QueryMap Map<String, String> params);
+
+    @GET("shifts/{id}")
+    Call<ApiResponse<Shift>> getShiftById(@Path("id") String shiftId);
+
+    @POST("shifts")
+    Call<ApiResponse<Shift>> createShift(@Body Shift shift);
+
+    @PUT("shifts/{id}")
+    Call<ApiResponse<Shift>> updateShift(@Path("id") String shiftId, @Body Shift shift);
+
+    @DELETE("shifts/{id}")
+    Call<ApiResponse<Void>> deleteShift(@Path("id") String shiftId);
+
+    @POST("shifts/{id}/checkin")
+    Call<ApiResponse<Shift>> checkinShift(@Path("id") String shiftId, @Body Map<String, String> body);
+
+    @POST("shifts/{id}/checkout")
+    Call<ApiResponse<Shift>> checkoutShift(@Path("id") String shiftId, @Body Map<String, String> body);
+
+    @GET("shifts/employee/{employeeId}")
+    Call<ApiResponse<List<Shift>>> getEmployeeShiftHistory(@Path("employeeId") String employeeId,
+            @QueryMap Map<String, String> params);
 
     // ===========================
     // --- VOUCHER ENDPOINTS ---

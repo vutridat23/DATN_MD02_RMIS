@@ -50,10 +50,13 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * MainActivity (rút gọn): setup UI, load data and listen for socket table events.
+ * MainActivity (rút gọn): setup UI, load data and listen for socket table
+ * events.
  *
- * IMPORTANT: This version delegates the popup menu handling to TableActionsHandler.
- * - onTableLongClick -> tableActionsHandler.showTableActionsMenuForLongPress(...)
+ * IMPORTANT: This version delegates the popup menu handling to
+ * TableActionsHandler.
+ * - onTableLongClick ->
+ * tableActionsHandler.showTableActionsMenuForLongPress(...)
  * Other features unchanged.
  */
 public class MainActivity extends BaseMenuActivity {
@@ -98,7 +101,6 @@ public class MainActivity extends BaseMenuActivity {
         Toolbar toolbar = findViewById(R.id.toolbar);
         navigationView = findViewById(R.id.navigationView_order);
 
-
         ImageView navIcon = findViewById(R.id.nav_icon);
         if (navIcon != null && drawerLayout != null) {
             navIcon.setOnClickListener(v -> drawerLayout.openDrawer(GravityCompat.START));
@@ -110,6 +112,9 @@ public class MainActivity extends BaseMenuActivity {
 
         // navigation menu style
         if (navigationView != null) {
+            // Load menu based on user role
+            loadMenuBasedOnRole();
+
             try {
                 for (int i = 0; i < navigationView.getMenu().size(); i++) {
                     MenuItem menuItem = navigationView.getMenu().getItem(i);
@@ -123,14 +128,9 @@ public class MainActivity extends BaseMenuActivity {
 
             navigationView.setNavigationItemSelectedListener(item -> {
                 int id = item.getItemId();
-                if (id == R.id.nav_mood) {
-                    showMoodDialog();
-                } else if (id == R.id.nav_contact) {
-                    showContactDialog();
-                } else if (id == R.id.nav_logout) {
-                    logout();
-                }
-                if (drawerLayout != null) drawerLayout.closeDrawer(GravityCompat.START);
+                handleNavigationItemClick(id);
+                if (drawerLayout != null)
+                    drawerLayout.closeDrawer(GravityCompat.START);
                 return true;
             });
         } else {
@@ -149,8 +149,10 @@ public class MainActivity extends BaseMenuActivity {
 
         // register temporary bill handler
         tableActionsHandler.setTemporaryBillRequester(table -> {
-            if (table == null) return;
-            TemporaryBillDialogFragment f = TemporaryBillDialogFragment.newInstance(table, updatedOrder -> fetchTablesFromServer());
+            if (table == null)
+                return;
+            TemporaryBillDialogFragment f = TemporaryBillDialogFragment.newInstance(table,
+                    updatedOrder -> fetchTablesFromServer());
             f.show(getSupportFragmentManager(), "tempBill");
         });
 
@@ -158,22 +160,26 @@ public class MainActivity extends BaseMenuActivity {
         TableAdapter.OnTableClickListener listener = new TableAdapter.OnTableClickListener() {
             @Override
             public void onTableClick(View v, TableItem table) {
-                if (table == null) return;
+                if (table == null)
+                    return;
                 Intent intent = new Intent(MainActivity.this, OrderActivity.class);
                 intent.putExtra("tableId", table.getId());
                 intent.putExtra("tableNumber", table.getTableNumber());
                 boolean isCustomerPresent = false;
                 try {
                     TableItem.Status st = table.getStatus();
-                    if (st == TableItem.Status.OCCUPIED || st == TableItem.Status.PENDING_PAYMENT) isCustomerPresent = true;
-                } catch (Exception ignored) {}
+                    if (st == TableItem.Status.OCCUPIED || st == TableItem.Status.PENDING_PAYMENT)
+                        isCustomerPresent = true;
+                } catch (Exception ignored) {
+                }
                 intent.putExtra("forceShowOrders", isCustomerPresent);
                 startActivity(intent);
             }
 
             @Override
             public void onTableLongClick(View v, TableItem table) {
-                if (table == null) return;
+                if (table == null)
+                    return;
                 // Delegate to TableActionsHandler which shows the popup and calls managers
                 tableActionsHandler.showTableActionsMenuForLongPress(v, table);
             }
@@ -186,7 +192,8 @@ public class MainActivity extends BaseMenuActivity {
 
         // Determine socket URL (intent override possible)
         String socketUrl = getIntent().getStringExtra("socketUrl");
-        if (socketUrl == null || socketUrl.trim().isEmpty()) socketUrl = defaultSocketUrl;
+        if (socketUrl == null || socketUrl.trim().isEmpty())
+            socketUrl = defaultSocketUrl;
 
         // If running on emulator, try the special emulator host (10.0.2.2)
         if (isProbablyEmulator()) {
@@ -206,19 +213,39 @@ public class MainActivity extends BaseMenuActivity {
             socketManager = SocketManager.getInstance();
             socketManager.init(socketUrl);
             socketManager.setOnEventListener(new SocketManager.OnEventListener() {
-                @Override public void onOrderCreated(JSONObject payload) {}
-                @Override public void onOrderUpdated(JSONObject payload) {}
-                @Override public void onConnect() { Log.d(TAG, "socket connected (main)"); }
-                @Override public void onDisconnect() { Log.d(TAG, "socket disconnected (main)"); }
-                @Override public void onError(Exception e) { Log.w(TAG, "socket error (main): " + (e != null ? e.getMessage() : "null")); }
+                @Override
+                public void onOrderCreated(JSONObject payload) {
+                }
+
+                @Override
+                public void onOrderUpdated(JSONObject payload) {
+                }
+
+                @Override
+                public void onConnect() {
+                    Log.d(TAG, "socket connected (main)");
+                }
+
+                @Override
+                public void onDisconnect() {
+                    Log.d(TAG, "socket disconnected (main)");
+                }
+
+                @Override
+                public void onError(Exception e) {
+                    Log.w(TAG, "socket error (main): " + (e != null ? e.getMessage() : "null"));
+                }
+
                 @Override
                 public void onTableUpdated(JSONObject payload) {
                     if (payload != null) {
                         String evt = payload.optString("eventName", "");
                         if ("table_auto_released".equals(evt)) {
                             int tblNum = -1;
-                            if (payload.has("tableNumber")) tblNum = payload.optInt("tableNumber", -1);
-                            else if (payload.has("table")) tblNum = payload.optInt("table", -1);
+                            if (payload.has("tableNumber"))
+                                tblNum = payload.optInt("tableNumber", -1);
+                            else if (payload.has("table"))
+                                tblNum = payload.optInt("table", -1);
                             final int shownNum = tblNum;
                             runOnUiThread(() -> {
                                 try {
@@ -255,7 +282,8 @@ public class MainActivity extends BaseMenuActivity {
     }
 
     private void applyNavigationViewInsets() {
-        if (navigationView == null) return;
+        if (navigationView == null)
+            return;
 
         ViewCompat.setOnApplyWindowInsetsListener(navigationView, (view, insets) -> {
 
@@ -266,10 +294,9 @@ public class MainActivity extends BaseMenuActivity {
             if (header != null) {
                 header.setPadding(
                         header.getPaddingLeft(),
-                        statusBar,   // ĐẨY XUỐNG ĐỂ TRÁNH DÍNH STATUS BAR
+                        statusBar, // ĐẨY XUỐNG ĐỂ TRÁNH DÍNH STATUS BAR
                         header.getPaddingRight(),
-                        header.getPaddingBottom()
-                );
+                        header.getPaddingBottom());
             }
 
             return insets;
@@ -294,12 +321,16 @@ public class MainActivity extends BaseMenuActivity {
             String query = uri.getRawQuery() != null ? "?" + uri.getRawQuery() : "";
             String newHost = "10.0.2.2";
             String newUrl;
-            if (port > 0) newUrl = scheme + "://" + newHost + ":" + port + path + query;
-            else newUrl = scheme + "://" + newHost + path + query;
+            if (port > 0)
+                newUrl = scheme + "://" + newHost + ":" + port + path + query;
+            else
+                newUrl = scheme + "://" + newHost + path + query;
             return newUrl;
         } catch (Exception e) {
-            if (url.startsWith("http://localhost")) return url.replace("localhost", "10.0.2.2");
-            if (url.startsWith("http://127.0.0.1")) return url.replace("127.0.0.1", "10.0.2.2");
+            if (url.startsWith("http://localhost"))
+                return url.replace("localhost", "10.0.2.2");
+            if (url.startsWith("http://127.0.0.1"))
+                return url.replace("127.0.0.1", "10.0.2.2");
             return url;
         }
     }
@@ -325,15 +356,18 @@ public class MainActivity extends BaseMenuActivity {
             String savedName = prefs.getString("fullName", "Người dùng");
             String savedRole = prefs.getString("userRole", "");
 
-            if (tvName != null) tvName.setText(savedName);
-            if (tvRole != null) tvRole.setText(getVietnameseRole(savedRole));
+            if (tvName != null)
+                tvName.setText(savedName);
+            if (tvRole != null)
+                tvRole.setText(getVietnameseRole(savedRole));
         } catch (Exception e) {
             Log.w(TAG, "updateNavHeaderInfo failed: " + e.getMessage(), e);
         }
     }
 
     private String getVietnameseRole(String roleKey) {
-        if (roleKey == null) return "";
+        if (roleKey == null)
+            return "";
         switch (roleKey.toLowerCase()) {
             case "cashier":
                 return "Thu ngân";
@@ -350,44 +384,67 @@ public class MainActivity extends BaseMenuActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        try { if (socketManager != null) socketManager.connect(); } catch (Exception e) { Log.w(TAG, "socket connect onResume failed", e); }
+        try {
+            if (socketManager != null)
+                socketManager.connect();
+        } catch (Exception e) {
+            Log.w(TAG, "socket connect onResume failed", e);
+        }
         fetchTablesFromServer();
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        try { if (socketManager != null) socketManager.disconnect(); } catch (Exception e) { Log.w(TAG, "socket disconnect onPause failed", e); }
+        try {
+            if (socketManager != null)
+                socketManager.disconnect();
+        } catch (Exception e) {
+            Log.w(TAG, "socket disconnect onPause failed", e);
+        }
     }
 
     public void fetchTablesFromServer() {
-        if (progressBar != null) progressBar.setVisibility(ProgressBar.VISIBLE);
+        if (progressBar != null)
+            progressBar.setVisibility(ProgressBar.VISIBLE);
         tableRepository.getAllTables(new TableRepository.RepositoryCallback<List<TableItem>>() {
             @Override
             public void onSuccess(List<TableItem> result) {
                 runOnUiThread(() -> {
-                    if (progressBar != null) progressBar.setVisibility(ProgressBar.GONE);
+                    if (progressBar != null)
+                        progressBar.setVisibility(ProgressBar.GONE);
                     if (result == null || result.isEmpty()) {
                         adapterFloor1.updateList(new ArrayList<>());
                         adapterFloor2.updateList(new ArrayList<>());
                         return;
                     }
 
-                    for (TableItem t : result) if (t != null && t.getLocation() == null) t.setLocation("");
+                    for (TableItem t : result)
+                        if (t != null && t.getLocation() == null)
+                            t.setLocation("");
 
                     List<TableItem> floor1 = new ArrayList<>();
                     List<TableItem> floor2 = new ArrayList<>();
                     for (TableItem t : result) {
                         int floor = parseFloorFromLocation(t.getLocation());
-                        if (floor == 2) floor2.add(t); else floor1.add(t);
+                        if (floor == 2)
+                            floor2.add(t);
+                        else
+                            floor1.add(t);
                     }
 
                     Comparator<TableItem> byNumber = (a, b) -> {
-                        if (a == null && b == null) return 0;
-                        if (a == null) return 1;
-                        if (b == null) return -1;
-                        try { return Integer.compare(a.getTableNumber(), b.getTableNumber()); }
-                        catch (Exception e) { return String.valueOf(a.getTableNumber()).compareTo(String.valueOf(b.getTableNumber())); }
+                        if (a == null && b == null)
+                            return 0;
+                        if (a == null)
+                            return 1;
+                        if (b == null)
+                            return -1;
+                        try {
+                            return Integer.compare(a.getTableNumber(), b.getTableNumber());
+                        } catch (Exception e) {
+                            return String.valueOf(a.getTableNumber()).compareTo(String.valueOf(b.getTableNumber()));
+                        }
                     };
                     Collections.sort(floor1, byNumber);
                     Collections.sort(floor2, byNumber);
@@ -401,10 +458,12 @@ public class MainActivity extends BaseMenuActivity {
                     syncTableStatusesWithOrders(all);
                 });
             }
+
             @Override
             public void onError(String message) {
                 runOnUiThread(() -> {
-                    if (progressBar != null) progressBar.setVisibility(ProgressBar.GONE);
+                    if (progressBar != null)
+                        progressBar.setVisibility(ProgressBar.GONE);
                     Toast.makeText(MainActivity.this, "Lỗi tải danh sách bàn: " + message, Toast.LENGTH_LONG).show();
                 });
             }
@@ -412,52 +471,159 @@ public class MainActivity extends BaseMenuActivity {
     }
 
     private int parseFloorFromLocation(String location) {
-        if (location == null) return 1;
+        if (location == null)
+            return 1;
         try {
             String lower = location.toLowerCase(Locale.getDefault());
             Pattern p = Pattern.compile("(\\d+)");
             Matcher m = p.matcher(lower);
-            if (m.find()) return Integer.parseInt(m.group(1));
-        } catch (Exception ignored) {}
+            if (m.find())
+                return Integer.parseInt(m.group(1));
+        } catch (Exception ignored) {
+        }
         return 1;
     }
 
     private void syncTableStatusesWithOrders(List<TableItem> tables) {
-        if (tables == null || tables.isEmpty()) return;
+        if (tables == null || tables.isEmpty())
+            return;
         orderRepository.getOrdersByTableNumber(null, null, new OrderRepository.RepositoryCallback<List<Order>>() {
             @Override
             public void onSuccess(List<Order> orders) {
                 final java.util.Set<Integer> occupiedTableNumbers = new java.util.HashSet<>();
                 if (orders != null) {
-                    for (Order o : orders) if (o != null) occupiedTableNumbers.add(o.getTableNumber());
+                    for (Order o : orders)
+                        if (o != null)
+                            occupiedTableNumbers.add(o.getTableNumber());
                 }
                 List<TableItem> toUpdate = new ArrayList<>();
                 final List<String> desired = new ArrayList<>();
                 for (TableItem t : tables) {
-                    if (t == null) continue;
+                    if (t == null)
+                        continue;
                     boolean isReserved = false;
-                    try { isReserved = t.getStatus() == TableItem.Status.RESERVED; } catch (Exception ignored) {}
-                    if (isReserved) continue;
+                    try {
+                        isReserved = t.getStatus() == TableItem.Status.RESERVED;
+                    } catch (Exception ignored) {
+                    }
+                    if (isReserved)
+                        continue;
                     String cur = t.getStatus() != null ? t.getStatus().name().toLowerCase() : "";
                     String want = occupiedTableNumbers.contains(t.getTableNumber()) ? "occupied" : "available";
-                    if (!cur.equals(want)) { toUpdate.add(t); desired.add(want); }
+                    if (!cur.equals(want)) {
+                        toUpdate.add(t);
+                        desired.add(want);
+                    }
                 }
-                if (toUpdate.isEmpty()) return;
+                if (toUpdate.isEmpty())
+                    return;
                 final int total = toUpdate.size();
-                final int[] finished = {0};
+                final int[] finished = { 0 };
                 for (int i = 0; i < toUpdate.size(); i++) {
                     TableItem ti = toUpdate.get(i);
                     String want = desired.get(i);
-                    tableRepository.updateTableStatus(ti.getId(), want, new TableRepository.RepositoryCallback<TableItem>() {
-                        @Override
-                        public void onSuccess(TableItem updated) { finished[0]++; if (finished[0] >= total) runOnUiThread(() -> fetchTablesFromServer()); }
-                        @Override
-                        public void onError(String message) { finished[0]++; if (finished[0] >= total) runOnUiThread(() -> fetchTablesFromServer()); }
-                    });
+                    tableRepository.updateTableStatus(ti.getId(), want,
+                            new TableRepository.RepositoryCallback<TableItem>() {
+                                @Override
+                                public void onSuccess(TableItem updated) {
+                                    finished[0]++;
+                                    if (finished[0] >= total)
+                                        runOnUiThread(() -> fetchTablesFromServer());
+                                }
+
+                                @Override
+                                public void onError(String message) {
+                                    finished[0]++;
+                                    if (finished[0] >= total)
+                                        runOnUiThread(() -> fetchTablesFromServer());
+                                }
+                            });
                 }
             }
+
             @Override
-            public void onError(String message) { Log.w(TAG, "sync orders error: " + message); }
+            public void onError(String message) {
+                Log.w(TAG, "sync orders error: " + message);
+            }
         });
+    }
+
+    /**
+     * Load menu dựa trên role của user
+     */
+    private void loadMenuBasedOnRole() {
+        if (navigationView == null)
+            return;
+
+        SharedPreferences prefs = getSharedPreferences("RestaurantPrefs", MODE_PRIVATE);
+        String userRole = prefs.getString("userRole", "waiter");
+
+        Log.d(TAG, "Loading menu for role: " + userRole);
+
+        // Clear existing menu
+        navigationView.getMenu().clear();
+
+        // Load menu based on role
+        switch (userRole.toLowerCase()) {
+            case "admin":
+                navigationView.inflateMenu(R.menu.menu_drawer_admin);
+                break;
+            case "cashier":
+                navigationView.inflateMenu(R.menu.menu_drawer_thungan);
+                break;
+            case "kitchen":
+                navigationView.inflateMenu(R.menu.menu_drawer_bep);
+                break;
+            case "waiter":
+            default:
+                navigationView.inflateMenu(R.menu.menu_drawer_order);
+                break;
+        }
+    }
+
+    /**
+     * Xử lý click vào navigation menu items
+     */
+    private void handleNavigationItemClick(int itemId) {
+        if (itemId == R.id.nav_mood) {
+            showMoodDialog();
+        } else if (itemId == R.id.nav_contact) {
+            showContactDialog();
+        } else if (itemId == R.id.nav_logout) {
+            logout();
+        } else if (itemId == R.id.nav_reports) {
+            // Navigate to Reports Activity
+            Intent intent = new Intent(this, com.ph48845.datn_qlnh_rmis.ui.revenue.ReportActivity.class);
+            startActivity(intent);
+        } else if (itemId == R.id.nav_revenue) {
+            // Navigate to Revenue Activity
+            Intent intent = new Intent(this, com.ph48845.datn_qlnh_rmis.ui.revenue.ReportActivity.class);
+            startActivity(intent);
+        } else if (itemId == R.id.nav_warnings) {
+            // Navigate to Warnings Activity
+            Intent intent = new Intent(this, com.ph48845.datn_qlnh_rmis.ui.warehouse.WarningActivity.class);
+            startActivity(intent);
+        } else if (itemId == R.id.nav_shifts) {
+            // Navigate to Shifts Activity
+            Intent intent = new Intent(this, com.ph48845.datn_qlnh_rmis.ui.shift.ShiftActivity.class);
+            startActivity(intent);
+        } else if (itemId == R.id.nav_employees) {
+            // Navigate to Employees Activity
+            Intent intent = new Intent(this, com.ph48845.datn_qlnh_rmis.ui.employee.EmployeeActivity.class);
+            startActivity(intent);
+        } else if (itemId == R.id.nav_payment_history) {
+            // Navigate to Payment History Activity
+            Intent intent = new Intent(this, com.ph48845.datn_qlnh_rmis.ui.thungan.HistoryActivity.class);
+            startActivity(intent);
+        } else if (itemId == R.id.nav_temp_calculation_requests) {
+            // Handle temp calculation requests
+            Toast.makeText(this, "Yêu cầu tạm tính", Toast.LENGTH_SHORT).show();
+        } else if (itemId == R.id.nav_pre_bill) {
+            // Handle pre-bill request
+            Toast.makeText(this, "Yêu cầu hóa đơn tạm tính", Toast.LENGTH_SHORT).show();
+        } else if (itemId == R.id.nav_check_items_requests) {
+            // Handle check items request
+            Toast.makeText(this, "Yêu cầu kiểm tra bàn", Toast.LENGTH_SHORT).show();
+        }
     }
 }
