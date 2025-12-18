@@ -1,8 +1,7 @@
-package com.ph48845.datn_qlnh_rmis. ui.bep;
+package com.ph48845.datn_qlnh_rmis.ui. bep;
 
 import android.app.AlertDialog;
-import android.content.DialogInterface;
-import android.content. Intent;
+import android. content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -96,6 +95,7 @@ public class BepTableFragment extends Fragment {
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         rvTables = view.findViewById(R.id.rv_bep_tables);
+        // THAY ĐỔI:  Từ GridLayoutManager(1) thành GridLayoutManager(3) để hiển thị 3 bàn/hàng
         rvTables.setLayoutManager(new GridLayoutManager(requireContext(), 3));
         tableAdapter = new BepAdapter(requireContext(), table -> {
             showTableDetail(table);
@@ -111,7 +111,123 @@ public class BepTableFragment extends Fragment {
         orderRepository = new OrderRepository();
 
         orderItemAdapter = new OrderItemAdapter(requireContext(), (wrapper, newStatus) -> {
-            handleStatusChange(wrapper, newStatus);
+            // gọi API cập nhật trạng thái ngay khi bấm
+            if (wrapper == null || newStatus == null) return;
+            Order order = wrapper.getOrder();
+            Order.OrderItem item = wrapper.getItem();
+            if (order == null || item == null) return;
+
+            String orderId = order.getId();
+            String itemId = item. getMenuItemId();
+            if (orderId == null || orderId.trim().isEmpty() || itemId == null || itemId.trim().isEmpty()) {
+                if (getActivity() != null) Toast.makeText(getActivity(), "Không thể xác định order/item id", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            if (getActivity() != null) Toast.makeText(getActivity(), "Đang gửi yêu cầu cập nhật trạng thái.. .", Toast.LENGTH_SHORT).show();
+
+            // If user requests "preparing", consume ingredients first (server will deduct)
+            if ("preparing".equals(newStatus)) {
+                double qty = item.getQuantity() <= 0 ? 1.0 : item.getQuantity();
+                Call<ApiResponse<Void>> consumeCall = orderRepository.consumeRecipeCall(item.getMenuItemId(), qty, orderId);
+
+                // show quick toast so user knows consume started
+                if (getActivity() != null) getActivity().runOnUiThread(() ->
+                        Toast.makeText(getActivity(), "Đang kiểm tra và trừ nguyên liệu...", Toast.LENGTH_SHORT).show());
+
+                consumeCall.enqueue(new Callback<ApiResponse<Void>>() {
+                    @Override
+                    public void onResponse(Call<ApiResponse<Void>> call, Response<ApiResponse<Void>> response) {
+                        try {
+                            if (response. isSuccessful() && response.body() != null && response.body().isSuccess()) {
+                                // proceed to update status
+                                orderRepository.updateOrderItemStatus(orderId, itemId, newStatus).enqueue(new retrofit2.Callback<Void>() {
+                                    @Override
+                                    public void onResponse(retrofit2.Call<Void> call, retrofit2.Response<Void> response) {
+                                        if (getActivity() == null) return;
+                                        if (response.isSuccessful()) {
+                                            // Cập nhật local model ngay để UI phản hồi tức thì
+                                            item.setStatus(newStatus);
+                                            String ns = newStatus == null ? "" : newStatus.trim().toLowerCase();
+                                            if ("ready".equals(ns) || "soldout".equals(ns) || "done".equals(ns) || "completed".equals(ns)) {
+                                                orderItemAdapter.clearStartTimeForItem(order, item);
+                                            }
+                                            getActivity().runOnUiThread(() -> {
+                                                orderItemAdapter.notifyDataSetChanged();
+                                                Toast.makeText(getActivity(), "Bắt đầu làm món và trừ nguyên liệu thành công", Toast.LENGTH_SHORT).show();
+                                            });
+                                        } else {
+                                            getActivity().runOnUiThread(() -> Toast.makeText(getActivity(), "Cập nhật trạng thái thất bại:  HTTP " + response.code(), Toast.LENGTH_LONG).show());
+                                        }
+                                    }
+
+                                    @Override
+                                    public void onFailure(retrofit2.Call<Void> call, Throwable t) {
+                                        if (getActivity() == null) return;
+                                        getActivity().runOnUiThread(() -> Toast.makeText(getActivity(), "Lỗi mạng khi cập nhật trạng thái:  " + (t.getMessage() != null ? t.getMessage() : ""), Toast.LENGTH_LONG).show());
+                                    }
+                                });
+                                return;
+                            }
+
+                            // Handle consume failure:  try to extract meaningful message / shortages
+                            String errBody = null;
+                            if (response != null && response.errorBody() != null) {
+                                try { errBody = response.errorBody().string(); } catch (Exception ignored) { errBody = null; }
+                            } else if (response != null && response.body() != null && response.body().getMessage() != null) {
+                                // uncommon:  server returned 2xx but success=false
+                                showShortageDialog("Không thể trừ nguyên liệu", response.body().getMessage());
+                                return;
+                            }
+
+                            if (errBody != null && !errBody.isEmpty()) {
+                                parseAndShowShortages(errBody);
+                            } else {
+                                showShortageDialog("Không thể trừ nguyên liệu", "Server trả về lỗi khi trừ nguyên liệu.");
+                            }
+                        } catch (Exception ex) {
+                            Log.e(TAG, "consumeRecipe onResponse exception", ex);
+                            showShortageDialog("Lỗi", "Lỗi xử lý phản hồi từ server:  " + ex.getMessage());
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Call<ApiResponse<Void>> call, Throwable t) {
+                        Log.e(TAG, "consumeRecipe onFailure", t);
+                        if (getActivity() != null) getActivity().runOnUiThread(() ->
+                                showShortageDialog("Lỗi kết nối", "Không thể kết nối tới server:  " + (t.getMessage() != null ? t.getMessage() : "")));
+                    }
+                });
+            } else {
+                // other statuses:  update directly
+                orderRepository.updateOrderItemStatus(orderId, itemId, newStatus).enqueue(new retrofit2.Callback<Void>() {
+                    @Override
+                    public void onResponse(retrofit2.Call<Void> call, retrofit2.Response<Void> response) {
+                        if (getActivity() == null) return;
+                        if (response.isSuccessful()) {
+                            // Cập nhật local model ngay để UI phản hồi tức thì
+                            item. setStatus(newStatus);
+                            String ns = newStatus == null ? "" : newStatus.trim().toLowerCase();
+                            if ("ready".equals(ns) || "soldout".equals(ns) || "done".equals(ns) || "completed".equals(ns)) {
+                                orderItemAdapter.clearStartTimeForItem(order, item);
+                            }
+                            // refresh adapter UI
+                            getActivity().runOnUiThread(() -> {
+                                orderItemAdapter.notifyDataSetChanged();
+                                Toast.makeText(getActivity(), "Cập nhật trạng thái thành công", Toast.LENGTH_SHORT).show();
+                            });
+                        } else {
+                            getActivity().runOnUiThread(() -> Toast.makeText(getActivity(), "Cập nhật thất bại: HTTP " + response.code(), Toast.LENGTH_LONG).show());
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(retrofit2.Call<Void> call, Throwable t) {
+                        if (getActivity() == null) return;
+                        getActivity().runOnUiThread(() -> Toast.makeText(getActivity(), "Lỗi mạng:  " + (t.getMessage() != null ? t.getMessage() : ""), Toast.LENGTH_LONG).show());
+                    }
+                });
+            }
         });
 
         rvDetailOrders.setLayoutManager(new GridLayoutManager(requireContext(), 1));
@@ -251,9 +367,6 @@ public class BepTableFragment extends Fragment {
         this.currentEarliest = earliestTs;
         this.perTableItems = perTableItems;
         tableAdapter.updateList(this.currentTables, this.currentRemaining, this. currentEarliest);
-
-        // Check for cancel_requested items and show dialogs
-        checkForCancelRequests(perTableItems);
 
         if (layoutDetail. getVisibility() == View.VISIBLE) {
             String title = tvDetailTitle.getText() != null ? tvDetailTitle.getText().toString() : "";
@@ -504,7 +617,7 @@ public class BepTableFragment extends Fragment {
 
             StringBuilder details = new StringBuilder();
             if (shortages != null && shortages.length() > 0) {
-                for (int i = 0; i < shortages.length(); i++) {
+                for (int i = 0; i < shortages. length(); i++) {
                     JSONObject s = shortages.optJSONObject(i);
                     if (s == null) continue;
                     String name = s.optString("ingredientName", s.optString("ingredientId", "Unknown"));
