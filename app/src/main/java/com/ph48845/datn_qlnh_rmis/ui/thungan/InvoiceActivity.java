@@ -1596,7 +1596,22 @@ public class InvoiceActivity extends AppCompatActivity {
                         Log.d(TAG, "Order response - checkItemsRequestedAt: " + result.getCheckItemsRequestedAt());
                         Log.d(TAG, "Order response - checkItemsRequestedBy: " + result.getCheckItemsRequestedBy());
                         if (result.getCheckItemsRequestedAt() == null || result.getCheckItemsRequestedAt().trim().isEmpty()) {
-                            Log.w(TAG, "WARNING: Server response does not contain checkItemsRequestedAt field!");
+                            Log.w(TAG, "WARNING: Server response does not contain checkItemsRequestedAt field! Will query order again...");
+                            // Query lại order để lấy dữ liệu mới nhất
+                            orderRepository.getOrderById(orderId, new OrderRepository.RepositoryCallback<Order>() {
+                                @Override
+                                public void onSuccess(Order freshOrder) {
+                                    Log.d(TAG, "Fresh order query - checkItemsRequestedAt: " + 
+                                          (freshOrder != null ? freshOrder.getCheckItemsRequestedAt() : "null"));
+                                    Log.d(TAG, "Fresh order query - checkItemsRequestedBy: " + 
+                                          (freshOrder != null ? freshOrder.getCheckItemsRequestedBy() : "null"));
+                                }
+
+                                @Override
+                                public void onError(String message) {
+                                    Log.e(TAG, "Failed to query fresh order: " + message);
+                                }
+                            });
                         }
                     } else {
                         Log.w(TAG, "WARNING: Server returned null order object!");
