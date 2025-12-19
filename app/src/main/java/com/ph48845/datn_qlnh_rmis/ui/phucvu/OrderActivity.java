@@ -1,9 +1,14 @@
-package com.ph48845.datn_qlnh_rmis.ui.phucvu;
+package com. ph48845.datn_qlnh_rmis. ui. phucvu;
 
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
-import android.os.Bundle;
-import android.util.Log;
+import android.os. Bundle;
+import android.os. Handler;
+import android.os. Looper;
+import android. util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ProgressBar;
@@ -16,25 +21,25 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.ph48845.datn_qlnh_rmis.R;
+import com.ph48845.datn_qlnh_rmis. R;
 import com.ph48845.datn_qlnh_rmis.ui.MainActivity;
 import com.ph48845.datn_qlnh_rmis.ui.phucvu.adapter.MenuAdapter;
-import com.ph48845.datn_qlnh_rmis.ui.phucvu.adapter.OrderAdapter;
+import com.ph48845.datn_qlnh_rmis.ui.phucvu. adapter.OrderAdapter;
 import com.ph48845.datn_qlnh_rmis.data.model.MenuItem;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
 import com.ph48845.datn_qlnh_rmis.data.model.Order.OrderItem;
 import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
 import com.ph48845.datn_qlnh_rmis.data.repository.OrderRepository;
-import com.ph48845.datn_qlnh_rmis.data.repository.MenuRepository;
-import com.ph48845.datn_qlnh_rmis.data.repository.TableRepository;
+import com.ph48845.datn_qlnh_rmis.data.repository. MenuRepository;
+import com.ph48845.datn_qlnh_rmis.data.repository. TableRepository;
 import com.ph48845.datn_qlnh_rmis.ui.phucvu.socket.OrderSocketHandler;
 
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
+import java.util. ArrayList;
+import java.util. HashMap;
+import java.util. Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -43,17 +48,26 @@ import java.util.Map;
  * - OnBackPressedDispatcher handling (menu <-> order details navigation),
  * - Confirm add items -> return to MainActivity,
  * - Click on items with "done/xong/served/ready" status -> show confirmation dialog and update server.
+ * - Check items request handling via broadcast and polling
  */
 public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMenuClickListener,
-        OrderSocketHandler.Listener, MenuLongPressHandler.NoteStore {
+        OrderSocketHandler. Listener, MenuLongPressHandler.NoteStore {
 
     private static final String TAG = "OrderActivity";
+
+    // ✅ Khai báo biến cho check items request
+    private BroadcastReceiver checkItemsReceiver;
+    private Handler pollingHandler;
+    private Runnable pollingRunnable;
+    private static final long POLLING_INTERVAL_MS = 5000; // 5 giây
+    private String lastCheckItemsRequestedAt = null;
 
     private RecyclerView rvOrderedList;
     private RecyclerView rvMenuList;
     private ProgressBar progressBar;
     private TextView tvTable;
     private TextView tvTotal;
+    private TextView tvEmptyState;
     private Button btnAddMore;
     private Button btnConfirm;
 
@@ -113,13 +127,15 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         progressBar = findViewById(R.id.progress_bar_order);
         tvTable = findViewById(R.id.tv_table_label);
         tvTotal = findViewById(R.id.tv_total_amount_ordered);
-//        tvEmptyState = findViewById(R.id.tv_empty_state); // ✅ THÊM
+        tvEmptyState = findViewById(R.id.tv_empty_state);
         btnAddMore = findViewById(R.id.btn_add_more);
         btnConfirm = findViewById(R.id.btn_confirm_order);
 
         // Toolbar navigation -> dùng OnBackPressedDispatcher để thống nhất gesture / hardware / toolbar back
-        androidx.appcompat.widget.Toolbar toolbar = findViewById(R.id.toolbar);
-        toolbar.setNavigationOnClickListener(v -> getOnBackPressedDispatcher().onBackPressed());
+        androidx.appcompat.widget.Toolbar toolbar = findViewById(R.id. toolbar);
+        if (toolbar != null) {
+            toolbar.setNavigationOnClickListener(v -> getOnBackPressedDispatcher().onBackPressed());
+        }
 
         // ✅ FIX: OnBackPressedCallback
         OnBackPressedCallback callback = new OnBackPressedCallback(true) {
@@ -166,7 +182,7 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         // Setup RecyclerView - Danh sách MENU
         rvMenuList. setLayoutManager(new LinearLayoutManager(this));
         menuAdapter = new MenuAdapter(new ArrayList<>(), this);
-        rvMenuList.setAdapter(menuAdapter);
+        rvMenuList. setAdapter(menuAdapter);
 
         longPressHandler = new MenuLongPressHandler(this, rvMenuList, menuAdapter, this);
         longPressHandler.setup();
@@ -178,9 +194,6 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
             btnConfirm.setOnClickListener(this::confirmAddItems);
         }
 
-        socketHandler = new OrderSocketHandler(this, socketUrl, tableNumber, this);
-        socketHandler.initAndConnect();
-
         tableId = getIntent().getStringExtra("tableId");
         tableNumber = getIntent().getIntExtra("tableNumber", 0);
         if (tvTable != null) tvTable.setText("Bàn " + tableNumber);
@@ -189,6 +202,9 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         if (extraSocket != null && !extraSocket.trim().isEmpty()) {
             socketUrl = extraSocket. trim();
         }
+
+        socketHandler = new OrderSocketHandler(this, socketUrl, tableNumber, this);
+        socketHandler.initAndConnect();
 
         loadMenuItems();
         loadExistingOrdersForTable();
@@ -202,14 +218,13 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         }
 
         // Khởi tạo polling handler (sau khi orderRepository đã được khởi tạo)
-        // Delay một chút để đảm bảo activity đã hoàn toàn sẵn sàng
         try {
-            pollingHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+            pollingHandler = new Handler(Looper.getMainLooper());
             Log.d(TAG, "✅ Polling handler created, will start in 1 second");
             // Delay 1 giây để đảm bảo activity đã render xong
             pollingHandler.postDelayed(() -> {
                 try {
-                    Log.d(TAG, "⏰ Starting polling now...");
+                    Log.d(TAG, "⏰ Starting polling now.. .");
                     startPollingForCheckItemsRequest();
                 } catch (Exception e) {
                     Log.e(TAG, "❌ Failed to start polling", e);
@@ -272,49 +287,49 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         }
 
         try {
-            orderRepository.getOrdersByTableNumber(tableNumber, null, new OrderRepository.RepositoryCallback<List<Order>>() {
-            @Override
-            public void onSuccess(List<Order> orders) {
-                if (orders == null || orders.isEmpty()) return;
+            orderRepository.getOrdersByTableNumber(tableNumber, null, new OrderRepository. RepositoryCallback<List<Order>>() {
+                @Override
+                public void onSuccess(List<Order> orders) {
+                    if (orders == null || orders.isEmpty()) return;
 
-                // Tìm order có checkItemsRequestedAt mới nhất
-                String latestRequestedAt = null;
-                String latestOrderId = null;
+                    // Tìm order có checkItemsRequestedAt mới nhất
+                    String latestRequestedAt = null;
+                    String latestOrderId = null;
 
-                for (Order order : orders) {
-                    if (order == null) continue;
-                    String requestedAt = order.getCheckItemsRequestedAt();
-                    if (requestedAt != null && !requestedAt.trim().isEmpty()) {
-                        // So sánh với thời gian đã xử lý trước đó
-                        if (lastCheckItemsRequestedAt == null ||
-                            requestedAt.compareTo(lastCheckItemsRequestedAt) > 0) {
-                            latestRequestedAt = requestedAt;
-                            latestOrderId = order.getId();
+                    for (Order order : orders) {
+                        if (order == null) continue;
+                        String requestedAt = order.getCheckItemsRequestedAt();
+                        if (requestedAt != null && !requestedAt.trim().isEmpty()) {
+                            // So sánh với thời gian đã xử lý trước đó
+                            if (lastCheckItemsRequestedAt == null ||
+                                    requestedAt. compareTo(lastCheckItemsRequestedAt) > 0) {
+                                latestRequestedAt = requestedAt;
+                                latestOrderId = order.getId();
+                            }
                         }
+                    }
+
+                    // Nếu có request mới, xử lý nó
+                    if (latestRequestedAt != null && !latestRequestedAt.equals(lastCheckItemsRequestedAt)) {
+                        Log.d(TAG, "🔔 Polling detected new check items request for table " + tableNumber +
+                                " at " + latestRequestedAt);
+                        lastCheckItemsRequestedAt = latestRequestedAt;
+
+                        // Tạo biến final để sử dụng trong lambda
+                        final String finalOrderId = latestOrderId;
+                        final int finalTableNumber = tableNumber;
+
+                        runOnUiThread(() -> {
+                            String[] orderIds = finalOrderId != null ? new String[]{finalOrderId} : null;
+                            handleCheckItemsRequest(finalTableNumber, orderIds);
+                        });
                     }
                 }
 
-                // Nếu có request mới, xử lý nó
-                if (latestRequestedAt != null && !latestRequestedAt.equals(lastCheckItemsRequestedAt)) {
-                    Log.d(TAG, "🔔 Polling detected new check items request for table " + tableNumber +
-                          " at " + latestRequestedAt);
-                    lastCheckItemsRequestedAt = latestRequestedAt;
-
-                    // Tạo biến final để sử dụng trong lambda
-                    final String finalOrderId = latestOrderId;
-                    final int finalTableNumber = tableNumber;
-
-                    runOnUiThread(() -> {
-                        String[] orderIds = finalOrderId != null ? new String[]{finalOrderId} : null;
-                        handleCheckItemsRequest(finalTableNumber, orderIds);
-                    });
+                @Override
+                public void onError(String message) {
+                    Log.w(TAG, "Polling checkForCheckItemsRequest error: " + message);
                 }
-            }
-
-            @Override
-            public void onError(String message) {
-                Log.w(TAG, "Polling checkForCheckItemsRequest error: " + message);
-            }
             });
         } catch (Exception e) {
             Log.e(TAG, "❌ Exception in checkForCheckItemsRequest", e);
@@ -336,13 +351,13 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
             @Override
             public void onReceive(Context context, Intent intent) {
                 if (intent == null) {
-                    Log.w(TAG, "checkItemsReceiver: intent is null");
+                    Log.w(TAG, "checkItemsReceiver:  intent is null");
                     return;
                 }
                 String action = intent.getAction();
-                Log.d(TAG, "checkItemsReceiver: received action = " + action);
+                Log.d(TAG, "checkItemsReceiver:  received action = " + action);
 
-                if ("com.ph48845.datn_qlnh_rmis.ACTION_CHECK_ITEMS".equals(action)) {
+                if ("com.ph48845.datn_qlnh_rmis. ACTION_CHECK_ITEMS". equals(action)) {
                     int receivedTableNumber = intent.getIntExtra("tableNumber", -1);
                     String[] orderIds = intent.getStringArrayExtra("orderIds");
 
@@ -354,7 +369,7 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
                         Log.d(TAG, "✅ Received check items request broadcast for table " + tableNumber);
                         handleCheckItemsRequest(receivedTableNumber, orderIds);
                     } else {
-                        Log.d(TAG, "⏭️ Ignoring check items request for table " + receivedTableNumber + " (current: " + tableNumber + ")");
+                        Log. d(TAG, "⏭️ Ignoring check items request for table " + receivedTableNumber + " (current:  " + tableNumber + ")");
                     }
                 }
             }
@@ -370,7 +385,7 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
     }
 
     private void handleCheckItemsRequest(int tableNum, String[] orderIds) {
-        Log.d(TAG, "🔄 handleCheckItemsRequest: table=" + tableNum + ", orderIds=" + (orderIds != null ? java.util.Arrays.toString(orderIds) : "null"));
+        Log.d(TAG, "🔄 handleCheckItemsRequest:  table=" + tableNum + ", orderIds=" + (orderIds != null ? java.util.Arrays.toString(orderIds) : "null"));
 
         // Đảm bảo chạy trên UI thread
         if (Looper.myLooper() == Looper.getMainLooper()) {
@@ -416,15 +431,15 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         if (itemId == null || itemId.isEmpty()) itemId = item.getMenuItemId();
 
         if (orderId == null || orderId.isEmpty() || itemId == null || itemId.isEmpty()) {
-            Toast. makeText(this, "Không xác định được order/item id", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Không xác định được order/item id", Toast.LENGTH_SHORT).show();
             return;
         }
 
         runOnUiThread(() -> {
-            if (progressBar != null) progressBar.setVisibility(View.VISIBLE);
+            if (progressBar != null) progressBar.setVisibility(View. VISIBLE);
         });
 
-        orderRepository.updateOrderItemStatus(orderId, itemId, "served", new OrderRepository. RepositoryCallback<Void>() {
+        orderRepository.updateOrderItemStatus(orderId, itemId, "served", new OrderRepository.RepositoryCallback<Void>() {
             @Override
             public void onSuccess(Void result) {
                 runOnUiThread(() -> {
@@ -439,7 +454,7 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
             public void onError(String message) {
                 runOnUiThread(() -> {
                     if (progressBar != null) progressBar.setVisibility(View. GONE);
-                    Toast.makeText(OrderActivity.this, "Cập nhật thất bại: " + message, Toast.LENGTH_LONG).show();
+                    Toast.makeText(OrderActivity.this, "Cập nhật thất bại:  " + message, Toast.LENGTH_LONG).show();
                 });
             }
         });
@@ -449,8 +464,9 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
     protected void onResume() {
         super.onResume();
         try {
-            if (socketHandler == null) return;
-            socketHandler.connect();
+            if (socketHandler != null) {
+                socketHandler.connect();
+            }
         } catch (Exception e) {
             Log.w(TAG, "socket connect error", e);
         }
@@ -465,7 +481,7 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
 
         // Đảm bảo polling đang chạy
         if (pollingHandler == null) {
-            pollingHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+            pollingHandler = new Handler(Looper.getMainLooper());
         }
         stopPollingForCheckItemsRequest();
         startPollingForCheckItemsRequest();
@@ -482,8 +498,6 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
 
         // Dừng polling khi pause để tiết kiệm tài nguyên
         stopPollingForCheckItemsRequest();
-
-        // Không unregister receiver ở đây vì có thể cần nhận khi activity ở background
     }
 
     @Override
@@ -507,7 +521,7 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
 
     private void loadMenuItems() {
         if (progressBar != null) progressBar.setVisibility(View.VISIBLE);
-        menuRepository.getAllMenuItems(new MenuRepository.RepositoryCallback<List<MenuItem>>() {
+        menuRepository.getAllMenuItems(new MenuRepository. RepositoryCallback<List<MenuItem>>() {
             @Override
             public void onSuccess(List<MenuItem> data) {
                 runOnUiThread(() -> {
@@ -518,6 +532,7 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
                     }
                 });
             }
+
             @Override
             public void onError(String message) {
                 runOnUiThread(() -> {
@@ -528,10 +543,10 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         });
     }
 
-    // ✅ FIX:  Luôn hiển thị màn hình order (dù có món hay không)
+    // ✅ FIX: Luôn hiển thị màn hình order (dù có món hay không)
     private void loadExistingOrdersForTable() {
         if (tableNumber <= 0) {
-            showEmptyOrderState(); // ✅ THAY ĐỔI: hiển thị empty state thay vì chuyển menu
+            showEmptyOrderState();
             return;
         }
 
@@ -541,19 +556,25 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
             @Override
             public void onSuccess(List<Order> orders) {
                 runOnUiThread(() -> {
-                    if (progressBar != null) progressBar.setVisibility(View. GONE);
+                    if (progressBar != null) progressBar.setVisibility(View.GONE);
 
                     List<Order> filtered = new ArrayList<>();
                     if (orders != null) {
                         for (Order o : orders) {
                             if (o == null) continue;
-                            try { if (o.getTableNumber() == tableNumber) filtered.add(o); } catch (Exception ignored) {}
+                            try {
+                                if (o. getTableNumber() == tableNumber) filtered.add(o);
+                            } catch (Exception ignored) {
+                            }
                         }
                     }
 
                     for (Order o : filtered) {
                         if (o == null) continue;
-                        try { o.normalizeItems(); } catch (Exception ignored) {}
+                        try {
+                            o.normalizeItems();
+                        } catch (Exception ignored) {
+                        }
                     }
 
                     if (filtered.isEmpty()) {
@@ -570,7 +591,8 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
                             try {
                                 oi.normalize();
                                 ensureCancelReasonFromRaw(oi);
-                            } catch (Exception ignored) {}
+                            } catch (Exception ignored) {
+                            }
                             oi.setParentOrderId(orderId);
                             flattened.add(oi);
                         }
@@ -584,26 +606,30 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
                             String itemId = oi.getId();
                             String saved = null;
                             if (menuId != null && ! menuId.isEmpty()) saved = cancelNotesMap.get(menuId);
-                            if ((saved == null || saved.isEmpty()) && itemId != null && !itemId.isEmpty()) saved = cancelNotesMap.get(itemId);
+                            if ((saved == null || saved.isEmpty()) && itemId != null && !itemId.isEmpty())
+                                saved = cancelNotesMap.get(itemId);
                             try {
                                 String existing = oi.getCancelReason();
                                 if ((existing == null || existing.trim().isEmpty()) && saved != null && !saved.isEmpty()) {
-                                    oi.setCancelReason(saved);
+                                    oi. setCancelReason(saved);
                                 }
-                            } catch (Exception ignored) {}
+                            } catch (Exception ignored) {
+                            }
                         }
-                    } catch (Exception ignored) {}
+                    } catch (Exception ignored) {
+                    }
 
                     // ✅ Hiển thị danh sách có món
                     showOrderListWithItems(flattened);
                 });
             }
+
             @Override
             public void onError(String message) {
                 runOnUiThread(() -> {
-                    if (progressBar != null) progressBar.setVisibility(View.GONE);
-                    Toast.makeText(OrderActivity.this, "Lỗi tải đơn hàng: " + message, Toast.LENGTH_LONG).show();
-                    showEmptyOrderState(); // ✅ Hiển thị empty state thay vì menu
+                    if (progressBar != null) progressBar.setVisibility(View. GONE);
+                    Toast. makeText(OrderActivity.this, "Lỗi tải đơn hàng: " + message, Toast.LENGTH_LONG).show();
+                    showEmptyOrderState();
                 });
             }
         });
@@ -622,7 +648,7 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
             tvEmptyState.setText("Chưa có món nào được gọi.\nNhấn \"Thêm món\" để bắt đầu.");
         }
 
-        if (rvOrderedList != null) rvOrderedList.setVisibility(View.GONE);
+        if (rvOrderedList != null) rvOrderedList.setVisibility(View. GONE);
     }
 
     // ✅ THÊM: Hiển thị danh sách có món
@@ -633,7 +659,10 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
 
         double total = 0.0;
         for (OrderItem oi : items) {
-            try { total += oi.getPrice() * oi.getQuantity(); } catch (Exception ignored) {}
+            try {
+                total += oi. getPrice() * oi.getQuantity();
+            } catch (Exception ignored) {
+            }
         }
         if (tvTotal != null) tvTotal.setText(String.format("%,.0f VND", total));
 
@@ -647,11 +676,17 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         try {
             if (oi == null) return;
             String cr = null;
-            try { cr = oi.getCancelReason(); } catch (Exception ignored) {}
+            try {
+                cr = oi. getCancelReason();
+            } catch (Exception ignored) {
+            }
             if (cr != null && !cr.trim().isEmpty()) return;
 
             Object raw = null;
-            try { raw = oi.getMenuItemRaw(); } catch (Exception ignored) {}
+            try {
+                raw = oi.getMenuItemRaw();
+            } catch (Exception ignored) {
+            }
             if (raw instanceof Map) {
                 Map<?, ?> m = (Map<?, ?>) raw;
                 Object v = m.get("cancelReason");
@@ -675,15 +710,19 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
                         int end = repr.indexOf('\'', start);
                         if (end > start) {
                             String s = repr.substring(start, end);
-                            if (s != null && !s. trim().isEmpty()) oi.setCancelReason(s.trim());
+                            if (s != null && !s.trim().isEmpty()) oi.setCancelReason(s.trim());
                         }
                     }
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
 
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
     }
 
+    // ✅ Implement methods từ MenuAdapter. OnMenuClickListener
+    @Override
     public void onAddMenuItem(MenuItem menu) {
         if (menu == null) return;
         int cur = addQtyMap.getOrDefault(menu.getId(), 0) + 1;
@@ -692,9 +731,10 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         if (btnConfirm != null) btnConfirm.setEnabled(! addQtyMap.isEmpty());
     }
 
+    @Override
     public void onRemoveMenuItem(MenuItem menu) {
         if (menu == null) return;
-        int cur = addQtyMap.getOrDefault(menu. getId(), 0);
+        int cur = addQtyMap.getOrDefault(menu.getId(), 0);
         if (cur > 0) {
             cur--;
             if (cur == 0) addQtyMap.remove(menu.getId());
@@ -704,13 +744,14 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         if (btnConfirm != null) btnConfirm.setEnabled(!addQtyMap.isEmpty());
     }
 
+    // ✅ Các methods này KHÔNG phải override từ interface, chỉ là helper methods
     public void onAddMenuItem(MenuItem menu, int qty) {
         if (menu == null) return;
         int cur = addQtyMap.getOrDefault(menu.getId(), 0) + qty;
-        if (cur <= 0) addQtyMap.remove(menu. getId());
+        if (cur <= 0) addQtyMap.remove(menu.getId());
         else addQtyMap.put(menu.getId(), cur);
         if (menuAdapter != null) menuAdapter.setQty(menu.getId(), cur);
-        if (btnConfirm != null) btnConfirm.setEnabled(!addQtyMap. isEmpty());
+        if (btnConfirm != null) btnConfirm.setEnabled(!addQtyMap.isEmpty());
     }
 
     public void onRemoveMenuItem(MenuItem menu, int qty) {
@@ -731,30 +772,32 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         if (vSummary != null) vSummary.setVisibility(View. VISIBLE);
         if (vMenu != null) vMenu.setVisibility(View.VISIBLE);
 
-        if (btnAddMore != null) btnAddMore.setVisibility(View. GONE);
+        if (btnAddMore != null) btnAddMore.setVisibility(View.GONE);
         if (btnConfirm != null) btnConfirm.setVisibility(View. VISIBLE);
     }
 
     private void hideMenuView() {
         View vMenu = findViewById(R.id.menu_container);
-        View vOrdered = findViewById(R. id.ordered_container);
-        View vSummary = findViewById(R.id.order_summary);
+        View vOrdered = findViewById(R.id. ordered_container);
+        View vSummary = findViewById(R. id.order_summary);
 
-        if (vMenu != null) vMenu.setVisibility(View.GONE);
-        if (vOrdered != null) vOrdered.setVisibility(View.VISIBLE);
-        if (vSummary != null) vSummary.setVisibility(View.VISIBLE);
+        if (vMenu != null) vMenu.setVisibility(View. GONE);
+        if (vOrdered != null) vOrdered.setVisibility(View. VISIBLE);
+        if (vSummary != null) vSummary.setVisibility(View. VISIBLE);
 
         if (btnAddMore != null) btnAddMore.setVisibility(View.VISIBLE);
         if (btnConfirm != null) btnConfirm.setVisibility(View.GONE);
     }
 
-    public void confirmAddItems(View view) { confirmAddItems(); }
+    public void confirmAddItems(View view) {
+        confirmAddItems();
+    }
 
     private void confirmAddItems() {
-        OrderHelper. showConfirmationDialog(this, addQtyMap, notesMap, menuAdapter, (confirmed) -> {
+        OrderHelper.showConfirmationDialog(this, addQtyMap, notesMap, menuAdapter, (confirmed) -> {
             if (! confirmed) return;
             runOnUiThread(() -> {
-                if (progressBar != null) progressBar.setVisibility(View.VISIBLE);
+                if (progressBar != null) progressBar.setVisibility(View. VISIBLE);
                 if (btnConfirm != null) btnConfirm.setEnabled(false);
             });
 
@@ -771,14 +814,15 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
                                     addQtyMap.clear();
                                     notesMap.clear();
                                     saveNotesToPrefs();
-                                    Toast. makeText(OrderActivity.this, "Thêm món vào order hiện có thành công", Toast.LENGTH_SHORT).show();
+                                    Toast.makeText(OrderActivity.this, "Thêm món vào order hiện có thành công", Toast.LENGTH_SHORT).show();
                                     navigateBackToMain();
                                 });
                             }
+
                             @Override
                             public void onError(String message) {
                                 runOnUiThread(() -> {
-                                    if (progressBar != null) progressBar.setVisibility(View. GONE);
+                                    if (progressBar != null) progressBar.setVisibility(View.GONE);
                                     if (btnConfirm != null) btnConfirm.setEnabled(true);
                                     Toast.makeText(OrderActivity.this, "Không thể cập nhật order: " + message, Toast.LENGTH_LONG).show();
                                 });
@@ -811,7 +855,7 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
                                         runOnUiThread(() -> {
                                             if (progressBar != null) progressBar.setVisibility(View.GONE);
                                             if (btnConfirm != null) btnConfirm.setEnabled(true);
-                                            Toast.makeText(OrderActivity. this, "Lỗi thêm món: " + message, Toast.LENGTH_LONG).show();
+                                            Toast.makeText(OrderActivity.this, "Lỗi thêm món:  " + message, Toast.LENGTH_LONG).show();
                                         });
                                     }
                                 }
@@ -841,12 +885,13 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
                                         navigateBackToMain();
                                     });
                                 }
+
                                 @Override
                                 public void onError(String message) {
                                     runOnUiThread(() -> {
                                         if (progressBar != null) progressBar.setVisibility(View. GONE);
                                         if (btnConfirm != null) btnConfirm.setEnabled(true);
-                                        Toast. makeText(OrderActivity.this, "Lỗi thêm món: " + message, Toast.LENGTH_LONG).show();
+                                        Toast.makeText(OrderActivity.this, "Lỗi thêm món: " + message, Toast. LENGTH_LONG).show();
                                     });
                                 }
                             }
@@ -859,7 +904,7 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
     private void navigateBackToMain() {
         try {
             Intent intent = new Intent(this, MainActivity.class);
-            intent.addFlags(Intent. FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
             startActivity(intent);
         } catch (Exception e) {
             Log.w(TAG, "navigateBackToMain failed", e);
@@ -868,6 +913,7 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         }
     }
 
+    // ✅ Implement methods từ OrderSocketHandler. Listener
     @Override
     public void onItemStatusMatched(String candidateId, String status) {
         try {
@@ -899,14 +945,15 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
 
     @Override
     public void onCheckItemsRequest(int tableNum, String[] orderIds) {
-        Log.d(TAG, "✅ onCheckItemsRequest received via socket for table " + tableNum + " (current: " + tableNumber + ")");
+        Log.d(TAG, "✅ onCheckItemsRequest received via socket for table " + tableNum + " (current:  " + tableNumber + ")");
         if (tableNum == tableNumber || tableNum <= 0) {
-            handleCheckItemsRequest(tableNum > 0 ? tableNum : tableNumber, orderIds);
+            handleCheckItemsRequest(tableNum > 0 ? tableNum :  tableNumber, orderIds);
         } else {
-            Log.d(TAG, "⏭️ Ignoring check items request for table " + tableNum + " (current: " + tableNumber + ")");
+            Log. d(TAG, "⏭️ Ignoring check items request for table " + tableNum + " (current: " + tableNumber + ")");
         }
     }
 
+    // ✅ Implement methods từ MenuLongPressHandler. NoteStore
     @Override
     public String getNoteForMenu(String menuId) {
         if (menuId == null) return "";
@@ -935,7 +982,8 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
                 else notesMap.put(menuId, note);
             }
             saveNotesToPrefs();
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
     }
 
     private void loadNotesFromPrefs() {

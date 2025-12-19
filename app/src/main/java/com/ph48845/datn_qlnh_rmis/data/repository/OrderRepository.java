@@ -1,4 +1,4 @@
-package com.ph48845.datn_qlnh_rmis.data.repository;
+package com. ph48845.datn_qlnh_rmis.data.repository;
 
 import android.util.Log;
 
@@ -7,7 +7,7 @@ import com.ph48845.datn_qlnh_rmis.data.remote.ApiResponse;
 import com.ph48845.datn_qlnh_rmis.data.remote.ApiService;
 import com.ph48845.datn_qlnh_rmis.data.remote. RetrofitClient;
 
-import java.io.IOException;
+import java. io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -41,7 +41,6 @@ public class OrderRepository {
         return api.getAllOrders();
     }
 
-    // ✅ getAllOrders với callback
     /**
      * Lấy tất cả orders với callback
      */
@@ -89,12 +88,12 @@ public class OrderRepository {
             callback.onError("Invalid itemId");
             return;
         }
-        Call<Void> call = api.updateOrderItemStatus(orderId, itemId, new ApiService.StatusUpdate(newStatus));
+        Call<Void> call = api. updateOrderItemStatus(orderId, itemId, new ApiService.StatusUpdate(newStatus));
         call.enqueue(new Callback<Void>() {
             @Override
             public void onResponse(Call<Void> call, Response<Void> response) {
                 if (response.isSuccessful()) {
-                    callback.onSuccess(null);
+                    callback. onSuccess(null);
                 } else {
                     callback.onError(buildHttpError("updateOrderItemStatus", response));
                 }
@@ -149,7 +148,7 @@ public class OrderRepository {
                         callback.onError(msg);
                     }
                 } else {
-                    callback. onError(buildHttpError("getOrdersByTableNumber", response));
+                    callback.onError(buildHttpError("getOrdersByTableNumber", response));
                 }
             }
 
@@ -189,7 +188,7 @@ public class OrderRepository {
     }
 
     public void updateOrder(String orderId, Map<String, Object> updates, final RepositoryCallback<Order> callback) {
-        if (orderId == null || orderId.trim().isEmpty()) {
+        if (orderId == null || orderId. trim().isEmpty()) {
             callback.onError("Invalid order id");
             return;
         }
@@ -198,23 +197,25 @@ public class OrderRepository {
             public void onResponse(Call<ApiResponse<Order>> call, Response<ApiResponse<Order>> response) {
                 if (response.isSuccessful() && response.body() != null) {
                     ApiResponse<Order> apiResp = response.body();
-                    if (apiResp.isSuccess() && apiResp.getData() != null) {
-                        callback.onSuccess(apiResp.getData());
-                    if (apiResp.getData() != null) {
-                        Order updatedOrder = apiResp.getData();
-                        // Kiểm tra xem response có chứa checkItemsRequestedAt không
-                        // Nếu không có, query lại order để lấy dữ liệu mới nhất
-                        if (updates.containsKey("checkItemsRequestedAt") &&
-                            (updatedOrder.getCheckItemsRequestedAt() == null ||
-                             updatedOrder.getCheckItemsRequestedAt().trim().isEmpty())) {
-                            Log.d(TAG, "Response does not contain checkItemsRequestedAt, querying order again...");
-                            // Query lại order để lấy dữ liệu mới nhất
-                            getOrderById(orderId, callback);
+                    if (apiResp.isSuccess()) {
+                        if (apiResp.getData() != null) {
+                            Order updatedOrder = apiResp.getData();
+                            // Kiểm tra xem response có chứa checkItemsRequestedAt không
+                            // Nếu không có, query lại order để lấy dữ liệu mới nhất
+                            if (updates.containsKey("checkItemsRequestedAt") &&
+                                    (updatedOrder.getCheckItemsRequestedAt() == null ||
+                                            updatedOrder. getCheckItemsRequestedAt().trim().isEmpty())) {
+                                Log.d(TAG, "Response does not contain checkItemsRequestedAt, querying order again.. .");
+                                // Query lại order để lấy dữ liệu mới nhất
+                                getOrderById(orderId, callback);
+                            } else {
+                                callback.onSuccess(updatedOrder);
+                            }
                         } else {
-                            callback.onSuccess(updatedOrder);
+                            callback.onError("Server returned no order data: " + (apiResp.getMessage() != null ? apiResp.getMessage() : ""));
                         }
                     } else {
-                        callback.onError("Server returned no order data: " + (apiResp.getMessage() != null ? apiResp.getMessage() : ""));
+                        callback.onError("Update failed: " + (apiResp.getMessage() != null ? apiResp.getMessage() : ""));
                     }
                 } else {
                     callback.onError(buildHttpError("updateOrder", response));
@@ -260,7 +261,7 @@ public class OrderRepository {
 
     /**
      * Move all orders from one tableNumber to another (best-effort).
-     * Giữ logic phòng thủ: chỉ di chuyển order đúng bàn nguồn.
+     * Giữ logic phòng thủ:  chỉ di chuyển order đúng bàn nguồn.
      */
     public void moveOrdersForTable(int fromTableNumber, int toTableNumber, final RepositoryCallback<Void> callback) {
         if (fromTableNumber <= 0) {
@@ -276,7 +277,7 @@ public class OrderRepository {
             @Override
             public void onSuccess(List<Order> orders) {
                 if (orders == null || orders.isEmpty()) {
-                    Log. d(TAG, "moveOrdersForTable: no orders found for table " + fromTableNumber);
+                    Log.d(TAG, "moveOrdersForTable: no orders found for table " + fromTableNumber);
                     callback.onSuccess(null);
                     return;
                 }
@@ -354,7 +355,7 @@ public class OrderRepository {
         body.put("paymentMethod", paymentMethod != null ? paymentMethod : "Tiền mặt");
         body.put("paidAmount", amountCustomerGiven);
         body.put("amountCustomerGiven", amountCustomerGiven);
-        if (voucherId != null && ! voucherId.trim().isEmpty()) {
+        if (voucherId != null && !voucherId.trim().isEmpty()) {
             body.put("voucherId", voucherId);
         }
 
@@ -365,7 +366,7 @@ public class OrderRepository {
                     if (response. isSuccessful() && response.body() != null) {
                         ApiResponse<Order> apiResp = response.body();
                         if (apiResp.isSuccess()) {
-                            callback.onSuccess(apiResp.getData());
+                            callback. onSuccess(apiResp.getData());
                         } else {
                             String msg = apiResp.getMessage() != null ? apiResp.getMessage() : "Thanh toán thất bại";
                             callback.onError(msg);
@@ -373,7 +374,7 @@ public class OrderRepository {
                     } else {
                         String errBody = null;
                         try {
-                            if (response. errorBody() != null) {
+                            if (response.errorBody() != null) {
                                 errBody = response.errorBody().string();
                             }
                         } catch (IOException ioe) {
@@ -411,7 +412,7 @@ public class OrderRepository {
                     for (Order order :  allOrders) {
                         if (order != null) {
                             String requestedAt = order.getTempCalculationRequestedAt();
-                            if (requestedAt != null && !requestedAt.trim().isEmpty()) {
+                            if (requestedAt != null && ! requestedAt.trim().isEmpty()) {
                                 tempBillOrders.add(order);
                             }
                         }
@@ -422,7 +423,7 @@ public class OrderRepository {
 
             @Override
             public void onError(String message) {
-                callback.onError(message);
+                callback. onError(message);
             }
         });
     }
@@ -437,13 +438,13 @@ public class OrderRepository {
             public void onSuccess(List<Order> allOrders) {
                 List<Order> checkItemsOrders = new ArrayList<>();
                 if (allOrders != null) {
-                    for (Order order :  allOrders) {
+                    for (Order order : allOrders) {
                         if (order != null) {
                             String requestedAt = order.getCheckItemsRequestedAt();
                             String status = order.getCheckItemsStatus();
 
                             // Chỉ lấy orders có yêu cầu VÀ chưa hoàn thành
-                            if (requestedAt != null && ! requestedAt.trim().isEmpty()) {
+                            if (requestedAt != null && !requestedAt.trim().isEmpty()) {
                                 // Bỏ qua nếu đã completed hoặc acknowledged
                                 if (status != null && (status.equals("completed") || status.equals("acknowledged"))) {
                                     continue;
@@ -455,9 +456,17 @@ public class OrderRepository {
                     }
                 }
 
-                Log.d(TAG, "📦 Total check items requests:  " + checkItemsOrders. size());
+                Log.d(TAG, "📦 Total check items requests: " + checkItemsOrders.size());
                 callback.onSuccess(checkItemsOrders);
             }
+
+            @Override
+            public void onError(String message) {
+                callback.onError(message);
+            }
+        });
+    }
+
     /**
      * Gửi yêu cầu kiểm tra bàn/kiểm tra món lên database
      * Cập nhật order với checkItemsRequestedBy và checkItemsRequestedAt
@@ -475,31 +484,25 @@ public class OrderRepository {
         }
 
         // Tạo timestamp theo định dạng ISO 8601
-        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US);
+        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss. SSS'Z'", java. util.Locale.US);
         sdf.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
         String currentTime = sdf.format(new java.util.Date());
 
         Map<String, Object> updates = new HashMap<>();
-        if (userId != null && !userId.trim().isEmpty()) {
+        if (userId != null && !userId. trim().isEmpty()) {
             updates.put("checkItemsRequestedBy", userId);
         }
         updates.put("checkItemsRequestedAt", currentTime);
 
-        Log.d(TAG, "Sending check items request for order: " + orderId + ", userId: " + userId + ", time: " + currentTime);
+        Log.d(TAG, "Sending check items request for order:  " + orderId + ", userId: " + userId + ", time: " + currentTime);
 
-            @Override
-            public void onError(String message) {
-                callback.onError(message);
-            }
-        });
-    }
         updateOrder(orderId, updates, new RepositoryCallback<Order>() {
             @Override
             public void onSuccess(Order result) {
                 Log.d(TAG, "Check items request saved successfully for order: " + orderId);
                 if (result != null) {
                     Log.d(TAG, "Order response - checkItemsRequestedAt: " + result.getCheckItemsRequestedAt());
-                    Log.d(TAG, "Order response - checkItemsRequestedBy: " + result.getCheckItemsRequestedBy());
+                    Log.d(TAG, "Order response - checkItemsRequestedBy:  " + result.getCheckItemsRequestedBy());
                     if (result.getCheckItemsRequestedAt() == null || result.getCheckItemsRequestedAt().trim().isEmpty()) {
                         Log.w(TAG, "WARNING: Server response does not contain checkItemsRequestedAt field!");
                     }
@@ -513,7 +516,7 @@ public class OrderRepository {
             public void onError(String message) {
                 Log.e(TAG, "Failed to send check items request for order " + orderId + ": " + message);
                 if (callback != null) {
-                    callback.onError(message);
+                    callback. onError(message);
                 }
             }
         });
@@ -536,19 +539,19 @@ public class OrderRepository {
 
         final List<Order> successResults = new ArrayList<>();
         final java.util.concurrent.atomic.AtomicInteger successCount = new java.util.concurrent.atomic.AtomicInteger(0);
-        final java.util.concurrent.atomic.AtomicInteger totalCount = new java.util.concurrent.atomic.AtomicInteger(0);
-        final java.util.concurrent.atomic.AtomicBoolean callbackCalled = new java.util.concurrent.atomic.AtomicBoolean(false);
+        final java.util.concurrent. atomic.AtomicInteger totalCount = new java.util.concurrent.atomic.AtomicInteger(0);
+        final java.util.concurrent. atomic.AtomicBoolean callbackCalled = new java.util.concurrent.atomic.AtomicBoolean(false);
 
         // Đếm số order hợp lệ
         for (String orderId : orderIds) {
             if (orderId != null && !orderId.trim().isEmpty()) {
-                totalCount.incrementAndGet();
+                totalCount. incrementAndGet();
             }
         }
 
         if (totalCount.get() == 0) {
             if (callback != null) {
-                callback.onSuccess(new ArrayList<>());
+                callback. onSuccess(new ArrayList<>());
             }
             return;
         }
@@ -568,7 +571,7 @@ public class OrderRepository {
                         }
                     }
                     int current = successCount.incrementAndGet();
-                    Log.d(TAG, "Check items request completed: " + current + "/" + totalCount.get());
+                    Log.d(TAG, "Check items request completed:  " + current + "/" + totalCount. get());
 
                     // Nếu tất cả đã hoàn thành, gọi callback (chỉ gọi một lần)
                     if (current >= totalCount.get() && callback != null && !callbackCalled.getAndSet(true)) {
@@ -595,15 +598,15 @@ public class OrderRepository {
     private void checkMoveFinished(int[] finished, int[] errors, int total, RepositoryCallback<Void> callback) {
         if (finished[0] >= total) {
             if (errors[0] == 0) {
-                callback. onSuccess(null);
+                callback.onSuccess(null);
             } else {
                 callback.onError("Some order updates failed (" + errors[0] + "/" + total + ")");
             }
         }
     }
 
-    private String buildHttpError(String action, Response<?> response) {
-        String msg = "HTTP " + response.code() + " - " + response.message();
+    private String buildHttpError(String action, Response<? > response) {
+        String msg = "HTTP " + response.code() + " - " + response. message();
         try {
             if (response.errorBody() != null) msg += " - " + response.errorBody().string();
         } catch (IOException ignored) {}
@@ -613,6 +616,6 @@ public class OrderRepository {
 
     private String logFailure(String logMsg, Throwable t) {
         Log.e(TAG, logMsg, t);
-        return t. getMessage() != null ? t.getMessage() : "Network error";
+        return t.getMessage() != null ? t.getMessage() : "Network error";
     }
 }
