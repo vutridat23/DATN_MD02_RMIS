@@ -43,6 +43,7 @@ public class SocketManager {
         void onDisconnect();
         void onError(Exception e);
         default void onTableUpdated(JSONObject payload) { /* no-op */ }
+        default void onCheckItemsRequest(JSONObject payload) { /* no-op */ }
     }
 
     private OnEventListener listener;
@@ -199,6 +200,16 @@ public class SocketManager {
         socket.on("table_reserved", args -> handleTableEvent("table_reserved", args));
         socket.on("table_auto_released", args -> handleTableEvent("table_auto_released", args));
         socket.on("table_status_changed", args -> handleTableEvent("table_status_changed", args));
+
+        socket.on("check_items_request", args -> {
+            try {
+                JSONObject payload = parseArgsToJson(args);
+                Log.d(TAG, "check_items_request received: " + (payload != null ? payload.toString() : "null"));
+                if (listener != null) listener.onCheckItemsRequest(payload);
+            } catch (Exception e) {
+                Log.w(TAG, "check_items_request handle failed", e);
+            }
+        });
     }
 
     private void handleTableEvent(String name, Object[] args) {
