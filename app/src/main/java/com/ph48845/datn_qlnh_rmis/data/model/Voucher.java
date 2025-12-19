@@ -24,14 +24,14 @@ public class Voucher implements Serializable {
     @SerializedName("discountValue")
     private Double discountValue; // Giá trị giảm giá
 
-    @SerializedName("minOrderAmount")
+    @SerializedName(value = "minOrderAmount", alternate = {"minOrderValue"})
     private Double minOrderAmount; // Số tiền tối thiểu để áp dụng
 
-    @SerializedName("maxDiscountAmount")
+    @SerializedName(value = "maxDiscountAmount", alternate = {"maxDiscount"})
     private Double maxDiscountAmount; // Số tiền giảm tối đa (cho percentage)
 
-    @SerializedName("status")
-    private String status; // "active", "inactive", "expired"
+    @SerializedName(value = "status", alternate = {"isActive"})
+    private String status; // "active", "inactive", "expired" hoặc "true"/"false" nếu dùng isActive
 
     @SerializedName("startDate")
     private String startDate;
@@ -75,7 +75,14 @@ public class Voucher implements Serializable {
     public double getMaxDiscountAmount() { return maxDiscountAmount == null ? 0.0 : maxDiscountAmount; }
     public void setMaxDiscountAmount(Double maxDiscountAmount) { this.maxDiscountAmount = maxDiscountAmount; }
 
-    public String getStatus() { return status == null ? "" : status; }
+    public String getStatus() { 
+        // Nếu status là "true" hoặc "false" (từ isActive), convert sang "active"/"inactive"
+        if (status != null) {
+            if ("true".equalsIgnoreCase(status.trim())) return "active";
+            if ("false".equalsIgnoreCase(status.trim())) return "inactive";
+        }
+        return status == null ? "" : status; 
+    }
     public void setStatus(String status) { this.status = status; }
 
     public String getStartDate() { return startDate == null ? "" : startDate; }
