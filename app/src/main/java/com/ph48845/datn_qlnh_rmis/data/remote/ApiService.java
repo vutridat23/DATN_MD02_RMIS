@@ -112,6 +112,9 @@ public interface ApiService {
     // ===========================
     @POST("orders/pay")
     Call<ApiResponse<Order>> payOrder(@Body Map<String, Object> body);
+    @POST("payment/create-card")
+    Call<Map<String, Object>> createCardPayment(@Body Map<String, Object> body);
+
 
     // ===========================
     // --- TABLE ENDPOINTS ---

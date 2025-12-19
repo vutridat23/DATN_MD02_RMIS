@@ -11,13 +11,15 @@ import okhttp3.OkHttpClient;
 import okhttp3.logging.HttpLoggingInterceptor;
 import retrofit2.Retrofit;
 import retrofit2.converter.gson.GsonConverterFactory;
+import java.util.concurrent.TimeUnit;
+
 
 /**
  * RetrofitClient singleton - sử dụng GsonBuilder để đăng ký custom deserializer cho Order.OrderItem
  */
 public class RetrofitClient {
 
-    private static final String BASE_URL = "http://192.168.1.164:3000/";
+    private static final String BASE_URL = "http://192.168.110.85:3000/";
 
     private static RetrofitClient instance = null;
     private final ApiService apiService;
