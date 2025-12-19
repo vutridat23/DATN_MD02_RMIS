@@ -200,6 +200,19 @@ public class OrderRepository {
                     ApiResponse<Order> apiResp = response.body();
                     if (apiResp.isSuccess() && apiResp.getData() != null) {
                         callback.onSuccess(apiResp.getData());
+                    if (apiResp.getData() != null) {
+                        Order updatedOrder = apiResp.getData();
+                        // Kiểm tra xem response có chứa checkItemsRequestedAt không
+                        // Nếu không có, query lại order để lấy dữ liệu mới nhất
+                        if (updates.containsKey("checkItemsRequestedAt") &&
+                            (updatedOrder.getCheckItemsRequestedAt() == null ||
+                             updatedOrder.getCheckItemsRequestedAt().trim().isEmpty())) {
+                            Log.d(TAG, "Response does not contain checkItemsRequestedAt, querying order again...");
+                            // Query lại order để lấy dữ liệu mới nhất
+                            getOrderById(orderId, callback);
+                        } else {
+                            callback.onSuccess(updatedOrder);
+                        }
                     } else {
                         callback.onError("Server returned no order data: " + (apiResp.getMessage() != null ? apiResp.getMessage() : ""));
                     }
@@ -215,6 +228,40 @@ public class OrderRepository {
         });
     }
 
+    /**
+     * Lấy một order theo ID
+     */
+    public void getOrderById(String orderId, final RepositoryCallback<Order> callback) {
+        if (orderId == null || orderId.trim().isEmpty()) {
+            callback.onError("Invalid order id");
+            return;
+        }
+        api.getOrderById(orderId).enqueue(new Callback<ApiResponse<Order>>() {
+            @Override
+            public void onResponse(Call<ApiResponse<Order>> call, Response<ApiResponse<Order>> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    ApiResponse<Order> apiResp = response.body();
+                    if (apiResp.getData() != null) {
+                        callback.onSuccess(apiResp.getData());
+                    } else {
+                        callback.onError("Server returned no order data: " + apiResp.getMessage());
+                    }
+                } else {
+                    callback.onError(buildHttpError("getOrderById", response));
+                }
+            }
+
+            @Override
+            public void onFailure(Call<ApiResponse<Order>> call, Throwable t) {
+                callback.onError(logFailure("getOrderById onFailure", t));
+            }
+        });
+    }
+
+    /**
+     * Move all orders from one tableNumber to another (best-effort).
+     * Giữ logic phòng thủ: chỉ di chuyển order đúng bàn nguồn.
+     */
     public void moveOrdersForTable(int fromTableNumber, int toTableNumber, final RepositoryCallback<Void> callback) {
         if (fromTableNumber <= 0) {
             callback.onError("Invalid fromTableNumber:  " + fromTableNumber);
@@ -411,12 +458,137 @@ public class OrderRepository {
                 Log.d(TAG, "📦 Total check items requests:  " + checkItemsOrders. size());
                 callback.onSuccess(checkItemsOrders);
             }
+    /**
+     * Gửi yêu cầu kiểm tra bàn/kiểm tra món lên database
+     * Cập nhật order với checkItemsRequestedBy và checkItemsRequestedAt
+     *
+     * @param orderId ID của order cần gửi yêu cầu
+     * @param userId ID của người gửi yêu cầu (có thể null)
+     * @param callback Callback để xử lý kết quả
+     */
+    public void sendCheckItemsRequest(String orderId, String userId, RepositoryCallback<Order> callback) {
+        if (orderId == null || orderId.trim().isEmpty()) {
+            if (callback != null) {
+                callback.onError("Order ID không hợp lệ");
+            }
+            return;
+        }
+
+        // Tạo timestamp theo định dạng ISO 8601
+        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US);
+        sdf.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+        String currentTime = sdf.format(new java.util.Date());
+
+        Map<String, Object> updates = new HashMap<>();
+        if (userId != null && !userId.trim().isEmpty()) {
+            updates.put("checkItemsRequestedBy", userId);
+        }
+        updates.put("checkItemsRequestedAt", currentTime);
+
+        Log.d(TAG, "Sending check items request for order: " + orderId + ", userId: " + userId + ", time: " + currentTime);
 
             @Override
             public void onError(String message) {
                 callback.onError(message);
             }
         });
+    }
+        updateOrder(orderId, updates, new RepositoryCallback<Order>() {
+            @Override
+            public void onSuccess(Order result) {
+                Log.d(TAG, "Check items request saved successfully for order: " + orderId);
+                if (result != null) {
+                    Log.d(TAG, "Order response - checkItemsRequestedAt: " + result.getCheckItemsRequestedAt());
+                    Log.d(TAG, "Order response - checkItemsRequestedBy: " + result.getCheckItemsRequestedBy());
+                    if (result.getCheckItemsRequestedAt() == null || result.getCheckItemsRequestedAt().trim().isEmpty()) {
+                        Log.w(TAG, "WARNING: Server response does not contain checkItemsRequestedAt field!");
+                    }
+                }
+                if (callback != null) {
+                    callback.onSuccess(result);
+                }
+            }
+
+            @Override
+            public void onError(String message) {
+                Log.e(TAG, "Failed to send check items request for order " + orderId + ": " + message);
+                if (callback != null) {
+                    callback.onError(message);
+                }
+            }
+        });
+    }
+
+    /**
+     * Gửi yêu cầu kiểm tra bàn/kiểm tra món lên database cho nhiều orders
+     *
+     * @param orderIds Mảng các order ID cần gửi yêu cầu
+     * @param userId ID của người gửi yêu cầu (có thể null)
+     * @param callback Callback để xử lý kết quả (sẽ được gọi một lần khi tất cả đã hoàn thành)
+     */
+    public void sendCheckItemsRequestForMultipleOrders(String[] orderIds, String userId, RepositoryCallback<List<Order>> callback) {
+        if (orderIds == null || orderIds.length == 0) {
+            if (callback != null) {
+                callback.onSuccess(new ArrayList<>());
+            }
+            return;
+        }
+
+        final List<Order> successResults = new ArrayList<>();
+        final java.util.concurrent.atomic.AtomicInteger successCount = new java.util.concurrent.atomic.AtomicInteger(0);
+        final java.util.concurrent.atomic.AtomicInteger totalCount = new java.util.concurrent.atomic.AtomicInteger(0);
+        final java.util.concurrent.atomic.AtomicBoolean callbackCalled = new java.util.concurrent.atomic.AtomicBoolean(false);
+
+        // Đếm số order hợp lệ
+        for (String orderId : orderIds) {
+            if (orderId != null && !orderId.trim().isEmpty()) {
+                totalCount.incrementAndGet();
+            }
+        }
+
+        if (totalCount.get() == 0) {
+            if (callback != null) {
+                callback.onSuccess(new ArrayList<>());
+            }
+            return;
+        }
+
+        // Gửi request cho từng order
+        for (String orderId : orderIds) {
+            if (orderId == null || orderId.trim().isEmpty()) {
+                continue;
+            }
+
+            sendCheckItemsRequest(orderId, userId, new RepositoryCallback<Order>() {
+                @Override
+                public void onSuccess(Order result) {
+                    synchronized (successResults) {
+                        if (result != null) {
+                            successResults.add(result);
+                        }
+                    }
+                    int current = successCount.incrementAndGet();
+                    Log.d(TAG, "Check items request completed: " + current + "/" + totalCount.get());
+
+                    // Nếu tất cả đã hoàn thành, gọi callback (chỉ gọi một lần)
+                    if (current >= totalCount.get() && callback != null && !callbackCalled.getAndSet(true)) {
+                        callback.onSuccess(successResults);
+                    }
+                }
+
+                @Override
+                public void onError(String message) {
+                    int current = successCount.incrementAndGet();
+                    Log.w(TAG, "Check items request failed for order " + orderId + ": " + message);
+
+                    // Nếu đã xử lý hết (dù thành công hay thất bại), gọi callback
+                    if (current >= totalCount.get() && callback != null && !callbackCalled.getAndSet(true)) {
+                        // Trả về danh sách các order đã thành công (có thể rỗng)
+                        callback.onSuccess(successResults);
+                    }
+                }
+            });
+        }
     }
 
     // ===== Helpers =====

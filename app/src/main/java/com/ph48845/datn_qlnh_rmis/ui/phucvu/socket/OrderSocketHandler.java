@@ -17,6 +17,7 @@ public class OrderSocketHandler {
         void onNoMatchReload();
         void onSocketConnected();
         void onSocketDisconnected();
+        void onCheckItemsRequest(int tableNumber, String[] orderIds);
     }
 
     private final Context ctx;
@@ -98,6 +99,38 @@ public class OrderSocketHandler {
                     } catch (Exception ex) {
                         Log.w(TAG, "onTableUpdated handler failed", ex);
                         if (listener != null) listener.onNoMatchReload();
+                    }
+                }
+
+                @Override
+                public void onCheckItemsRequest(JSONObject payload) {
+                    Log.d(TAG, "onCheckItemsRequest received: " + (payload != null ? payload.toString() : "null"));
+                    try {
+                        if (payload == null) {
+                            Log.w(TAG, "check_items_request payload is null");
+                            return;
+                        }
+
+                        int payloadTableNumber = payload.optInt("tableNumber", -1);
+                        if (payloadTableNumber != -1 && payloadTableNumber != tableNumber) {
+                            Log.d(TAG, "check_items_request for other table: " + payloadTableNumber + " (current: " + tableNumber + ")");
+                            return;
+                        }
+
+                        JSONArray orderIdsArray = payload.optJSONArray("orderIds");
+                        String[] orderIds = null;
+                        if (orderIdsArray != null && orderIdsArray.length() > 0) {
+                            orderIds = new String[orderIdsArray.length()];
+                            for (int i = 0; i < orderIdsArray.length(); i++) {
+                                orderIds[i] = orderIdsArray.optString(i, null);
+                            }
+                        }
+
+                        if (listener != null) {
+                            listener.onCheckItemsRequest(payloadTableNumber > 0 ? payloadTableNumber : tableNumber, orderIds);
+                        }
+                    } catch (Exception ex) {
+                        Log.w(TAG, "onCheckItemsRequest handler failed", ex);
                     }
                 }
             });

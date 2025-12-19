@@ -17,7 +17,7 @@
             android:id="@+id/toolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
-            android:background="#2BB673"
+            android:background="#B71C1C"
             app:navigationIcon="?attr/homeAsUpIndicator"
             app:navigationIconTint="#FFFFFF">
             
@@ -84,7 +84,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Tìm"
-                    android:backgroundTint="#2BB673"
+                    android:backgroundTint="#B71C1C"
                     android:textColor="#FFFFFF"/>
             </LinearLayout>
 
@@ -100,6 +100,8 @@
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:background="@color/white"
+
                     android:orientation="vertical"
                     android:padding="16dp">
 
@@ -109,6 +111,7 @@
                         android:layout_height="wrap_content"
                         android:text="Số lượng hóa đơn: 0"
                         android:textColor="#000000"
+                        android:background="@color/white"
                         android:textSize="16sp"
                         android:layout_marginBottom="8dp"/>
 
@@ -130,7 +133,7 @@
                 android:text="Chi tiết báo cáo"
                 android:textSize="18sp"
                 android:textStyle="bold"
-                android:textColor="#2BB673"
+                android:textColor="#B71C1C"
                 android:paddingBottom="8dp"/>
 
             <androidx.recyclerview.widget.RecyclerView

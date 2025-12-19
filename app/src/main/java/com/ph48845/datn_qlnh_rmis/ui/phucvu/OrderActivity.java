@@ -1,4 +1,4 @@
-package com.ph48845.datn_qlnh_rmis.ui. phucvu;
+package com.ph48845.datn_qlnh_rmis.ui.phucvu;
 
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -6,7 +6,7 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
-import android.widget. ProgressBar;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -16,7 +16,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.ph48845.datn_qlnh_rmis. R;
+import com.ph48845.datn_qlnh_rmis.R;
 import com.ph48845.datn_qlnh_rmis.ui.MainActivity;
 import com.ph48845.datn_qlnh_rmis.ui.phucvu.adapter.MenuAdapter;
 import com.ph48845.datn_qlnh_rmis.ui.phucvu.adapter.OrderAdapter;
@@ -24,16 +24,16 @@ import com.ph48845.datn_qlnh_rmis.data.model.MenuItem;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
 import com.ph48845.datn_qlnh_rmis.data.model.Order.OrderItem;
 import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
-import com.ph48845.datn_qlnh_rmis.data.repository. OrderRepository;
+import com.ph48845.datn_qlnh_rmis.data.repository.OrderRepository;
 import com.ph48845.datn_qlnh_rmis.data.repository.MenuRepository;
-import com. ph48845.datn_qlnh_rmis.data. repository.TableRepository;
+import com.ph48845.datn_qlnh_rmis.data.repository.TableRepository;
 import com.ph48845.datn_qlnh_rmis.ui.phucvu.socket.OrderSocketHandler;
 
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.util. ArrayList;
-import java.util. HashMap;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -43,11 +43,9 @@ import java.util.Map;
  * - OnBackPressedDispatcher handling (menu <-> order details navigation),
  * - Confirm add items -> return to MainActivity,
  * - Click on items with "done/xong/served/ready" status -> show confirmation dialog and update server.
- * ✅ FIX: Luôn hiển thị danh sách order (empty state nếu bàn trống)
- * ✅ FIX:  Back button logic - Menu (ảnh 3) → Order (ảnh 4) → MainActivity
  */
 public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMenuClickListener,
-        OrderSocketHandler. Listener, MenuLongPressHandler.NoteStore {
+        OrderSocketHandler.Listener, MenuLongPressHandler.NoteStore {
 
     private static final String TAG = "OrderActivity";
 
@@ -56,7 +54,6 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
     private ProgressBar progressBar;
     private TextView tvTable;
     private TextView tvTotal;
-    private TextView tvEmptyState; // ✅ THÊM:  TextView hiển thị empty state
     private Button btnAddMore;
     private Button btnConfirm;
 
@@ -67,8 +64,11 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
     private OrderAdapter orderedAdapter;
     private MenuAdapter menuAdapter;
 
+    // quantities to add (menuId -> qty)
     private final Map<String, Integer> addQtyMap = new HashMap<>();
+    // persistent notes per menu item (menuId -> note)
     private final Map<String, String> notesMap = new HashMap<>();
+    // persistent cancel-reasons per menu/item (menuId or itemId -> cancel reason)
     private final Map<String, String> cancelNotesMap = new HashMap<>();
 
     private String tableId;
@@ -77,11 +77,14 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
     private final String fakeServerId = "64a7f3b2c9d1e2f3a4b5c6d7";
     private final String fakeCashierId = "64b8e4c3d1f2a3b4c5d6e7f8";
 
+    // Handlers
     private OrderSocketHandler socketHandler;
     private MenuLongPressHandler longPressHandler;
 
+    // default socket url (can be overridden via intent)
     private String socketUrl = "http://192.168.1.84:3000";
 
+    // Persistence keys
     private static final String PREFS_NAME = "RestaurantPrefs";
     private static final String NOTES_KEY = "menu_notes_json";
     private static final String CANCEL_NOTES_KEY = "cancel_notes_json";
@@ -89,11 +92,20 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_order);
+        Log.d(TAG, "🚀 OrderActivity onCreate started");
+
+        try {
+            setContentView(R.layout.activity_order);
+            Log.d(TAG, "✅ setContentView completed");
+        } catch (Exception e) {
+            Log.e(TAG, "❌ setContentView failed", e);
+            throw e;
+        }
 
         menuRepository = new MenuRepository();
         orderRepository = new OrderRepository();
         tableRepository = new TableRepository();
+        Log.d(TAG, "✅ Repositories initialized");
 
         // Ánh xạ các View
         rvOrderedList = findViewById(R.id.rv_ordered_list);
@@ -105,6 +117,7 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         btnAddMore = findViewById(R.id.btn_add_more);
         btnConfirm = findViewById(R.id.btn_confirm_order);
 
+        // Toolbar navigation -> dùng OnBackPressedDispatcher để thống nhất gesture / hardware / toolbar back
         androidx.appcompat.widget.Toolbar toolbar = findViewById(R.id.toolbar);
         toolbar.setNavigationOnClickListener(v -> getOnBackPressedDispatcher().onBackPressed());
 
@@ -179,6 +192,204 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
 
         loadMenuItems();
         loadExistingOrdersForTable();
+
+        // Register broadcast receiver for check items request
+        try {
+            registerCheckItemsReceiver();
+            Log.d(TAG, "✅ Broadcast receiver registration completed");
+        } catch (Exception e) {
+            Log.e(TAG, "❌ Failed to register broadcast receiver", e);
+        }
+
+        // Khởi tạo polling handler (sau khi orderRepository đã được khởi tạo)
+        // Delay một chút để đảm bảo activity đã hoàn toàn sẵn sàng
+        try {
+            pollingHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+            Log.d(TAG, "✅ Polling handler created, will start in 1 second");
+            // Delay 1 giây để đảm bảo activity đã render xong
+            pollingHandler.postDelayed(() -> {
+                try {
+                    Log.d(TAG, "⏰ Starting polling now...");
+                    startPollingForCheckItemsRequest();
+                } catch (Exception e) {
+                    Log.e(TAG, "❌ Failed to start polling", e);
+                }
+            }, 1000);
+        } catch (Exception e) {
+            Log.e(TAG, "❌ Failed to initialize polling handler", e);
+        }
+
+        Log.d(TAG, "✅ OrderActivity onCreate completed");
+    }
+
+    /**
+     * Bắt đầu polling để kiểm tra check items request định kỳ
+     */
+    private void startPollingForCheckItemsRequest() {
+        if (pollingHandler == null) {
+            Log.e(TAG, "❌ Cannot start polling: pollingHandler is null");
+            return;
+        }
+
+        // Dừng polling cũ nếu có
+        stopPollingForCheckItemsRequest();
+
+        pollingRunnable = new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    checkForCheckItemsRequest();
+                    // Lên lịch cho lần tiếp theo
+                    if (pollingHandler != null && pollingRunnable != null) {
+                        pollingHandler.postDelayed(this, POLLING_INTERVAL_MS);
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "❌ Error in polling runnable", e);
+                }
+            }
+        };
+
+        try {
+            pollingHandler.postDelayed(pollingRunnable, POLLING_INTERVAL_MS);
+            Log.d(TAG, "✅ Started polling for check items request (interval: " + POLLING_INTERVAL_MS + "ms)");
+        } catch (Exception e) {
+            Log.e(TAG, "❌ Failed to start polling", e);
+        }
+    }
+
+    /**
+     * Kiểm tra xem có check items request mới không bằng cách query database
+     */
+    private void checkForCheckItemsRequest() {
+        if (tableNumber <= 0) {
+            Log.d(TAG, "⏭️ Skipping checkForCheckItemsRequest: invalid tableNumber");
+            return;
+        }
+
+        if (orderRepository == null) {
+            Log.e(TAG, "❌ Cannot check for check items request: orderRepository is null");
+            return;
+        }
+
+        try {
+            orderRepository.getOrdersByTableNumber(tableNumber, null, new OrderRepository.RepositoryCallback<List<Order>>() {
+            @Override
+            public void onSuccess(List<Order> orders) {
+                if (orders == null || orders.isEmpty()) return;
+
+                // Tìm order có checkItemsRequestedAt mới nhất
+                String latestRequestedAt = null;
+                String latestOrderId = null;
+
+                for (Order order : orders) {
+                    if (order == null) continue;
+                    String requestedAt = order.getCheckItemsRequestedAt();
+                    if (requestedAt != null && !requestedAt.trim().isEmpty()) {
+                        // So sánh với thời gian đã xử lý trước đó
+                        if (lastCheckItemsRequestedAt == null ||
+                            requestedAt.compareTo(lastCheckItemsRequestedAt) > 0) {
+                            latestRequestedAt = requestedAt;
+                            latestOrderId = order.getId();
+                        }
+                    }
+                }
+
+                // Nếu có request mới, xử lý nó
+                if (latestRequestedAt != null && !latestRequestedAt.equals(lastCheckItemsRequestedAt)) {
+                    Log.d(TAG, "🔔 Polling detected new check items request for table " + tableNumber +
+                          " at " + latestRequestedAt);
+                    lastCheckItemsRequestedAt = latestRequestedAt;
+
+                    // Tạo biến final để sử dụng trong lambda
+                    final String finalOrderId = latestOrderId;
+                    final int finalTableNumber = tableNumber;
+
+                    runOnUiThread(() -> {
+                        String[] orderIds = finalOrderId != null ? new String[]{finalOrderId} : null;
+                        handleCheckItemsRequest(finalTableNumber, orderIds);
+                    });
+                }
+            }
+
+            @Override
+            public void onError(String message) {
+                Log.w(TAG, "Polling checkForCheckItemsRequest error: " + message);
+            }
+            });
+        } catch (Exception e) {
+            Log.e(TAG, "❌ Exception in checkForCheckItemsRequest", e);
+        }
+    }
+
+    /**
+     * Dừng polling
+     */
+    private void stopPollingForCheckItemsRequest() {
+        if (pollingHandler != null && pollingRunnable != null) {
+            pollingHandler.removeCallbacks(pollingRunnable);
+            Log.d(TAG, "⏹️ Stopped polling for check items request");
+        }
+    }
+
+    private void registerCheckItemsReceiver() {
+        checkItemsReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (intent == null) {
+                    Log.w(TAG, "checkItemsReceiver: intent is null");
+                    return;
+                }
+                String action = intent.getAction();
+                Log.d(TAG, "checkItemsReceiver: received action = " + action);
+
+                if ("com.ph48845.datn_qlnh_rmis.ACTION_CHECK_ITEMS".equals(action)) {
+                    int receivedTableNumber = intent.getIntExtra("tableNumber", -1);
+                    String[] orderIds = intent.getStringArrayExtra("orderIds");
+
+                    Log.d(TAG, "checkItemsReceiver: tableNumber = " + receivedTableNumber + ", current table = " + tableNumber);
+                    Log.d(TAG, "checkItemsReceiver: orderIds = " + (orderIds != null ? java.util.Arrays.toString(orderIds) : "null"));
+
+                    // Chỉ xử lý nếu là bàn hiện tại
+                    if (receivedTableNumber == tableNumber) {
+                        Log.d(TAG, "✅ Received check items request broadcast for table " + tableNumber);
+                        handleCheckItemsRequest(receivedTableNumber, orderIds);
+                    } else {
+                        Log.d(TAG, "⏭️ Ignoring check items request for table " + receivedTableNumber + " (current: " + tableNumber + ")");
+                    }
+                }
+            }
+        };
+
+        IntentFilter filter = new IntentFilter("com.ph48845.datn_qlnh_rmis.ACTION_CHECK_ITEMS");
+        try {
+            registerReceiver(checkItemsReceiver, filter);
+            Log.d(TAG, "✅ Registered checkItemsReceiver");
+        } catch (Exception e) {
+            Log.e(TAG, "❌ Failed to register checkItemsReceiver", e);
+        }
+    }
+
+    private void handleCheckItemsRequest(int tableNum, String[] orderIds) {
+        Log.d(TAG, "🔄 handleCheckItemsRequest: table=" + tableNum + ", orderIds=" + (orderIds != null ? java.util.Arrays.toString(orderIds) : "null"));
+
+        // Đảm bảo chạy trên UI thread
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            showCheckItemsRequestNotification(tableNum, orderIds);
+        } else {
+            runOnUiThread(() -> showCheckItemsRequestNotification(tableNum, orderIds));
+        }
+    }
+
+    private void showCheckItemsRequestNotification(int tableNum, String[] orderIds) {
+        String message = "🔔 Có yêu cầu kiểm tra bàn " + tableNum;
+        if (orderIds != null && orderIds.length > 0) {
+            message += " cho " + orderIds.length + " hóa đơn";
+        }
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+
+        // Reload orders để cập nhật trạng thái
+        Log.d(TAG, "🔄 Reloading orders for table " + tableNum);
+        loadExistingOrdersForTable();
     }
 
     private boolean isItemDone(String status) {
@@ -243,6 +454,21 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         } catch (Exception e) {
             Log.w(TAG, "socket connect error", e);
         }
+
+        // Đảm bảo broadcast receiver được đăng ký
+        if (checkItemsReceiver == null) {
+            registerCheckItemsReceiver();
+        }
+
+        // Kiểm tra ngay khi resume (có thể có request mới khi activity ở background)
+        checkForCheckItemsRequest();
+
+        // Đảm bảo polling đang chạy
+        if (pollingHandler == null) {
+            pollingHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+        }
+        stopPollingForCheckItemsRequest();
+        startPollingForCheckItemsRequest();
     }
 
     @Override
@@ -252,6 +478,30 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
             if (socketHandler != null) socketHandler.disconnect();
         } catch (Exception e) {
             Log.w(TAG, "socket disconnect error", e);
+        }
+
+        // Dừng polling khi pause để tiết kiệm tài nguyên
+        stopPollingForCheckItemsRequest();
+
+        // Không unregister receiver ở đây vì có thể cần nhận khi activity ở background
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+
+        // Dừng polling
+        stopPollingForCheckItemsRequest();
+
+        // Unregister broadcast receiver
+        try {
+            if (checkItemsReceiver != null) {
+                unregisterReceiver(checkItemsReceiver);
+                checkItemsReceiver = null;
+                Log.d(TAG, "✅ Unregistered checkItemsReceiver");
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Error unregistering broadcast receiver", e);
         }
     }
 
@@ -306,7 +556,6 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
                         try { o.normalizeItems(); } catch (Exception ignored) {}
                     }
 
-                    // ✅ THAY ĐỔI:  Nếu không có order → hiển thị empty state
                     if (filtered.isEmpty()) {
                         showEmptyOrderState();
                         return;
@@ -327,6 +576,7 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
                         }
                     }
 
+                    // Apply locally persisted cancelReasons if server didn't provide them
                     try {
                         for (OrderItem oi : flattened) {
                             if (oi == null) continue;
@@ -348,7 +598,6 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
                     showOrderListWithItems(flattened);
                 });
             }
-
             @Override
             public void onError(String message) {
                 runOnUiThread(() -> {
@@ -646,6 +895,16 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
     @Override
     public void onSocketDisconnected() {
         Log.d(TAG, "socket disconnected (activity)");
+    }
+
+    @Override
+    public void onCheckItemsRequest(int tableNum, String[] orderIds) {
+        Log.d(TAG, "✅ onCheckItemsRequest received via socket for table " + tableNum + " (current: " + tableNumber + ")");
+        if (tableNum == tableNumber || tableNum <= 0) {
+            handleCheckItemsRequest(tableNum > 0 ? tableNum : tableNumber, orderIds);
+        } else {
+            Log.d(TAG, "⏭️ Ignoring check items request for table " + tableNum + " (current: " + tableNumber + ")");
+        }
     }
 
     @Override

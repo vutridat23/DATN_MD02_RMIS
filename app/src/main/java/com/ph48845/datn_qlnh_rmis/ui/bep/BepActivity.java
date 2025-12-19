@@ -1,4 +1,4 @@
-package com.ph48845.datn_qlnh_rmis.ui.bep;
+package com.ph48845.datn_qlnh_rmis. ui. bep;
 
 import android.content.Intent;
 import android.os.Bundle;
@@ -7,11 +7,11 @@ import android.os.Looper;
 import android.util.Log;
 import android.view.View;
 import android.widget.ImageView;
-import android.widget.ProgressBar;
+import android.widget. ProgressBar;
 import android.widget.Toast;
 
-import androidx.appcompat.widget.Toolbar;
-import androidx.core.view.GravityCompat;
+import androidx.appcompat. widget.Toolbar;
+import androidx. core.view.GravityCompat;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
@@ -20,12 +20,12 @@ import androidx.viewpager2.widget.ViewPager2;
 
 import com.google.android.material.navigation.NavigationView;
 import com.google.android.material.tabs.TabLayout;
-import com.google.android.material.tabs.TabLayoutMediator;
+import com.google. android.material.tabs.TabLayoutMediator;
 import com.ph48845.datn_qlnh_rmis.R;
 import com.ph48845.datn_qlnh_rmis.core.base.BaseMenuActivity;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
 import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
-import com.ph48845.datn_qlnh_rmis.data.repository.OrderRepository;
+import com.ph48845.datn_qlnh_rmis.data.repository. OrderRepository;
 import com.ph48845.datn_qlnh_rmis.data.repository.TableRepository;
 import com.ph48845.datn_qlnh_rmis.ui.phucvu.socket.SocketManager;
 
@@ -34,13 +34,13 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util. List;
+import java.util. Map;
+import java.util. Set;
 import java.util.Collections;
 
 /**
- * BepActivity: TabLayout + ViewPager2 hosting two fragments:
+ * BepActivity:  TabLayout + ViewPager2 hosting two fragments:
  * - INDEX_TABLES (BepTableFragment): list of active tables and per-table detail in the left fragment.
  * - INDEX_SUMMARY (BepSummaryFragment): aggregated totals for all menus that need to be cooked.
  *
@@ -85,7 +85,7 @@ public class BepActivity extends BaseMenuActivity implements BepTableFragment.On
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_bep);
 
-        progressBar = findViewById(R.id.progress_bep);
+        progressBar = findViewById(R.id. progress_bep);
         progressOverlay = findViewById(R.id.progress_bar_loading);
 
         toolbar = findViewById(R.id.toolbar);
@@ -93,7 +93,7 @@ public class BepActivity extends BaseMenuActivity implements BepTableFragment.On
         navigationView = findViewById(R.id.navigationView_bep);
         navIcon = findViewById(R.id.nav_icon);
         tabLayout = findViewById(R.id.tab_layout_bep);
-        viewPager = findViewById(R.id.viewpager_bep);
+        viewPager = findViewById(R. id.viewpager_bep);
 
         applyNavigationViewInsets();
 
@@ -130,9 +130,9 @@ public class BepActivity extends BaseMenuActivity implements BepTableFragment.On
                 int id = item.getItemId();
                 if (id == R.id.nav_mood) showMoodDialog();
                 else if (id == R.id.nav_contact) showContactDialog();
-                else if (id == R.id.nav_pantry) {
+                else if (id == R.id. nav_pantry) {
                     try { startActivity(new Intent(BepActivity.this, NguyenLieuActivity.class)); }
-                    catch (Exception e) { Log.w(TAG, "Cannot open NguyenLieuActivity", e); Toast.makeText(BepActivity.this, "Không thể mở Nguyên liệu", Toast.LENGTH_SHORT).show(); }
+                    catch (Exception e) { Log.w(TAG, "Cannot open NguyenLieuActivity", e); Toast.makeText(BepActivity. this, "Không thể mở Nguyên liệu", Toast.LENGTH_SHORT).show(); }
                 } else if (id == R.id.nav_logout) logout();
                 drawerLayout.closeDrawer(GravityCompat.START);
                 return true;
@@ -146,7 +146,7 @@ public class BepActivity extends BaseMenuActivity implements BepTableFragment.On
     private void applyNavigationViewInsets() {
         if (navigationView == null) return;
         ViewCompat.setOnApplyWindowInsetsListener(navigationView, (view, insets) -> {
-            int statusBar = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top;
+            int statusBar = insets.getInsets(WindowInsetsCompat. Type.systemBars()).top;
             View header = navigationView.getHeaderView(0);
             if (header != null) header.setPadding(header.getPaddingLeft(), statusBar, header.getPaddingRight(), header.getPaddingBottom());
             return insets;
@@ -169,14 +169,14 @@ public class BepActivity extends BaseMenuActivity implements BepTableFragment.On
 
     /**
      * Build active table list and per-table items + global summary, then update fragments.
-     * Only tables with at least one active item (pending/preparing/processing) are considered active.
+     * Only tables with at least one active item (pending/preparing/processing/cancel_requested) are considered active.
      *
      * NOTE: Made public to allow BepSummaryFragment to request a refresh after batch updates.
      */
     public void refreshActiveTables() {
         if (progressBar != null) progressBar.setVisibility(View.VISIBLE);
 
-        orderRepository.getOrdersByTableNumber(null, null, new OrderRepository.RepositoryCallback<List<Order>>() {
+        orderRepository.getOrdersByTableNumber(null, null, new OrderRepository. RepositoryCallback<List<Order>>() {
             @Override
             public void onSuccess(List<Order> allOrders) {
                 final Map<Integer, Integer> remainingCounts = new HashMap<>();
@@ -195,7 +195,7 @@ public class BepActivity extends BaseMenuActivity implements BepTableFragment.On
                     }
                 }
 
-                // accumulator map: name -> (qty + sample image)
+                // accumulator map:  name -> (qty + sample image)
                 final Map<String, SummaryAccumulator> acc = new HashMap<>();
 
                 if (allOrders != null) {
@@ -216,8 +216,12 @@ public class BepActivity extends BaseMenuActivity implements BepTableFragment.On
                         for (Order.OrderItem it : o.getItems()) {
                             if (it == null) continue;
                             String st = it.getStatus() == null ? "" : it.getStatus().trim().toLowerCase();
+
+                            // SKIP soldout/out_of_stock completely
                             if ("soldout".equals(st) || "out_of_stock".equals(st)) continue;
-                            if ("pending".equals(st) || "preparing".equals(st) || "processing".equals(st)) {
+
+                            // INCLUDE cancel_requested so it shows up and triggers dialog
+                            if ("pending".equals(st) || "preparing".equals(st) || "processing".equals(st) || "cancel_requested".equals(st)) {
                                 int qty = it.getQuantity() <= 0 ? 1 : it.getQuantity();
                                 activeItemsThisOrder += qty;
                                 activeTableNumbers.add(tn);
@@ -225,18 +229,21 @@ public class BepActivity extends BaseMenuActivity implements BepTableFragment.On
                                 List<ItemWithOrder> list = perTableItems.computeIfAbsent(tn, k -> new ArrayList<>());
                                 list.add(new ItemWithOrder(o, it));
 
-                                String name = it.getMenuItemName() != null && !it.getMenuItemName().isEmpty() ? it.getMenuItemName() : it.getName();
-                                if (name == null) name = "(Không tên)";
-                                SummaryAccumulator s = acc.get(name);
-                                if (s == null) { s = new SummaryAccumulator(); acc.put(name, s); }
-                                String img = "";
-                                try { img = it.getImageUrl(); } catch (Exception ignored) {}
-                                s.add(qty, img);
+                                // Only add to summary if NOT cancel_requested (we don't want to cook cancelled items)
+                                if (!"cancel_requested".equals(st)) {
+                                    String name = it.getMenuItemName() != null && !it.getMenuItemName().isEmpty() ? it.getMenuItemName() : it.getName();
+                                    if (name == null) name = "(Không tên)";
+                                    SummaryAccumulator s = acc.get(name);
+                                    if (s == null) { s = new SummaryAccumulator(); acc.put(name, s); }
+                                    String img = "";
+                                    try { img = it.getImageUrl(); } catch (Exception ignored) {}
+                                    s.add(qty, img);
+                                }
                             }
                         }
                         if (activeItemsThisOrder > 0) {
                             int prev = remainingCounts.getOrDefault(tn, 0);
-                            remainingCounts.put(tn, prev + activeItemsThisOrder);
+                            remainingCounts. put(tn, prev + activeItemsThisOrder);
                             Long prevTs = earliestTs.get(tn);
                             if (prevTs == null || created < prevTs) earliestTs.put(tn, created);
                         }
@@ -254,8 +261,8 @@ public class BepActivity extends BaseMenuActivity implements BepTableFragment.On
 
                 if (activeTableNumbers.isEmpty()) {
                     runOnUiThread(() -> {
-                        if (progressBar != null) progressBar.setVisibility(View.GONE);
-                        Fragment fTables = pagerAdapter.getFragment(com.ph48845.datn_qlnh_rmis.ui.bep.BepPagerAdapter.INDEX_TABLES);
+                        if (progressBar != null) progressBar.setVisibility(View. GONE);
+                        Fragment fTables = pagerAdapter. getFragment(com.ph48845.datn_qlnh_rmis.ui.bep. BepPagerAdapter.INDEX_TABLES);
                         Fragment fSummary = pagerAdapter.getFragment(com.ph48845.datn_qlnh_rmis.ui.bep.BepPagerAdapter.INDEX_SUMMARY);
                         if (fTables instanceof BepTableFragment) ((BepTableFragment) fTables).updateTables(new ArrayList<>(), remainingCounts, earliestTs, perTableItems);
                         if (fSummary instanceof BepSummaryFragment) ((BepSummaryFragment) fSummary).updateSummary(globalSummaryList);
@@ -263,7 +270,7 @@ public class BepActivity extends BaseMenuActivity implements BepTableFragment.On
                     return;
                 }
 
-                tableRepository.getAllTables(new TableRepository.RepositoryCallback<List<TableItem>>() {
+                tableRepository.getAllTables(new TableRepository. RepositoryCallback<List<TableItem>>() {
                     @Override
                     public void onSuccess(List<TableItem> allTables) {
                         runOnUiThread(() -> {
@@ -274,7 +281,7 @@ public class BepActivity extends BaseMenuActivity implements BepTableFragment.On
                                     if (t == null) continue;
                                     if (activeTableNumbers.contains(t.getTableNumber())) {
                                         try { t.normalize(); } catch (Exception ignored) {}
-                                        activeTables.add(t);
+                                        activeTables. add(t);
                                     }
                                 }
                             }
@@ -283,10 +290,10 @@ public class BepActivity extends BaseMenuActivity implements BepTableFragment.On
                                 for (TableItem tt : activeTables) {
                                     if (tt != null && tt.getTableNumber() == tn) { found = true; break; }
                                 }
-                                if (!found) {
+                                if (! found) {
                                     TableItem p = new TableItem();
                                     p.setTableNumber(tn);
-                                    p.setStatusRaw("occupied");
+                                    p. setStatusRaw("occupied");
                                     p.normalize();
                                     activeTables.add(p);
                                 }
@@ -299,8 +306,8 @@ public class BepActivity extends BaseMenuActivity implements BepTableFragment.On
                                 return Long.compare(ta, tb);
                             });
 
-                            Fragment fTables = pagerAdapter.getFragment(com.ph48845.datn_qlnh_rmis.ui.bep.BepPagerAdapter.INDEX_TABLES);
-                            Fragment fSummary = pagerAdapter.getFragment(com.ph48845.datn_qlnh_rmis.ui.bep.BepPagerAdapter.INDEX_SUMMARY);
+                            Fragment fTables = pagerAdapter. getFragment(com.ph48845.datn_qlnh_rmis.ui.bep. BepPagerAdapter.INDEX_TABLES);
+                            Fragment fSummary = pagerAdapter. getFragment(com.ph48845.datn_qlnh_rmis.ui.bep. BepPagerAdapter.INDEX_SUMMARY);
 
                             if (fTables instanceof BepTableFragment) ((BepTableFragment) fTables).updateTables(activeTables, remainingCounts, earliestTs, perTableItems);
                             if (fSummary instanceof BepSummaryFragment) ((BepSummaryFragment) fSummary).updateSummary(globalSummaryList);
@@ -310,19 +317,19 @@ public class BepActivity extends BaseMenuActivity implements BepTableFragment.On
                     @Override
                     public void onError(String message) {
                         runOnUiThread(() -> {
-                            if (progressBar != null) progressBar.setVisibility(View.GONE);
+                            if (progressBar != null) progressBar.setVisibility(View. GONE);
                             List<TableItem> placeholders = new ArrayList<>();
                             for (Integer tn : activeTableNumbers) {
                                 TableItem p = new TableItem();
-                                p.setTableNumber(tn);
+                                p. setTableNumber(tn);
                                 p.setStatusRaw("occupied");
-                                p.normalize();
-                                placeholders.add(p);
+                                p. normalize();
+                                placeholders. add(p);
                             }
                             placeholders.sort((a,b) -> Integer.compare(a.getTableNumber(), b.getTableNumber()));
 
-                            Fragment fTables = pagerAdapter.getFragment(com.ph48845.datn_qlnh_rmis.ui.bep.BepPagerAdapter.INDEX_TABLES);
-                            Fragment fSummary = pagerAdapter.getFragment(com.ph48845.datn_qlnh_rmis.ui.bep.BepPagerAdapter.INDEX_SUMMARY);
+                            Fragment fTables = pagerAdapter.getFragment(com. ph48845.datn_qlnh_rmis.ui. bep.BepPagerAdapter.INDEX_TABLES);
+                            Fragment fSummary = pagerAdapter.getFragment(com. ph48845.datn_qlnh_rmis.ui. bep.BepPagerAdapter.INDEX_SUMMARY);
 
                             if (fTables instanceof BepTableFragment) ((BepTableFragment) fTables).updateTables(placeholders, remainingCounts, earliestTs, perTableItems);
                             if (fSummary instanceof BepSummaryFragment) ((BepSummaryFragment) fSummary).updateSummary(globalSummaryList);
@@ -336,7 +343,7 @@ public class BepActivity extends BaseMenuActivity implements BepTableFragment.On
                 runOnUiThread(() -> {
                     if (progressBar != null) progressBar.setVisibility(View.GONE);
                     Log.w(TAG, "Cannot fetch orders: " + message);
-                    Toast.makeText(BepActivity.this, "Không thể tải thông tin đơn hàng: " + message, Toast.LENGTH_LONG).show();
+                    Toast.makeText(BepActivity. this, "Không thể tải thông tin đơn hàng:  " + message, Toast.LENGTH_LONG).show();
                 });
             }
         });
@@ -350,18 +357,19 @@ public class BepActivity extends BaseMenuActivity implements BepTableFragment.On
                 @Override public void onOrderUpdated(JSONObject payload) { runOnUiThread(() -> refreshActiveTables()); }
                 @Override public void onConnect() { try { socketManager.emitEvent("join_room", "bep"); } catch (Exception ignored) {} }
                 @Override public void onDisconnect() {}
-                @Override public void onError(Exception e) { Log.w(TAG, "Socket error: " + (e != null ? e.getMessage() : "")); }
+                @Override public void onError(Exception e) { Log.w(TAG, "Socket error:  " + (e != null ? e.getMessage() : "")); }
+                @Override public void onTableUpdated(JSONObject payload) {}
             });
             socketManager.connect();
         } catch (Exception e) {
-            Log.w(TAG, "startRealtime failed: " + e.getMessage(), e);
+            Log.w(TAG, "startRealtime failed:  " + e.getMessage(), e);
         }
     }
 
     private void stopRealtime() { try { socketManager.disconnect(); } catch (Exception ignored) {} }
 
     private void startPolling() {
-        if (!pollingActive) {
+        if (! pollingActive) {
             pollingActive = true;
             pollHandler.postDelayed(pollRunnable, POLL_INTERVAL_MS);
         }
