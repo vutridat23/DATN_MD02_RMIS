@@ -1,9 +1,9 @@
-package com.ph48845.datn_qlnh_rmis.ui.table;
+package com.ph48845.datn_qlnh_rmis.ui. table;
 
-import android.app.Dialog;
-import android.content.Context;
-import android.os.Bundle;
-import android.view.LayoutInflater;
+import android.app. Dialog;
+import android.content. Context;
+import android.os. Bundle;
+import android.view. LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
@@ -13,21 +13,22 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-import androidx.fragment.app.DialogFragment;
+import androidx.annotation. Nullable;
+import androidx.fragment. app.DialogFragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.ph48845.datn_qlnh_rmis.R;
-import com.ph48845.datn_qlnh_rmis.data.model.Order;
-import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
-import com.ph48845.datn_qlnh_rmis.data.remote.ApiService;
+import com. ph48845.datn_qlnh_rmis.data. model.Order;
+import com. ph48845.datn_qlnh_rmis.data. model.TableItem;
+import com.ph48845.datn_qlnh_rmis.data.remote.ApiResponse;
+import com.ph48845.datn_qlnh_rmis. data.remote.ApiService;
 import com.ph48845.datn_qlnh_rmis.data.remote.RetrofitClient;
-import com.ph48845.datn_qlnh_rmis.ui.table.adapter.OrdersAdapter;
+import com.ph48845.datn_qlnh_rmis.ui.table.adapter. OrdersAdapter;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java. util.HashMap;
+import java. util.List;
+import java. util.Map;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -36,7 +37,9 @@ import retrofit2.Response;
 /**
  * DialogFragment hiển thị danh sách order của một bàn, cho phép chọn 1 order và xác nhận yêu cầu tạm tính.
  *
- * Lưu ý: fragment gọi trực tiếp Retrofit ApiService.
+ * CẬP NHẬT:
+ * - Gửi orderId trong URL path (khớp với server endpoint POST /orders/: id/request-temp-calculation)
+ * - Gửi kèm requestedBy và requestedByName trong body
  */
 public class TemporaryBillDialogFragment extends DialogFragment implements OrdersAdapter.OnOrderClickListener {
 
@@ -82,10 +85,10 @@ public class TemporaryBillDialogFragment extends DialogFragment implements Order
                              @Nullable ViewGroup container,
                              @Nullable Bundle savedInstanceState) {
         View v = inflater.inflate(R.layout.layout_tam_tinh, container, false);
-        rvOrders = v.findViewById(R.id.rvOrders);
-        btnConfirm = v.findViewById(R.id.btnConfirm);
-        progressBar = v.findViewById(R.id.progressBar);
-        tvEmpty = v.findViewById(R.id.tvEmpty);
+        rvOrders = v.findViewById(R.id. rvOrders);
+        btnConfirm = v.findViewById(R.id. btnConfirm);
+        progressBar = v.findViewById(R. id.progressBar);
+        tvEmpty = v.findViewById(R. id.tvEmpty);
 
         adapter = new OrdersAdapter(this);
         rvOrders.setLayoutManager(new LinearLayoutManager(requireContext()));
@@ -104,10 +107,10 @@ public class TemporaryBillDialogFragment extends DialogFragment implements Order
         super.onStart();
         Dialog d = getDialog();
         if (d != null) {
-            Window w = d.getWindow();
+            Window w = d. getWindow();
             if (w != null) {
                 int width = (int) (getResources().getDisplayMetrics().widthPixels * 0.9);
-                w.setLayout(width, ViewGroup.LayoutParams.WRAP_CONTENT);
+                w.setLayout(width, ViewGroup.LayoutParams. WRAP_CONTENT);
             }
         }
     }
@@ -122,20 +125,19 @@ public class TemporaryBillDialogFragment extends DialogFragment implements Order
         tvEmpty.setVisibility(View.GONE);
         rvOrders.setVisibility(View.GONE);
 
-        // Gọi API lấy orders của bàn (dùng Retrofit trực tiếp)
-        ApiService api = RetrofitClient.getInstance().getApiService();
-        Call<com.ph48845.datn_qlnh_rmis.data.remote.ApiResponse<List<Order>>> call = api.getOrdersByTable(table.getTableNumber(), null);
-        call.enqueue(new Callback<com.ph48845.datn_qlnh_rmis.data.remote.ApiResponse<List<Order>>>() {
+        ApiService api = RetrofitClient. getInstance().getApiService();
+        Call<ApiResponse<List<Order>>> call = api.getOrdersByTable(table.getTableNumber(), null);
+        call.enqueue(new Callback<ApiResponse<List<Order>>>() {
             @Override
-            public void onResponse(Call<com.ph48845.datn_qlnh_rmis.data.remote.ApiResponse<List<Order>>> call, Response<com.ph48845.datn_qlnh_rmis.data.remote.ApiResponse<List<Order>>> response) {
-                if (!isAdded()) return;
+            public void onResponse(Call<ApiResponse<List<Order>>> call, Response<ApiResponse<List<Order>>> response) {
+                if (! isAdded()) return;
                 progressBar.setVisibility(View.GONE);
                 if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
                     List<Order> orders = response.body().getData();
                     if (orders == null || orders.isEmpty()) {
                         showEmpty("Không có order");
                     } else {
-                        adapter.submitList(orders);
+                        adapter. submitList(orders);
                         rvOrders.setVisibility(View.VISIBLE);
                     }
                 } else {
@@ -144,16 +146,16 @@ public class TemporaryBillDialogFragment extends DialogFragment implements Order
             }
 
             @Override
-            public void onFailure(Call<com.ph48845.datn_qlnh_rmis.data.remote.ApiResponse<List<Order>>> call, Throwable t) {
+            public void onFailure(Call<ApiResponse<List<Order>>> call, Throwable t) {
                 if (!isAdded()) return;
                 progressBar.setVisibility(View.GONE);
-                showEmpty("Lỗi tải order: " + (t != null ? t.getMessage() : "unknown"));
+                showEmpty("Lỗi tải order:  " + (t != null ? t.getMessage() : "unknown"));
             }
         });
     }
 
     private void showEmpty(String message) {
-        rvOrders.setVisibility(View.GONE);
+        rvOrders.setVisibility(View. GONE);
         tvEmpty.setVisibility(View.VISIBLE);
         tvEmpty.setText(message);
     }
@@ -164,40 +166,83 @@ public class TemporaryBillDialogFragment extends DialogFragment implements Order
             return;
         }
 
+        // Lấy orderId và gán vào biến final
+        String tempOrderId = selectedOrder.getId();
+        if (tempOrderId == null || tempOrderId.trim().isEmpty()) {
+            tempOrderId = selectedOrder.getOrderId();
+        }
+
+        if (tempOrderId == null || tempOrderId.trim().isEmpty()) {
+            Toast. makeText(requireContext(), "Không xác định được ID hóa đơn", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // Khai báo final để dùng trong lambda/anonymous class
+        final String orderId = tempOrderId;
+
         btnConfirm.setEnabled(false);
         progressBar.setVisibility(View.VISIBLE);
 
-        // Lấy user id (nếu lưu trong prefs), có thể null
+        // Lấy thông tin người yêu cầu
         String requestedBy = null;
+        String requestedByName = null;
         try {
-            requestedBy = requireActivity().getSharedPreferences("RestaurantPrefs", Context.MODE_PRIVATE).getString("userId", null);
+            Context ctx = requireActivity();
+            requestedBy = ctx.getSharedPreferences("RestaurantPrefs", Context.MODE_PRIVATE)
+                    .getString("userId", null);
+            requestedByName = ctx.getSharedPreferences("RestaurantPrefs", Context.MODE_PRIVATE)
+                    . getString("fullName", null);
         } catch (Exception ignored) {}
 
+        // Body chỉ chứa requestedBy và requestedByName (orderId đã ở URL path)
         Map<String, Object> body = new HashMap<>();
-        if (requestedBy != null) body.put("requestedBy", requestedBy);
+        if (requestedBy != null && ! requestedBy.isEmpty()) {
+            body.put("requestedBy", requestedBy);
+        }
+        if (requestedByName != null && !requestedByName.isEmpty()) {
+            body. put("requestedByName", requestedByName);
+        }
 
         ApiService api = RetrofitClient.getInstance().getApiService();
-        Call<com.ph48845.datn_qlnh_rmis.data.remote.ApiResponse<Order>> call = api.requestTempCalculation(selectedOrder.getId(), body);
-        call.enqueue(new Callback<com.ph48845.datn_qlnh_rmis.data.remote.ApiResponse<Order>>() {
+
+        // Gọi API:  orderId trong path, body chứa requestedBy/requestedByName
+        Call<ApiResponse<Order>> call = api.requestTempCalculation(orderId, body);
+
+        call.enqueue(new Callback<ApiResponse<Order>>() {
             @Override
-            public void onResponse(Call<com.ph48845.datn_qlnh_rmis.data.remote.ApiResponse<Order>> call, Response<com.ph48845.datn_qlnh_rmis.data.remote.ApiResponse<Order>> response) {
+            public void onResponse(Call<ApiResponse<Order>> call, Response<ApiResponse<Order>> response) {
                 if (!isAdded()) return;
-                progressBar.setVisibility(View.GONE);
+                progressBar.setVisibility(View. GONE);
+
                 if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
-                    Order updated = response.body().getData();
-                    Toast.makeText(requireContext(), "Đã gửi yêu cầu tạm tính", Toast.LENGTH_SHORT).show();
-                    if (listener != null) listener.onTemporaryBillRequested(updated);
-                    // dispatch local UI refresh via activity if needed
+                    Order updated = response. body().getData();
+
+                    // Hiển thị 6 ký tự cuối của orderId để dễ nhận biết
+                    String displayId = orderId.length() > 6 ? orderId. substring(orderId.length() - 6) : orderId;
+                    Toast.makeText(requireContext(),
+                            "Đã gửi yêu cầu tạm tính cho HĐ #" + displayId,
+                            Toast.LENGTH_SHORT).show();
+
+                    if (listener != null) {
+                        listener.onTemporaryBillRequested(updated);
+                    }
+
+                    // Refresh MainActivity
                     try {
-                        if (getActivity() instanceof com.ph48845.datn_qlnh_rmis.ui.MainActivity) {
-                            ((com.ph48845.datn_qlnh_rmis.ui.MainActivity) getActivity()).fetchTablesFromServer();
+                        if (getActivity() instanceof com.ph48845.datn_qlnh_rmis. ui.MainActivity) {
+                            ((com.ph48845.datn_qlnh_rmis. ui.MainActivity) getActivity()).fetchTablesFromServer();
                         }
                     } catch (Exception ignored) {}
+
                     dismiss();
                 } else {
                     String msg = "Gửi yêu cầu thất bại";
-                    if (response != null && response.errorBody() != null) {
-                        try { msg += ": " + response.errorBody().string(); } catch (Exception ignored) {}
+                    if (response != null && response.body() != null && response. body().getMessage() != null) {
+                        msg += ": " + response.body().getMessage();
+                    } else if (response != null && response.errorBody() != null) {
+                        try {
+                            msg += ":  " + response.errorBody().string();
+                        } catch (Exception ignored) {}
                     }
                     Toast.makeText(requireContext(), msg, Toast.LENGTH_LONG).show();
                     btnConfirm.setEnabled(true);
@@ -205,10 +250,12 @@ public class TemporaryBillDialogFragment extends DialogFragment implements Order
             }
 
             @Override
-            public void onFailure(Call<com.ph48845.datn_qlnh_rmis.data.remote.ApiResponse<Order>> call, Throwable t) {
-                if (!isAdded()) return;
+            public void onFailure(Call<ApiResponse<Order>> call, Throwable t) {
+                if (! isAdded()) return;
                 progressBar.setVisibility(View.GONE);
-                Toast.makeText(requireContext(), "Gửi yêu cầu thất bại: " + (t != null ? t.getMessage() : "unknown"), Toast.LENGTH_LONG).show();
+                Toast. makeText(requireContext(),
+                        "Gửi yêu cầu thất bại: " + (t != null ? t.getMessage() : "unknown"),
+                        Toast.LENGTH_LONG).show();
                 btnConfirm.setEnabled(true);
             }
         });
@@ -217,7 +264,7 @@ public class TemporaryBillDialogFragment extends DialogFragment implements Order
     @Override
     public void onOrderClick(Order order) {
         this.selectedOrder = order;
-        adapter.setSelectedOrderId(order != null ? order.getId() : null);
+        adapter. setSelectedOrderId(order != null ? order.getId() : null);
         btnConfirm.setEnabled(order != null);
     }
 }

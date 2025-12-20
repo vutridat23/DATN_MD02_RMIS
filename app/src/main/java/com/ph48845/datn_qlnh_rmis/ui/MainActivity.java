@@ -7,20 +7,23 @@ import android.os.Build;
 import android.text.SpannableString;
 import android.text.style.RelativeSizeSpan;
 import android.util.Log;
-import android.view.MenuItem;
+import android.view. LayoutInflater;
+import android. view.MenuItem;
 import android.view.View;
-import android.widget.ImageView;
-import android.widget.ProgressBar;
+import android.widget.EditText;
+import android.widget. ImageView;
+import android.widget. ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat. app.AlertDialog;
 import androidx.appcompat.widget.Toolbar;
-import androidx.core.view.GravityCompat;
+import androidx. core.view.GravityCompat;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.recyclerview.widget.GridLayoutManager;
+import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.navigation.NavigationView;
@@ -28,28 +31,30 @@ import com.ph48845.datn_qlnh_rmis.R;
 import com.ph48845.datn_qlnh_rmis.core.base.BaseMenuActivity;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
 import com.ph48845.datn_qlnh_rmis.ui.phucvu.adapter.TableAdapter;
+import com.ph48845.datn_qlnh_rmis.ui.phucvu.adapter.TempCalculationListAdapter;
+import com.ph48845.datn_qlnh_rmis.ui.phucvu.adapter.CheckItemsListAdapter;
 import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
 import com.ph48845.datn_qlnh_rmis.data.repository.OrderRepository;
-import com.ph48845.datn_qlnh_rmis.data.repository.TableRepository;
+import com. ph48845.datn_qlnh_rmis.data. repository.TableRepository;
 import com.ph48845.datn_qlnh_rmis.ui.phucvu.OrderActivity;
 import com.ph48845.datn_qlnh_rmis.ui.table.MergeManager;
 import com.ph48845.datn_qlnh_rmis.ui.table.ReservationHelper;
 import com.ph48845.datn_qlnh_rmis.ui.table.TableActionsHandler;
 import com.ph48845.datn_qlnh_rmis.ui.table.TransferManager;
-import com.ph48845.datn_qlnh_rmis.ui.table.TemporaryBillDialogFragment;
-import com.ph48845.datn_qlnh_rmis.ui.phucvu.socket.SocketManager;
-import android.view.View;
-import android.widget.TextView;
+import com.ph48845.datn_qlnh_rmis.ui.table. TemporaryBillDialogFragment;
+import com.ph48845.datn_qlnh_rmis.ui.phucvu.socket. SocketManager;
 
 import org.json.JSONObject;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
+import java.util. ArrayList;
+import java.util. Collections;
+import java.util. Comparator;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util. Locale;
+import java.util. Map;
+import java.util. regex.Matcher;
+import java. util.regex.Pattern;
 
 /**
  * MainActivity (rút gọn): setup UI, load data and listen for socket table
@@ -81,7 +86,6 @@ public class MainActivity extends BaseMenuActivity {
     NavigationView navigationView;
 
     private SocketManager socketManager;
-    // Default socket URL: your server IP
     private String defaultSocketUrl = "http://192.168.1.84:3000";
 
     @Override
@@ -89,10 +93,9 @@ public class MainActivity extends BaseMenuActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // views
-        progressBar = findViewById(R.id.progress_bar_loading);
-        rvFloor1 = findViewById(R.id.recycler_floor1);
-        rvFloor2 = findViewById(R.id.recycler_floor2);
+        progressBar = findViewById(R.id. progress_bar_loading);
+        rvFloor1 = findViewById(R.id. recycler_floor1);
+        rvFloor2 = findViewById(R.id. recycler_floor2);
 
         rvFloor1.setLayoutManager(new GridLayoutManager(this, 3));
         rvFloor2.setLayoutManager(new GridLayoutManager(this, 3));
@@ -101,7 +104,7 @@ public class MainActivity extends BaseMenuActivity {
 
         drawerLayout = findViewById(R.id.drawerLayout_order);
         Toolbar toolbar = findViewById(R.id.toolbar);
-        navigationView = findViewById(R.id.navigationView_order);
+        navigationView = findViewById(R.id. navigationView_order);
 
         ImageView navIcon = findViewById(R.id.nav_icon);
         if (navIcon != null && drawerLayout != null) {
@@ -136,7 +139,7 @@ public class MainActivity extends BaseMenuActivity {
                 return true;
             });
         } else {
-            Log.w(TAG, "navigationView is null - check activity_main.xml: id should be navigationView_order");
+            Log.w(TAG, "navigationView is null");
         }
 
         updateNavHeaderInfo();
@@ -158,8 +161,7 @@ public class MainActivity extends BaseMenuActivity {
             f.show(getSupportFragmentManager(), "tempBill");
         });
 
-        // adapters and helpers
-        TableAdapter.OnTableClickListener listener = new TableAdapter.OnTableClickListener() {
+        TableAdapter. OnTableClickListener listener = new TableAdapter.OnTableClickListener() {
             @Override
             public void onTableClick(View v, TableItem table) {
                 if (table == null)
@@ -169,8 +171,8 @@ public class MainActivity extends BaseMenuActivity {
                 intent.putExtra("tableNumber", table.getTableNumber());
                 boolean isCustomerPresent = false;
                 try {
-                    TableItem.Status st = table.getStatus();
-                    if (st == TableItem.Status.OCCUPIED || st == TableItem.Status.PENDING_PAYMENT)
+                    TableItem. Status st = table.getStatus();
+                    if (st == TableItem. Status.OCCUPIED || st == TableItem.Status. PENDING_PAYMENT)
                         isCustomerPresent = true;
                 } catch (Exception ignored) {
                 }
@@ -180,9 +182,7 @@ public class MainActivity extends BaseMenuActivity {
 
             @Override
             public void onTableLongClick(View v, TableItem table) {
-                if (table == null)
-                    return;
-                // Delegate to TableActionsHandler which shows the popup and calls managers
+                if (table == null) return;
                 tableActionsHandler.showTableActionsMenuForLongPress(v, table);
             }
         };
@@ -192,54 +192,53 @@ public class MainActivity extends BaseMenuActivity {
         rvFloor1.setAdapter(adapterFloor1);
         rvFloor2.setAdapter(adapterFloor2);
 
-        // Determine socket URL (intent override possible)
         String socketUrl = getIntent().getStringExtra("socketUrl");
         if (socketUrl == null || socketUrl.trim().isEmpty())
             socketUrl = defaultSocketUrl;
 
-        // If running on emulator, try the special emulator host (10.0.2.2)
         if (isProbablyEmulator()) {
             try {
                 String replaced = replaceHostForEmulator(socketUrl);
-                Log.i(TAG, "Emulator detected - using socket URL: " + replaced + " (original: " + socketUrl + ")");
+                Log.i(TAG, "Emulator detected - using socket URL: " + replaced);
                 socketUrl = replaced;
             } catch (Exception e) {
                 Log.w(TAG, "Failed to adapt socketUrl for emulator: " + e.getMessage(), e);
             }
-        } else {
-            Log.i(TAG, "Using socket URL: " + socketUrl);
         }
 
-        // Initialize socket to receive live table updates
         try {
             socketManager = SocketManager.getInstance();
             socketManager.init(socketUrl);
             socketManager.setOnEventListener(new SocketManager.OnEventListener() {
                 @Override
                 public void onOrderCreated(JSONObject payload) {
-                    // Cập nhật badge khi có order mới được tạo
-                    runOnUiThread(() -> updateCheckItemsRequestBadge());
+                    runOnUiThread(() -> {
+                        fetchTablesFromServer();
+                        updateCheckItemsRequestBadge();
+                    });
                 }
 
                 @Override
                 public void onOrderUpdated(JSONObject payload) {
-                    // Cập nhật badge khi có order được update
-                    runOnUiThread(() -> updateCheckItemsRequestBadge());
+                    runOnUiThread(() -> {
+                        fetchTablesFromServer();
+                        updateCheckItemsRequestBadge();
+                    });
                 }
 
                 @Override
                 public void onConnect() {
-                    Log.d(TAG, "socket connected (main)");
+                    Log. d(TAG, "socket connected (main)");
                 }
 
                 @Override
                 public void onDisconnect() {
-                    Log.d(TAG, "socket disconnected (main)");
+                    Log. d(TAG, "socket disconnected (main)");
                 }
 
                 @Override
                 public void onError(Exception e) {
-                    Log.w(TAG, "socket error (main): " + (e != null ? e.getMessage() : "null"));
+                    Log. w(TAG, "socket error (main): " + (e != null ? e.getMessage() : "null"));
                 }
 
                 @Override
@@ -255,59 +254,328 @@ public class MainActivity extends BaseMenuActivity {
                             final int shownNum = tblNum;
                             runOnUiThread(() -> {
                                 try {
-                                    String msg = "Bàn " + (shownNum > 0 ? shownNum : "") + " đã tự động hủy đặt trước.";
+                                    String msg = "Bàn " + (shownNum > 0 ? shownNum :  "") + " đã tự động hủy đặt trước. ";
                                     new AlertDialog.Builder(MainActivity.this)
                                             .setTitle("Thông báo")
                                             .setMessage(msg)
                                             .setCancelable(false)
-                                            .setPositiveButton("OK", (d, w) -> {
-                                                d.dismiss();
-                                                fetchTablesFromServer();
-                                            })
+                                            .setPositiveButton("OK", null)
                                             .show();
+                                    fetchTablesFromServer();
                                 } catch (Exception ex) {
-                                    Log.w(TAG, "show auto-release dialog failed", ex);
+                                    Log. w(TAG, "show auto-release dialog failed", ex);
                                     fetchTablesFromServer();
                                 }
                             });
                             return;
                         }
                     }
-                    // default: refresh list
                     runOnUiThread(() -> fetchTablesFromServer());
                 }
             });
             socketManager.connect();
         } catch (Exception e) {
-            Log.w(TAG, "Failed to init socket in MainActivity: " + e.getMessage(), e);
+            Log.w(TAG, "Failed to init socket in MainActivity:  " + e.getMessage(), e);
         }
-        applyNavigationViewInsets();
 
-        // initial load
+        applyNavigationViewInsets();
         fetchTablesFromServer();
-        
+
         // Load và cập nhật badge cho yêu cầu kiểm tra bàn
         updateCheckItemsRequestBadge();
     }
+
+    // ======================================================================
+    // ✅ YÊU CẦU TẠM TÍNH
+    // ======================================================================
+
+    private void showTempCalculationRequests() {
+        if (orderRepository == null) {
+            orderRepository = new OrderRepository();
+        }
+
+        if (progressBar != null) {
+            progressBar.setVisibility(View.VISIBLE);
+        }
+
+        Log.d(TAG, "Loading temp calculation requests...");
+
+        orderRepository.getTemporaryBillOrders(new OrderRepository.RepositoryCallback<List<Order>>() {
+            @Override
+            public void onSuccess(List<Order> tempBillOrders) {
+                runOnUiThread(() -> {
+                    if (progressBar != null) {
+                        progressBar. setVisibility(View.GONE);
+                    }
+
+                    Log.d(TAG, "Found " + (tempBillOrders != null ?  tempBillOrders.size() : 0) + " temp calculation requests");
+
+                    if (tempBillOrders == null || tempBillOrders. isEmpty()) {
+                        Toast.makeText(MainActivity.this, "Không có yêu cầu tạm tính nào", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+
+                    Collections.sort(tempBillOrders, (o1, o2) -> {
+                        String time1 = o1.getTempCalculationRequestedAt();
+                        String time2 = o2.getTempCalculationRequestedAt();
+                        if (time1 == null) return 1;
+                        if (time2 == null) return -1;
+                        return time2.compareTo(time1);
+                    });
+
+                    showTempCalculationDialog(tempBillOrders);
+                });
+            }
+
+            @Override
+            public void onError(String message) {
+                runOnUiThread(() -> {
+                    if (progressBar != null) {
+                        progressBar.setVisibility(View.GONE);
+                    }
+                    Log.e(TAG, "Failed to load temp calculation requests: " + message);
+                    Toast.makeText(MainActivity.this, "Không thể tải danh sách:  " + message, Toast.LENGTH_SHORT).show();
+                });
+            }
+        });
+    }
+
+    private void showTempCalculationDialog(List<Order> requests) {
+        if (requests == null || requests.isEmpty()) return;
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_temp_calculation_list, null);
+
+        TextView tvTitle = dialogView.findViewById(R. id.tv_dialog_title);
+        RecyclerView recyclerView = dialogView.findViewById(R.id.rv_temp_calculations);
+
+        tvTitle.setText("Yêu cầu tạm tính (" + requests.size() + ")");
+
+        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        TempCalculationListAdapter adapter = new TempCalculationListAdapter(requests);
+        recyclerView.setAdapter(adapter);
+
+        builder.setView(dialogView);
+        builder.setPositiveButton("Đóng", null);
+        builder.show();
+    }
+
+    // ======================================================================
+    // ✅ YÊU CẦU KIỂM TRA BÀN
+    // ======================================================================
+
+    private void showCheckItemsRequests() {
+        if (orderRepository == null) {
+            orderRepository = new OrderRepository();
+        }
+
+        if (progressBar != null) {
+            progressBar. setVisibility(View.VISIBLE);
+        }
+
+        Log. d(TAG, "🔍 Loading check items requests.. .");
+
+        orderRepository.getCheckItemsOrders(new OrderRepository.RepositoryCallback<List<Order>>() {
+            @Override
+            public void onSuccess(List<Order> checkItemsOrders) {
+                runOnUiThread(() -> {
+                    if (progressBar != null) {
+                        progressBar.setVisibility(View.GONE);
+                    }
+
+                    Log. d(TAG, "📦 Found " + (checkItemsOrders != null ? checkItemsOrders.size() : 0) + " check items requests");
+
+                    if (checkItemsOrders == null || checkItemsOrders.isEmpty()) {
+                        Toast.makeText(MainActivity.this, "Không có yêu cầu kiểm tra bàn nào", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+
+                    Collections.sort(checkItemsOrders, (o1, o2) -> {
+                        String time1 = o1.getCheckItemsRequestedAt();
+                        String time2 = o2.getCheckItemsRequestedAt();
+                        if (time1 == null) return 1;
+                        if (time2 == null) return -1;
+                        return time2.compareTo(time1);
+                    });
+
+                    showCheckItemsDialog(checkItemsOrders);
+                });
+            }
+
+            @Override
+            public void onError(String message) {
+                runOnUiThread(() -> {
+                    if (progressBar != null) {
+                        progressBar. setVisibility(View.GONE);
+                    }
+                    Log.e(TAG, "❌ Failed to load check items requests: " + message);
+                    Toast.makeText(MainActivity.this, "Không thể tải danh sách: " + message, Toast.LENGTH_SHORT).show();
+                });
+            }
+        });
+    }
+
+    private void showCheckItemsDialog(List<Order> requests) {
+        if (requests == null || requests. isEmpty()) return;
+
+        AlertDialog.Builder builder = new AlertDialog. Builder(this);
+        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_check_items_list, null);
+
+        TextView tvTitle = dialogView.findViewById(R. id.tv_dialog_title);
+        RecyclerView recyclerView = dialogView.findViewById(R.id.rv_check_items);
+
+        tvTitle.setText("Yêu cầu kiểm tra bàn (" + requests.size() + ")");
+
+        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+
+        CheckItemsListAdapter adapter = new CheckItemsListAdapter(requests, order -> showCheckItemsConfirmDialog(order));
+        recyclerView.setAdapter(adapter);
+
+        builder.setView(dialogView);
+        builder.setPositiveButton("Đóng", null);
+        builder.show();
+    }
+
+    private void showCheckItemsConfirmDialog(Order order) {
+        if (order == null) return;
+
+        AlertDialog. Builder builder = new AlertDialog.Builder(this);
+        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_check_items_confirm, null);
+
+        TextView tvTableInfo = dialogView.findViewById(R. id.tv_table_info);
+        EditText etNote = dialogView.findViewById(R. id.tv_note);
+
+        tvTableInfo.setText("Kiểm tra bàn " + order.getTableNumber());
+
+        builder.setView(dialogView);
+        builder.setTitle("Xác nhận kiểm tra");
+        builder.setPositiveButton("Xác nhận đã kiểm tra", (dialog, which) -> {
+            String note = etNote.getText().toString().trim();
+            confirmCheckItems(order, note);
+        });
+        builder.setNegativeButton("Hủy", null);
+        builder.show();
+    }
+
+    /**
+     * ✅ SỬA LỖI:  Method này được gọi khi user click "Xác nhận đã kiểm tra"
+     *
+     * THAY ĐỔI QUAN TRỌNG:
+     * - Toast CHỈ hiển thị KHI API call thành công (trong onSuccess callback)
+     * - KHÔNG hiển thị Toast trước khi gọi API
+     * - Log chi tiết để debug
+     * - Handle error với dialog retry
+     */
+    private void confirmCheckItems(Order order, String note) {
+        if (order == null || order.getId() == null) {
+            Toast.makeText(this, "Lỗi: Thông tin không hợp lệ", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // ✅ Hiển thị progress bar TRƯỚC KHI gọi API
+        if (progressBar != null) {
+            progressBar.setVisibility(View.VISIBLE);
+        }
+
+        SharedPreferences prefs = getSharedPreferences("RestaurantPrefs", MODE_PRIVATE);
+        String userId = prefs.getString("userId", "");
+        String fullName = prefs.getString("fullName", "Nhân viên");
+
+        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss. SSS'Z'", java.util.Locale.US);
+        sdf.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+        String currentTime = sdf.format(new java.util.Date());
+
+        Map<String, Object> updates = new HashMap<>();
+        updates.put("checkItemsStatus", "completed");
+        updates.put("checkItemsCompletedBy", userId. isEmpty() ? fullName : userId);
+        updates.put("checkItemsCompletedAt", currentTime);
+
+        if (note != null && ! note.trim().isEmpty()) {
+            updates.put("checkItemsNote", note. trim());
+        } else {
+            updates.put("checkItemsNote", "");
+        }
+
+        // ✅ LOG CHI TIẾT để debug
+        Log.d(TAG, "=== CONFIRM CHECK ITEMS ===");
+        Log.d(TAG, "Order ID: " + order.getId());
+        Log.d(TAG, "Table:  " + order.getTableNumber());
+        Log.d(TAG, "Status: completed");
+        Log.d(TAG, "Completed By: " + (userId.isEmpty() ? fullName : userId));
+        Log.d(TAG, "Completed At: " + currentTime);
+        Log.d(TAG, "Note: " + (note. trim().isEmpty() ? "(empty)" : note));
+        Log.d(TAG, "Payload: " + updates. toString());
+
+        // ✅ GỌI API - Toast CHỈ hiển thị trong onSuccess
+        orderRepository.updateOrder(order.getId(), updates, new OrderRepository.RepositoryCallback<Order>() {
+            @Override
+            public void onSuccess(Order result) {
+                runOnUiThread(() -> {
+                    // ✅ Ẩn progress bar
+                    if (progressBar != null) {
+                        progressBar. setVisibility(View.GONE);
+                    }
+
+                    Log.d(TAG, "✅ Successfully confirmed check items for table " + order.getTableNumber());
+
+                    // ✅✅✅ CHỈ HIỂN THỊ TOAST KHI API THÀNH CÔNG ✅✅✅
+                    String successMessage = "✅ Đã xác nhận kiểm tra bàn " + order. getTableNumber() +
+                            "\n📤 Đang gửi thông báo cho thu ngân... ";
+                    if (note != null && !note.trim().isEmpty()) {
+                        successMessage += "\n📝 Ghi chú:  " + note;
+                    }
+                    Toast.makeText(MainActivity.this, successMessage, Toast.LENGTH_LONG).show();
+
+                    // ✅ Reload danh sách để cập nhật
+                    showCheckItemsRequests();
+                });
+            }
+
+            @Override
+            public void onError(String message) {
+                runOnUiThread(() -> {
+                    // ✅ Ẩn progress bar
+                    if (progressBar != null) {
+                        progressBar.setVisibility(View.GONE);
+                    }
+
+                    Log.e(TAG, "❌ Failed to confirm check items: " + message);
+
+                    // ❌ HIỂN THỊ LỖI
+                    String errorMessage = "Lỗi xác nhận kiểm tra:\n" + message;
+                    Toast.makeText(MainActivity.this, errorMessage, Toast.LENGTH_LONG).show();
+
+                    // ✅ Hiển thị dialog cho phép thử lại
+                    new AlertDialog.Builder(MainActivity.this)
+                            .setTitle("Lỗi xác nhận")
+                            . setMessage(errorMessage)
+                            .setPositiveButton("Thử lại", (dialog, which) -> confirmCheckItems(order, note))
+                            .setNegativeButton("Đóng", null)
+                            .show();
+                });
+            }
+        });
+    }
+
+    // ======================================================================
+    // HELPER METHODS
+    // ======================================================================
 
     private void applyNavigationViewInsets() {
         if (navigationView == null)
             return;
 
         ViewCompat.setOnApplyWindowInsetsListener(navigationView, (view, insets) -> {
-
-            int statusBar = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top;
-
-            // Lấy header của NavigationView
+            int statusBar = insets.getInsets(WindowInsetsCompat. Type.statusBars()).top;
             View header = navigationView.getHeaderView(0);
             if (header != null) {
                 header.setPadding(
                         header.getPaddingLeft(),
-                        statusBar, // ĐẨY XUỐNG ĐỂ TRÁNH DÍNH STATUS BAR
+                        statusBar,
                         header.getPaddingRight(),
-                        header.getPaddingBottom());
+                        header.getPaddingBottom()
+                );
             }
-
             return insets;
         });
     }
@@ -345,42 +613,36 @@ public class MainActivity extends BaseMenuActivity {
     }
 
     private void updateNavHeaderInfo() {
-        if (navigationView == null) {
-            Log.w(TAG, "updateNavHeaderInfo: navigationView is null, skip updating header");
-            return;
-        }
-
+        if (navigationView == null) return;
         try {
             View headerView = navigationView.getHeaderView(0);
-            if (headerView == null) {
-                Log.w(TAG, "NavigationView headerView is null");
-                return;
-            }
+            if (headerView == null) return;
 
-            TextView tvName = headerView.findViewById(R.id.textViewName);
-            TextView tvRole = headerView.findViewById(R.id.textViewRole);
+            TextView tvName = headerView.findViewById(R. id.textViewName);
+            TextView tvRole = headerView.findViewById(R. id.textViewRole);
 
             SharedPreferences prefs = getSharedPreferences("RestaurantPrefs", MODE_PRIVATE);
-
             String savedName = prefs.getString("fullName", "Người dùng");
             String savedRole = prefs.getString("userRole", "");
 
             if (tvName != null)
                 tvName.setText(savedName);
             if (tvRole != null)
-                tvRole.setText(getVietnameseRole(savedRole));
+                tvRole. setText(getVietnameseRole(savedRole));
         } catch (Exception e) {
-            Log.w(TAG, "updateNavHeaderInfo failed: " + e.getMessage(), e);
+            Log.w(TAG, "updateNavHeaderInfo failed:  " + e.getMessage(), e);
         }
     }
 
     private String getVietnameseRole(String roleKey) {
         if (roleKey == null)
             return "";
-        switch (roleKey.toLowerCase()) {
+        switch (roleKey. toLowerCase()) {
             case "cashier":
                 return "Thu ngân";
             case "manager":
+                return "Quản lý";
+            case "waiter":
             case "order":
                 return "Phục vụ";
             case "kitchen":
@@ -418,7 +680,7 @@ public class MainActivity extends BaseMenuActivity {
     public void fetchTablesFromServer() {
         if (progressBar != null)
             progressBar.setVisibility(ProgressBar.VISIBLE);
-        tableRepository.getAllTables(new TableRepository.RepositoryCallback<List<TableItem>>() {
+        tableRepository.getAllTables(new TableRepository. RepositoryCallback<List<TableItem>>() {
             @Override
             public void onSuccess(List<TableItem> result) {
                 runOnUiThread(() -> {
@@ -454,7 +716,7 @@ public class MainActivity extends BaseMenuActivity {
                         try {
                             return Integer.compare(a.getTableNumber(), b.getTableNumber());
                         } catch (Exception e) {
-                            return String.valueOf(a.getTableNumber()).compareTo(String.valueOf(b.getTableNumber()));
+                            return String.valueOf(a.getTableNumber()).compareTo(String.valueOf(b. getTableNumber()));
                         }
                     };
                     Collections.sort(floor1, byNumber);
@@ -467,7 +729,7 @@ public class MainActivity extends BaseMenuActivity {
                     all.addAll(floor1);
                     all.addAll(floor2);
                     syncTableStatusesWithOrders(all);
-                    
+
                     // Cập nhật badge sau khi sync orders
                     updateCheckItemsRequestBadge();
                 });
@@ -488,10 +750,9 @@ public class MainActivity extends BaseMenuActivity {
         if (location == null)
             return 1;
         try {
-            String lower = location.toLowerCase(Locale.getDefault());
             Pattern p = Pattern.compile("(\\d+)");
-            Matcher m = p.matcher(lower);
-            if (m.find())
+            Matcher m = p.matcher(location. toLowerCase(Locale.getDefault()));
+            if (m. find())
                 return Integer.parseInt(m.group(1));
         } catch (Exception ignored) {
         }
@@ -508,7 +769,7 @@ public class MainActivity extends BaseMenuActivity {
                 if (orders != null) {
                     for (Order o : orders)
                         if (o != null)
-                            occupiedTableNumbers.add(o.getTableNumber());
+                            occupiedTableNumbers. add(o.getTableNumber());
                 }
                 List<TableItem> toUpdate = new ArrayList<>();
                 final List<String> desired = new ArrayList<>();
@@ -517,41 +778,40 @@ public class MainActivity extends BaseMenuActivity {
                         continue;
                     boolean isReserved = false;
                     try {
-                        isReserved = t.getStatus() == TableItem.Status.RESERVED;
+                        isReserved = t.getStatus() == TableItem.Status. RESERVED;
                     } catch (Exception ignored) {
                     }
                     if (isReserved)
                         continue;
                     String cur = t.getStatus() != null ? t.getStatus().name().toLowerCase() : "";
-                    String want = occupiedTableNumbers.contains(t.getTableNumber()) ? "occupied" : "available";
+                    String want = occupiedTableNumbers.contains(t. getTableNumber()) ? "occupied" : "available";
                     if (!cur.equals(want)) {
                         toUpdate.add(t);
-                        desired.add(want);
+                        desired. add(want);
                     }
                 }
                 if (toUpdate.isEmpty())
                     return;
                 final int total = toUpdate.size();
-                final int[] finished = { 0 };
+                final int[] finished = {0};
                 for (int i = 0; i < toUpdate.size(); i++) {
                     TableItem ti = toUpdate.get(i);
                     String want = desired.get(i);
-                    tableRepository.updateTableStatus(ti.getId(), want,
-                            new TableRepository.RepositoryCallback<TableItem>() {
-                                @Override
-                                public void onSuccess(TableItem updated) {
-                                    finished[0]++;
-                                    if (finished[0] >= total)
-                                        runOnUiThread(() -> fetchTablesFromServer());
-                                }
+                    tableRepository.updateTableStatus(ti. getId(), want, new TableRepository. RepositoryCallback<TableItem>() {
+                        @Override
+                        public void onSuccess(TableItem updated) {
+                            finished[0]++;
+                            if (finished[0] >= total)
+                                runOnUiThread(() -> fetchTablesFromServer());
+                        }
 
-                                @Override
-                                public void onError(String message) {
-                                    finished[0]++;
-                                    if (finished[0] >= total)
-                                        runOnUiThread(() -> fetchTablesFromServer());
-                                }
-                            });
+                        @Override
+                        public void onError(String message) {
+                            finished[0]++;
+                            if (finished[0] >= total)
+                                runOnUiThread(() -> fetchTablesFromServer());
+                        }
+                    });
                 }
             }
 
@@ -578,7 +838,7 @@ public class MainActivity extends BaseMenuActivity {
         navigationView.getMenu().clear();
 
         // Load menu based on role
-        switch (userRole.toLowerCase()) {
+        switch (userRole. toLowerCase()) {
             case "admin":
                 navigationView.inflateMenu(R.menu.menu_drawer_admin);
                 break;
@@ -605,191 +865,29 @@ public class MainActivity extends BaseMenuActivity {
             showContactDialog();
         } else if (itemId == R.id.nav_logout) {
             logout();
-        } else if (itemId == R.id.nav_reports) {
-            // Navigate to Reports Activity
+        } else if (itemId == R. id.nav_reports) {
             Intent intent = new Intent(this, com.ph48845.datn_qlnh_rmis.ui.revenue.ReportActivity.class);
             startActivity(intent);
-        } else if (itemId == R.id.nav_revenue) {
-            // Navigate to Revenue Activity
-            Intent intent = new Intent(this, com.ph48845.datn_qlnh_rmis.ui.revenue.ReportActivity.class);
+        } else if (itemId == R.id. nav_revenue) {
+            Intent intent = new Intent(this, com.ph48845.datn_qlnh_rmis.ui.revenue. ReportActivity.class);
             startActivity(intent);
-        } else if (itemId == R.id.nav_warnings) {
-            // Navigate to Warnings Activity
+        } else if (itemId == R.id. nav_warnings) {
             Intent intent = new Intent(this, com.ph48845.datn_qlnh_rmis.ui.warehouse.WarningActivity.class);
             startActivity(intent);
-        } else if (itemId == R.id.nav_shifts) {
-            // Navigate to Shifts Activity
-            Intent intent = new Intent(this, com.ph48845.datn_qlnh_rmis.ui.shift.ShiftActivity.class);
+        } else if (itemId == R.id. nav_shifts) {
+            Intent intent = new Intent(this, com.ph48845.datn_qlnh_rmis.ui.shift. ShiftActivity.class);
             startActivity(intent);
-        } else if (itemId == R.id.nav_employees) {
-            // Navigate to Employees Activity
-            Intent intent = new Intent(this, com.ph48845.datn_qlnh_rmis.ui.employee.EmployeeActivity.class);
+        } else if (itemId == R. id.nav_employees) {
+            Intent intent = new Intent(this, com.ph48845.datn_qlnh_rmis.ui.employee. EmployeeActivity.class);
             startActivity(intent);
         } else if (itemId == R.id.nav_payment_history) {
-            // Navigate to Payment History Activity
-            Intent intent = new Intent(this, com.ph48845.datn_qlnh_rmis.ui.thungan.HistoryActivity.class);
+            Intent intent = new Intent(this, com.ph48845.datn_qlnh_rmis.ui.thungan. HistoryActivity.class);
             startActivity(intent);
-        } else if (itemId == R.id.nav_temp_calculation_requests) {
-            // Handle temp calculation requests
-            Toast.makeText(this, "Yêu cầu tạm tính", Toast.LENGTH_SHORT).show();
-        } else if (itemId == R.id.nav_pre_bill) {
-            // Handle pre-bill request
-            Toast.makeText(this, "Yêu cầu hóa đơn tạm tính", Toast.LENGTH_SHORT).show();
+        } else if (itemId == R. id.nav_temp_calculation_requests || itemId == R.id.nav_pre_bill) {
+            showTempCalculationRequests();
         } else if (itemId == R.id.nav_check_items_requests) {
-            // Handle check items request
             showCheckItemsRequests();
         }
-    }
-
-    /**
-     * Hiển thị danh sách yêu cầu kiểm tra bàn
-     */
-    private void showCheckItemsRequests() {
-        if (orderRepository == null) {
-            orderRepository = new OrderRepository();
-        }
-
-        if (progressBar != null) {
-            progressBar.setVisibility(View.VISIBLE);
-        }
-
-        Log.d(TAG, "🔄 Loading check items requests...");
-
-        // Lấy tất cả orders từ server
-        orderRepository.getAllOrders(new OrderRepository.RepositoryCallback<List<Order>>() {
-            @Override
-            public void onSuccess(List<Order> allOrders) {
-                runOnUiThread(() -> {
-                    if (progressBar != null) {
-                        progressBar.setVisibility(View.GONE);
-                    }
-
-                    Log.d(TAG, "📦 Received " + (allOrders != null ? allOrders.size() : 0) + " orders from server");
-
-                    if (allOrders == null || allOrders.isEmpty()) {
-                        Log.w(TAG, "⚠️ No orders found");
-                        Toast.makeText(MainActivity.this, "Không có yêu cầu kiểm tra bàn nào", Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-
-                    // Lọc các orders có checkItemsRequestedAt không null
-                    List<Order> checkItemsRequests = new ArrayList<>();
-                    int totalOrders = 0;
-                    for (Order order : allOrders) {
-                        if (order == null) continue;
-                        totalOrders++;
-                        
-                        String requestedAt = order.getCheckItemsRequestedAt();
-                        Log.d(TAG, "🔍 Order " + order.getId() + " (Bàn " + order.getTableNumber() + 
-                              "): checkItemsRequestedAt = " + (requestedAt != null ? requestedAt : "null"));
-                        
-                        if (requestedAt != null && !requestedAt.trim().isEmpty()) {
-                            checkItemsRequests.add(order);
-                            Log.d(TAG, "✅ Found check items request for order " + order.getId() + " (Bàn " + order.getTableNumber() + ")");
-                        }
-                    }
-
-                    Log.d(TAG, "📊 Total orders checked: " + totalOrders + ", Check items requests found: " + checkItemsRequests.size());
-
-                    if (checkItemsRequests.isEmpty()) {
-                        Log.w(TAG, "⚠️ No check items requests found after filtering");
-                        Toast.makeText(MainActivity.this, "Không có yêu cầu kiểm tra bàn nào", Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-
-                    // Sắp xếp theo thời gian yêu cầu (mới nhất trước)
-                    Collections.sort(checkItemsRequests, new Comparator<Order>() {
-                        @Override
-                        public int compare(Order o1, Order o2) {
-                            String time1 = o1.getCheckItemsRequestedAt();
-                            String time2 = o2.getCheckItemsRequestedAt();
-                            if (time1 == null) return 1;
-                            if (time2 == null) return -1;
-                            return time2.compareTo(time1); // Mới nhất trước
-                        }
-                    });
-
-                    // Hiển thị dialog
-                    showCheckItemsRequestsDialog(checkItemsRequests);
-                });
-            }
-
-            @Override
-            public void onError(String message) {
-                runOnUiThread(() -> {
-                    if (progressBar != null) {
-                        progressBar.setVisibility(View.GONE);
-                    }
-                    Log.e(TAG, "Failed to load check items requests: " + message);
-                    Toast.makeText(MainActivity.this, "Không thể tải danh sách yêu cầu: " + message, Toast.LENGTH_LONG).show();
-                });
-            }
-        });
-    }
-
-    /**
-     * Hiển thị dialog với danh sách yêu cầu kiểm tra bàn
-     */
-    private void showCheckItemsRequestsDialog(List<Order> requests) {
-        if (requests == null || requests.isEmpty()) {
-            return;
-        }
-
-        // Tạo danh sách hiển thị
-        List<String> displayItems = new ArrayList<>();
-        for (Order order : requests) {
-            if (order == null) continue;
-            
-            int tableNum = order.getTableNumber();
-            String requestedAt = order.getCheckItemsRequestedAt();
-            String requestedBy = order.getCheckItemsRequestedBy();
-            
-            // Format thời gian
-            String timeDisplay = "Chưa rõ";
-            if (requestedAt != null && !requestedAt.trim().isEmpty()) {
-                try {
-                    // Parse ISO 8601 format: 2025-12-19T09:30:00.000Z
-                    java.text.SimpleDateFormat inputFormat = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US);
-                    inputFormat.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
-                    java.util.Date date = inputFormat.parse(requestedAt);
-                    
-                    // Format hiển thị: HH:mm dd/MM/yyyy
-                    java.text.SimpleDateFormat outputFormat = new java.text.SimpleDateFormat("HH:mm dd/MM/yyyy", Locale.getDefault());
-                    timeDisplay = outputFormat.format(date);
-                } catch (Exception e) {
-                    // Nếu parse lỗi, dùng chuỗi gốc
-                    timeDisplay = requestedAt;
-                }
-            }
-            
-            String display = "Bàn " + tableNum + " - " + timeDisplay;
-            if (requestedBy != null && !requestedBy.trim().isEmpty()) {
-                display += "\nNgười yêu cầu: " + requestedBy;
-            }
-            displayItems.add(display);
-        }
-
-        String[] itemsArray = displayItems.toArray(new String[0]);
-
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Yêu cầu kiểm tra bàn (" + requests.size() + ")");
-        builder.setItems(itemsArray, (dialog, which) -> {
-            if (which >= 0 && which < requests.size()) {
-                Order selectedOrder = requests.get(which);
-                if (selectedOrder != null) {
-                    int tableNum = selectedOrder.getTableNumber();
-                    if (tableNum > 0) {
-                        // Mở OrderActivity cho bàn này
-                        Intent intent = new Intent(MainActivity.this, OrderActivity.class);
-                        intent.putExtra("tableNumber", tableNum);
-                        intent.putExtra("forceShowOrders", true);
-                        startActivity(intent);
-                    }
-                }
-            }
-        });
-        builder.setNegativeButton("Đóng", null);
-        builder.show();
     }
 
     /**
@@ -801,7 +899,7 @@ public class MainActivity extends BaseMenuActivity {
         }
 
         // Lấy tất cả orders và đếm số lượng có checkItemsRequestedAt
-        orderRepository.getAllOrders(new OrderRepository.RepositoryCallback<List<Order>>() {
+        orderRepository.getAllOrders(new OrderRepository. RepositoryCallback<List<Order>>() {
             @Override
             public void onSuccess(List<Order> allOrders) {
                 runOnUiThread(() -> {
@@ -816,7 +914,7 @@ public class MainActivity extends BaseMenuActivity {
                             }
                         }
                     }
-                    
+
                     // Cập nhật badge trên menu item
                     updateBadgeOnMenuItem(count);
                 });
@@ -843,28 +941,28 @@ public class MainActivity extends BaseMenuActivity {
         try {
             MenuItem menuItem = navigationView.getMenu().findItem(R.id.nav_check_items_requests);
             if (menuItem == null) {
-                Log.d(TAG, "Menu item nav_check_items_requests not found");
+                Log. d(TAG, "Menu item nav_check_items_requests not found");
                 return;
             }
 
             String baseTitle = "Yêu cầu kiểm tra bàn";
             String displayTitle;
-            
+
             if (count > 0) {
                 displayTitle = baseTitle + " (" + count + ")";
-                Log.d(TAG, "✅ Updated badge: " + count + " check items requests");
+                Log.d(TAG, "✅ Updated badge:  " + count + " check items requests");
             } else {
                 displayTitle = baseTitle;
                 Log.d(TAG, "✅ Updated badge: 0 check items requests (no badge)");
             }
-            
+
             // Cập nhật title với SpannableString để giữ style
             SpannableString spanString = new SpannableString(displayTitle);
             spanString.setSpan(new RelativeSizeSpan(1.1f), 0, spanString.length(), 0);
             menuItem.setTitle(spanString);
-            
+
         } catch (Exception e) {
-            Log.w(TAG, "Failed to update badge on menu item: " + e.getMessage(), e);
+            Log.w(TAG, "Failed to update badge on menu item: " + e. getMessage(), e);
         }
     }
 }
