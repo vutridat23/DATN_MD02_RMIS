@@ -83,42 +83,53 @@ public class TemporaryBillListFragment extends Fragment {
     }
 
     private void loadTemporaryBills() {
-        progressBar.setVisibility(View. VISIBLE);
-        tvEmptyState.setVisibility(View. GONE);
+        progressBar.setVisibility(View.VISIBLE);
+        tvEmptyState.setVisibility(View.GONE);
         recyclerView.setVisibility(View.GONE);
 
         Log.d(TAG, "Loading temporary bills...");
 
-        // ✅ Sử dụng method getTemporaryBillOrders từ OrderRepository
-        orderRepository. getTemporaryBillOrders(new OrderRepository.RepositoryCallback<List<Order>>() {
+        orderRepository.getTemporaryBillOrders(new OrderRepository. RepositoryCallback<List<Order>>() {
             @Override
             public void onSuccess(List<Order> tempBillOrders) {
                 if (getActivity() == null) return;
 
-                getActivity().runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        progressBar.setVisibility(View. GONE);
+                getActivity().runOnUiThread(() -> {
+                    progressBar.setVisibility(View.GONE);
 
-                        Log.d(TAG, "Found " + (tempBillOrders != null ?  tempBillOrders.size() : 0) + " temporary bills");
-
-                        if (tempBillOrders == null || tempBillOrders. isEmpty()) {
-                            showEmptyState("Không có hóa đơn tạm tính nào");
-                        } else {
-                            // Sắp xếp theo thời gian yêu cầu (mới nhất trước)
-                            Collections.sort(tempBillOrders, new Comparator<Order>() {
-                                @Override
-                                public int compare(Order o1, Order o2) {
-                                    String time1 = o1.getTempCalculationRequestedAt();
-                                    String time2 = o2.getTempCalculationRequestedAt();
-                                    if (time1 == null) return 1;
-                                    if (time2 == null) return -1;
-                                    return time2.compareTo(time1); // Mới nhất trước
+                    // ✅ THÊM LỚP LỌC BẢO VỆ (defensive programming)
+                    List<Order> filteredOrders = new ArrayList<>();
+                    if (tempBillOrders != null) {
+                        for (Order order : tempBillOrders) {
+                            if (order != null) {
+                                String orderStatus = order.getOrderStatus();
+                                // Double-check:  lọc lại lần nữa để chắc chắn
+                                if (orderStatus == null ||
+                                        !orderStatus.equalsIgnoreCase("temp_bill_printed")) {
+                                    filteredOrders.add(order);
+                                } else {
+                                    Log.w(TAG, "⚠️ Found temp_bill_printed order that should have been filtered:  " +
+                                            order.getId());
                                 }
-                            });
-
-                            showOrders(tempBillOrders);
+                            }
                         }
+                    }
+
+                    Log.d(TAG, "Found " + filteredOrders.size() + " temporary bills (after final filtering)");
+
+                    if (filteredOrders. isEmpty()) {
+                        showEmptyState("Không có hóa đơn tạm tính nào");
+                    } else {
+                        // Sắp xếp theo thời gian yêu cầu (mới nhất trước)
+                        Collections. sort(filteredOrders, (o1, o2) -> {
+                            String time1 = o1.getTempCalculationRequestedAt();
+                            String time2 = o2.getTempCalculationRequestedAt();
+                            if (time1 == null) return 1;
+                            if (time2 == null) return -1;
+                            return time2.compareTo(time1);
+                        });
+
+                        showOrders(filteredOrders);
                     }
                 });
             }
@@ -127,20 +138,16 @@ public class TemporaryBillListFragment extends Fragment {
             public void onError(String message) {
                 if (getActivity() == null) return;
 
-                Log.e(TAG, "Failed to load temporary bills: " + message);
+                Log. e(TAG, "Failed to load temporary bills: " + message);
 
-                getActivity().runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        progressBar.setVisibility(View.GONE);
-                        showEmptyState("Lỗi:  " + message);
-                        Toast.makeText(getContext(), "Lỗi tải dữ liệu:  " + message, Toast.LENGTH_LONG).show();
-                    }
+                getActivity().runOnUiThread(() -> {
+                    progressBar.setVisibility(View. GONE);
+                    showEmptyState("Lỗi:  " + message);
+                    Toast. makeText(getContext(), "Lỗi tải dữ liệu: " + message, Toast.LENGTH_LONG).show();
                 });
             }
         });
     }
-
     private void showEmptyState(String message) {
         tvEmptyState.setVisibility(View.VISIBLE);
         tvEmptyState.setText(message);

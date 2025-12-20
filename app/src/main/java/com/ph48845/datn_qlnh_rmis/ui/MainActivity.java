@@ -343,16 +343,41 @@ public class MainActivity extends BaseMenuActivity {
     private void showTempCalculationDialog(List<Order> requests) {
         if (requests == null || requests.isEmpty()) return;
 
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_temp_calculation_list, null);
+        // ✅ LỌC BỎ các orders có orderStatus = "temp_bill_printed"
+        List<Order> filteredRequests = new ArrayList<>();
+        for (Order order : requests) {
+            if (order != null) {
+                String orderStatus = order.getOrderStatus();
+                // Chỉ thêm vào danh sách nếu KHÔNG phải temp_bill_printed
+                if (orderStatus == null ||
+                        ! orderStatus.equalsIgnoreCase("temp_bill_printed")) {
+                    filteredRequests. add(order);
+                    Log.d(TAG, "✅ Including order:  " + order.getId() + " (status: " + orderStatus + ")");
+                } else {
+                    Log.d(TAG, "❌ Filtering out order: " + order.getId() + " (status: temp_bill_printed)");
+                }
+            }
+        }
 
-        TextView tvTitle = dialogView.findViewById(R. id.tv_dialog_title);
+        // ✅ Nếu sau khi lọc không còn gì, hiển thị thông báo
+        if (filteredRequests.isEmpty()) {
+            Toast.makeText(MainActivity.this,
+                    "Không có yêu cầu tạm tính nào cần xử lý",
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        View dialogView = LayoutInflater. from(this).inflate(R.layout.dialog_temp_calculation_list, null);
+
+        TextView tvTitle = dialogView.findViewById(R.id.tv_dialog_title);
         RecyclerView recyclerView = dialogView.findViewById(R.id.rv_temp_calculations);
 
-        tvTitle.setText("Yêu cầu tạm tính (" + requests.size() + ")");
+        // ✅ Hiển thị số lượng SAU KHI LỌC
+        tvTitle.setText("Yêu cầu tạm tính (" + filteredRequests.size() + ")");
 
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
-        TempCalculationListAdapter adapter = new TempCalculationListAdapter(requests);
+        TempCalculationListAdapter adapter = new TempCalculationListAdapter(filteredRequests);
         recyclerView.setAdapter(adapter);
 
         builder.setView(dialogView);
@@ -364,18 +389,22 @@ public class MainActivity extends BaseMenuActivity {
     // ✅ YÊU CẦU KIỂM TRA BÀN
     // ======================================================================
 
+// ======================================================================
+// ✅ YÊU CẦU KIỂM TRA BÀN (FIXED:  Đóng dialog sau khi xác nhận)
+// ======================================================================
+
     private void showCheckItemsRequests() {
         if (orderRepository == null) {
             orderRepository = new OrderRepository();
         }
 
         if (progressBar != null) {
-            progressBar. setVisibility(View.VISIBLE);
+            progressBar.setVisibility(View. VISIBLE);
         }
 
-        Log. d(TAG, "🔍 Loading check items requests.. .");
+        Log.d(TAG, "🔍 Loading check items requests...");
 
-        orderRepository.getCheckItemsOrders(new OrderRepository.RepositoryCallback<List<Order>>() {
+        orderRepository.getCheckItemsOrders(new OrderRepository. RepositoryCallback<List<Order>>() {
             @Override
             public void onSuccess(List<Order> checkItemsOrders) {
                 runOnUiThread(() -> {
@@ -383,10 +412,10 @@ public class MainActivity extends BaseMenuActivity {
                         progressBar.setVisibility(View.GONE);
                     }
 
-                    Log. d(TAG, "📦 Found " + (checkItemsOrders != null ? checkItemsOrders.size() : 0) + " check items requests");
+                    Log.d(TAG, "📦 Found " + (checkItemsOrders != null ?  checkItemsOrders.size() : 0) + " check items requests");
 
-                    if (checkItemsOrders == null || checkItemsOrders.isEmpty()) {
-                        Toast.makeText(MainActivity.this, "Không có yêu cầu kiểm tra bàn nào", Toast.LENGTH_SHORT).show();
+                    if (checkItemsOrders == null || checkItemsOrders. isEmpty()) {
+                        Toast. makeText(MainActivity.this, "Không có yêu cầu kiểm tra bàn nào", Toast.LENGTH_SHORT).show();
                         return;
                     }
 
@@ -406,41 +435,52 @@ public class MainActivity extends BaseMenuActivity {
             public void onError(String message) {
                 runOnUiThread(() -> {
                     if (progressBar != null) {
-                        progressBar. setVisibility(View.GONE);
+                        progressBar.setVisibility(View. GONE);
                     }
                     Log.e(TAG, "❌ Failed to load check items requests: " + message);
-                    Toast.makeText(MainActivity.this, "Không thể tải danh sách: " + message, Toast.LENGTH_SHORT).show();
+                    Toast.makeText(MainActivity.this, "Không thể tải danh sách:  " + message, Toast.LENGTH_SHORT).show();
                 });
             }
         });
     }
 
-    private void showCheckItemsDialog(List<Order> requests) {
-        if (requests == null || requests. isEmpty()) return;
+    /**
+     * ✅ FIXED: Lưu dialog instance để đóng sau khi confirm
+     */
+    private AlertDialog checkItemsListDialog; // ✅ Thêm biến này
 
-        AlertDialog.Builder builder = new AlertDialog. Builder(this);
+    private void showCheckItemsDialog(List<Order> requests) {
+        if (requests == null || requests.isEmpty()) return;
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
         View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_check_items_list, null);
 
-        TextView tvTitle = dialogView.findViewById(R. id.tv_dialog_title);
-        RecyclerView recyclerView = dialogView.findViewById(R.id.rv_check_items);
+        TextView tvTitle = dialogView.findViewById(R.id.tv_dialog_title);
+        RecyclerView recyclerView = dialogView.findViewById(R.id. rv_check_items);
 
         tvTitle.setText("Yêu cầu kiểm tra bàn (" + requests.size() + ")");
 
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
 
-        CheckItemsListAdapter adapter = new CheckItemsListAdapter(requests, order -> showCheckItemsConfirmDialog(order));
+        // ✅ Pass dialog instance để adapter có thể đóng nó
+        CheckItemsListAdapter adapter = new CheckItemsListAdapter(requests, order -> {
+            showCheckItemsConfirmDialog(order);
+        });
         recyclerView.setAdapter(adapter);
 
         builder.setView(dialogView);
         builder.setPositiveButton("Đóng", null);
-        builder.show();
+
+        // ✅ LƯU DIALOG INSTANCE
+        checkItemsListDialog = builder.create();
+        checkItemsListDialog.show();
     }
 
     private void showCheckItemsConfirmDialog(Order order) {
         if (order == null) return;
 
-        AlertDialog. Builder builder = new AlertDialog.Builder(this);
-        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_check_items_confirm, null);
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        View dialogView = LayoutInflater. from(this).inflate(R.layout.dialog_check_items_confirm, null);
 
         TextView tvTableInfo = dialogView.findViewById(R. id.tv_table_info);
         EditText etNote = dialogView.findViewById(R. id.tv_note);
@@ -458,13 +498,7 @@ public class MainActivity extends BaseMenuActivity {
     }
 
     /**
-     * ✅ SỬA LỖI:  Method này được gọi khi user click "Xác nhận đã kiểm tra"
-     *
-     * THAY ĐỔI QUAN TRỌNG:
-     * - Toast CHỈ hiển thị KHI API call thành công (trong onSuccess callback)
-     * - KHÔNG hiển thị Toast trước khi gọi API
-     * - Log chi tiết để debug
-     * - Handle error với dialog retry
+     * ✅ FIXED: Đóng cả 2 dialog sau khi xác nhận thành công
      */
     private void confirmCheckItems(Order order, String note) {
         if (order == null || order.getId() == null) {
@@ -472,16 +506,15 @@ public class MainActivity extends BaseMenuActivity {
             return;
         }
 
-        // ✅ Hiển thị progress bar TRƯỚC KHI gọi API
         if (progressBar != null) {
-            progressBar.setVisibility(View.VISIBLE);
+            progressBar.setVisibility(View. VISIBLE);
         }
 
         SharedPreferences prefs = getSharedPreferences("RestaurantPrefs", MODE_PRIVATE);
         String userId = prefs.getString("userId", "");
         String fullName = prefs.getString("fullName", "Nhân viên");
 
-        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss. SSS'Z'", java.util.Locale.US);
+        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss. SSS'Z'", java. util.Locale.US);
         sdf.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
         String currentTime = sdf.format(new java.util.Date());
 
@@ -490,13 +523,12 @@ public class MainActivity extends BaseMenuActivity {
         updates.put("checkItemsCompletedBy", userId. isEmpty() ? fullName : userId);
         updates.put("checkItemsCompletedAt", currentTime);
 
-        if (note != null && ! note.trim().isEmpty()) {
+        if (note != null && !note.trim().isEmpty()) {
             updates.put("checkItemsNote", note. trim());
         } else {
             updates.put("checkItemsNote", "");
         }
 
-        // ✅ LOG CHI TIẾT để debug
         Log.d(TAG, "=== CONFIRM CHECK ITEMS ===");
         Log.d(TAG, "Order ID: " + order.getId());
         Log.d(TAG, "Table:  " + order.getTableNumber());
@@ -506,46 +538,48 @@ public class MainActivity extends BaseMenuActivity {
         Log.d(TAG, "Note: " + (note. trim().isEmpty() ? "(empty)" : note));
         Log.d(TAG, "Payload: " + updates. toString());
 
-        // ✅ GỌI API - Toast CHỈ hiển thị trong onSuccess
         orderRepository.updateOrder(order.getId(), updates, new OrderRepository.RepositoryCallback<Order>() {
             @Override
             public void onSuccess(Order result) {
                 runOnUiThread(() -> {
-                    // ✅ Ẩn progress bar
                     if (progressBar != null) {
-                        progressBar. setVisibility(View.GONE);
+                        progressBar.setVisibility(View.GONE);
                     }
 
                     Log.d(TAG, "✅ Successfully confirmed check items for table " + order.getTableNumber());
 
-                    // ✅✅✅ CHỈ HIỂN THỊ TOAST KHI API THÀNH CÔNG ✅✅✅
-                    String successMessage = "✅ Đã xác nhận kiểm tra bàn " + order. getTableNumber() +
+                    String successMessage = "✅ Đã xác nhận kiểm tra bàn " + order.getTableNumber() +
                             "\n📤 Đang gửi thông báo cho thu ngân... ";
-                    if (note != null && !note.trim().isEmpty()) {
+                    if (note != null && !note. trim().isEmpty()) {
                         successMessage += "\n📝 Ghi chú:  " + note;
                     }
                     Toast.makeText(MainActivity.this, successMessage, Toast.LENGTH_LONG).show();
 
-                    // ✅ Reload danh sách để cập nhật
-                    showCheckItemsRequests();
+                    // ✅✅✅ ĐÓNG CẢ 2 DIALOG ✅✅✅
+                    // 1. Dialog confirm sẽ tự đóng (do là AlertDialog. Builder với button positive)
+                    // 2. Đóng dialog danh sách
+                    if (checkItemsListDialog != null && checkItemsListDialog.isShowing()) {
+                        checkItemsListDialog.dismiss();
+                        Log.d(TAG, "✅ Closed check items list dialog");
+                    }
+
+                    // Refresh data
+                    fetchTablesFromServer();
                 });
             }
 
             @Override
             public void onError(String message) {
                 runOnUiThread(() -> {
-                    // ✅ Ẩn progress bar
                     if (progressBar != null) {
-                        progressBar.setVisibility(View.GONE);
+                        progressBar. setVisibility(View.GONE);
                     }
 
                     Log.e(TAG, "❌ Failed to confirm check items: " + message);
 
-                    // ❌ HIỂN THỊ LỖI
                     String errorMessage = "Lỗi xác nhận kiểm tra:\n" + message;
                     Toast.makeText(MainActivity.this, errorMessage, Toast.LENGTH_LONG).show();
 
-                    // ✅ Hiển thị dialog cho phép thử lại
                     new AlertDialog.Builder(MainActivity.this)
                             .setTitle("Lỗi xác nhận")
                             . setMessage(errorMessage)

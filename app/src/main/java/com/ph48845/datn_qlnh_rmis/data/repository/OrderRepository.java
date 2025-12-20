@@ -403,27 +403,45 @@ public class OrderRepository {
     /**
      * ✅ Lấy danh sách orders có yêu cầu tạm tính
      */
+    /**
+     * ✅ Lấy danh sách orders có yêu cầu tạm tính
+     * ❌ KHÔNG bao gồm orders có orderStatus = "temp_bill_printed"
+     */
     public void getTemporaryBillOrders(final RepositoryCallback<List<Order>> callback) {
         getAllOrders(new RepositoryCallback<List<Order>>() {
             @Override
             public void onSuccess(List<Order> allOrders) {
                 List<Order> tempBillOrders = new ArrayList<>();
                 if (allOrders != null) {
-                    for (Order order :  allOrders) {
+                    for (Order order : allOrders) {
                         if (order != null) {
                             String requestedAt = order.getTempCalculationRequestedAt();
-                            if (requestedAt != null && ! requestedAt.trim().isEmpty()) {
-                                tempBillOrders.add(order);
+                            String orderStatus = order.getOrderStatus();
+
+                            // ✅ Chỉ thêm nếu:
+                            // 1. Có tempCalculationRequestedAt
+                            // 2. orderStatus KHÔNG PHẢI "temp_bill_printed"
+                            if (requestedAt != null && !requestedAt. trim().isEmpty()) {
+                                if (orderStatus == null ||
+                                        !orderStatus.equalsIgnoreCase("temp_bill_printed")) {
+                                    tempBillOrders.add(order);
+                                    Log.d(TAG, "✅ Including temp bill order: " + order.getId() +
+                                            " (status: " + orderStatus + ")");
+                                } else {
+                                    Log.d(TAG, "❌ Skipping temp_bill_printed order: " + order.getId());
+                                }
                             }
                         }
                     }
                 }
+
+                Log.d(TAG, "📊 Total temp bill orders (after filtering): " + tempBillOrders.size());
                 callback.onSuccess(tempBillOrders);
             }
 
             @Override
             public void onError(String message) {
-                callback. onError(message);
+                callback.onError(message);
             }
         });
     }

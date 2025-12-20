@@ -87,7 +87,7 @@ public class TableActionsHandler {
         popup.getMenu().add(0, 5, 6, "Yêu cầu tạm tính");
 
         // Yêu cầu kiểm tra bàn
-        popup.getMenu().add(0, 9, 7, "Yêu cầu kiểm tra bàn");
+
 
         popup.setOnMenuItemClickListener((MenuItem item) -> {
             int id = item.getItemId();
@@ -157,24 +157,24 @@ public class TableActionsHandler {
 
                 // ❌ ĐÃ XÓA: case 8 - Tách hóa đơn + bàn
 
-                case 9:
-                    // Yêu cầu kiểm tra bàn
-                    if (host instanceof FragmentActivity) {
-                        try {
-                            TableCheckRequestDialogFragment f = TableCheckRequestDialogFragment.newInstance(
-                                    table. getId(),
-                                    table. getTableNumber()
-                            );
-                            f.show(((FragmentActivity) host).getSupportFragmentManager(), "tableCheckRequest");
-                        } catch (Exception e) {
-                            Toast. makeText(host,
-                                    "Không thể mở dialog:  " + e.getMessage(),
-                                    Toast.LENGTH_SHORT).show();
-                        }
-                    } else {
-                        Toast.makeText(host, "Chức năng không khả dụng", Toast. LENGTH_SHORT).show();
-                    }
-                    return true;
+//                case 9:
+//                    // Yêu cầu kiểm tra bàn
+//                    if (host instanceof FragmentActivity) {
+//                        try {
+//                            TableCheckRequestDialogFragment f = TableCheckRequestDialogFragment.newInstance(
+//                                    table. getId(),
+//                                    table. getTableNumber()
+//                            );
+//                            f.show(((FragmentActivity) host).getSupportFragmentManager(), "tableCheckRequest");
+//                        } catch (Exception e) {
+//                            Toast. makeText(host,
+//                                    "Không thể mở dialog:  " + e.getMessage(),
+//                                    Toast.LENGTH_SHORT).show();
+//                        }
+//                    } else {
+//                        Toast.makeText(host, "Chức năng không khả dụng", Toast. LENGTH_SHORT).show();
+//                    }
+//                    return true;
 
                 default:
                     return false;
