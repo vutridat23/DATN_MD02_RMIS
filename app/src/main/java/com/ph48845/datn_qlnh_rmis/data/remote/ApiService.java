@@ -1,12 +1,13 @@
 package com.ph48845.datn_qlnh_rmis.data.remote;
 
+import com.google.gson.JsonObject;
 import com.ph48845.datn_qlnh_rmis.data.model.HistoryItem;
 import com.ph48845.datn_qlnh_rmis.data.model.Ingredient;
 import com.ph48845.datn_qlnh_rmis.data.model.LoginResponse;
 import com.ph48845.datn_qlnh_rmis.data.model.MenuItem;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
-import com.ph48845.datn_qlnh_rmis.data.model.ReportItem;
 import com.ph48845.datn_qlnh_rmis.data.model.ReportDetail;
+import com.ph48845.datn_qlnh_rmis.data.model.ReportItem;
 import com.ph48845.datn_qlnh_rmis.data.model.HourlyRevenue;
 import com.ph48845.datn_qlnh_rmis.data.model.PeakHour;
 import com.ph48845.datn_qlnh_rmis.data.model.Shift;
@@ -35,6 +36,14 @@ import retrofit2.http.QueryMap;
  *
  * LƯU Ý: file này bao gồm cả các endpoint mới như recipes/consume (client giả
  * định).
+ *
+ * ApiService:  Interface định nghĩa tất cả endpoint API
+ *
+ * ✅ ĐÃ SỬA:
+ * - Loại bỏ import trùng lặp
+ * - Thêm method createCardPayment() cho thanh toán thẻ VNPay
+ * - Cập nhật PATCH method cho check items
+ * - Thêm đầy đủ các endpoint cần thiết
  */
 public interface ApiService {
 
@@ -51,8 +60,14 @@ public interface ApiService {
     @POST("users")
     Call<User> createUser(@Body User user);
 
+    @POST("users")
+    Call<ApiResponse<User>> createUser(@Body User user);
+
     @PUT("users/{id}")
     Call<User> updateUser(@Path("id") String userId, @Body User user);
+
+    @PUT("users/{id}")
+    Call<ApiResponse<User>> updateUser(@Path("id") String userId, @Body User user);
 
     // ===========================
     // --- MENU ITEM ENDPOINTS ---
@@ -63,34 +78,91 @@ public interface ApiService {
     @POST("menu")
     Call<MenuItem> createMenuItem(@Body MenuItem menuItem);
 
+    @POST("menu")
+    Call<ApiResponse<MenuItem>> createMenuItem(@Body MenuItem menuItem);
+
     @DELETE("menu/{id}")
     Call<Void> deleteMenuItem(@Path("id") String itemId);
+
+    @DELETE("menu/{id}")
+    Call<ApiResponse<Void>> deleteMenuItem(@Path("id") String itemId);
+
+    @PUT("menu/{id}")
+    Call<ApiResponse<MenuItem>> updateMenuItem(@Path("id") String itemId, @Body MenuItem menuItem);
+
+    @GET("menu/{id}")
+    Call<ApiResponse<MenuItem>> getMenuItemById(@Path("id") String itemId);
 
     // ===========================
     // --- ORDER ENDPOINTS ---
     // ===========================
+    /**
+     * Lấy tất cả orders
+     */
     @GET("orders")
     Call<ApiResponse<List<Order>>> getAllOrders();
 
+    /**
+     * Lấy orders theo bàn và status
+     */
     @GET("orders")
     Call<ApiResponse<List<Order>>> getOrdersByTable(
             @Query("tableNumber") Integer tableNumber,
             @Query("status") String status);
 
+    /**
+     * Tạo order mới
+     */
     @POST("orders")
     Call<ApiResponse<Order>> createOrder(@Body Order order);
 
+    /**
+     * Lấy chi tiết order theo ID
+     */
     @GET("orders/{id}")
     Call<ApiResponse<Order>> getOrderById(@Path("id") String orderId);
 
     @PUT("orders/{id}")
     Call<ApiResponse<Order>> updateOrder(@Path("id") String orderId, @Body Map<String, Object> updates);
 
+    /**
+     * ✅ PUT - Cập nhật toàn bộ order
+     * Route backend: PUT /orders/: id
+     * Dùng cho các trường hợp update nhiều field
+     */
+    @PUT("orders/{id}")
+    Call<ApiResponse<Order>> updateOrder(
+            @Path("id") String orderId,
+            @Body Map<String, Object> updates
+    );
+
+    /**
+     * ✅✅✅ PATCH - Cập nhật một phần order
+     * Route backend: PATCH /orders/:orderId
+     *
+     * QUAN TRỌNG: Method này khớp với backend route
+     * Dùng cho:
+     * - Confirm check items (checkItemsStatus, checkItemsCompletedBy, checkItemsCompletedAt, checkItemsNote)
+     * - Update các field riêng lẻ khác
+     *
+     * @param orderId ID của order cần cập nhật
+     * @param updates Map chứa các field cần update
+     * @return Call trả về Order đã được cập nhật
+     */
+    @PATCH("orders/{orderId}")
+    Call<ApiResponse<Order>> updateOrderPatch(
+            @Path("orderId") String orderId,
+            @Body Map<String, Object> updates
+    );
+
     @PUT("orders/{id}/status")
     Call<ApiResponse<Order>> updateOrderStatus(@Path("id") String orderId, @Body Map<String, Object> newStatusBody);
 
     @DELETE("orders/{id}")
     Call<Void> deleteOrder(@Path("id") String orderId);
+
+    @DELETE("orders/{id}")
+    Call<ApiResponse<Void>> deleteOrder(@Path("id") String orderId);
 
     @PATCH("orders/{orderId}/items/{itemId}/status")
     Call<Void> updateOrderItemStatus(
@@ -107,17 +179,71 @@ public interface ApiService {
     @POST("orders/{id}/request-temp-calculation")
     Call<ApiResponse<Order>> requestTempCalculation(@Path("id") String orderId, @Body Map<String, Object> body);
 
+    /**
+     * Yêu cầu tạm tính
+     * POST /orders/{orderId}/request-temp-calculation
+     * Body: { requestedBy, requestedByName }
+     */
+    @POST("orders/{orderId}/request-temp-calculation")
+    Call<ApiResponse<Order>> requestTempCalculation(
+            @Path("orderId") String orderId,
+            @Body Map<String, Object> body
+    );
+
+    /**
+     * Di chuyển tất cả orders sang bàn khác
+     * POST /orders/move-to-table
+     * Body: { fromTableNumber, toTableNumber, movedBy }
+     */
+    @POST("orders/move-to-table")
+    Call<ApiResponse<Map<String, Object>>> moveOrdersToTable(@Body Map<String, Object> body);
+
     // ===========================
     // pay endpoint
     // ===========================
     @POST("orders/pay")
     Call<ApiResponse<Order>> payOrder(@Body Map<String, Object> body);
 
+    /**
+     * ✅ THÊM MỚI - Thanh toán bằng thẻ (VNPay)
+     * POST /payment/card/create
+     * Body: { orderId, orderIds, amount }
+     * Response: { paymentUrl }
+     */
+    @POST("payment/card/create")
+    Call<Map<String, Object>> createCardPayment(@Body Map<String, Object> body);
+
+    /**
+     * Xác nhận kiểm tra bàn (dùng JsonObject)
+     * Route backend:  PATCH /orders/:orderId/confirm-check-items
+     */
+    @PATCH("orders/{orderId}/confirm-check-items")
+    Call<ApiResponse<Order>> confirmCheckItems(
+            @Path("orderId") String orderId,
+            @Body JsonObject body
+    );
+
+    /**
+     * Hoàn thành kiểm tra bàn
+     * Route backend: PATCH /orders/:orderId/complete-check-items
+     */
+    @PATCH("orders/{orderId}/complete-check-items")
+    Call<ApiResponse<Order>> completeCheckItems(
+            @Path("orderId") String orderId,
+            @Body Map<String, Object> body
+    );
+
     // ===========================
     // --- TABLE ENDPOINTS ---
     // ===========================
     @GET("tables")
     Call<ApiResponse<List<TableItem>>> getAllTables();
+
+    /**
+     * Lấy chi tiết bàn theo ID
+     */
+    @GET("tables/{id}")
+    Call<ApiResponse<TableItem>> getTableById(@Path("id") String tableId);
 
     @PUT("tables/{id}")
     Call<TableItem> updateTable(@Path("id") String tableId, @Body Map<String, Object> updates);
@@ -127,6 +253,21 @@ public interface ApiService {
 
     @POST("tables/{id}/reserve")
     Call<TableItem> reserveTable(@Path("id") String id, @Body Map<String, Object> body);
+
+    /**
+     * Tách bàn không tách hóa đơn
+     */
+    @POST("tables/{sourceTableId}/split-table-only")
+    Call<ApiResponse<Void>> splitTableOnly(
+            @Path("sourceTableId") String sourceTableId,
+            @Body Map<String, Object> body
+    );
+
+    /**
+     * Yêu cầu kiểm tra bàn
+     */
+    @POST("tables/request-check")
+    Call<ApiResponse<Void>> requestTableCheck(@Body Map<String, Object> body);
 
     // ===========================
     // --- INGREDIENT ENDPOINTS ---
@@ -139,8 +280,7 @@ public interface ApiService {
 
     // ===========================
     // --- RECIPES / CONSUME (NEW) ---
-    // POST to ask server to deduct ingredient stock according to recipe for a
-    // menuItem
+    // POST to ask server to deduct ingredient stock according to recipe for a menuItem
     @POST("recipes/consume")
     Call<ApiResponse<Void>> consumeRecipe(@Body Map<String, Object> body);
 
@@ -229,8 +369,10 @@ public interface ApiService {
     Call<ApiResponse<Shift>> checkoutShift(@Path("id") String shiftId, @Body Map<String, String> body);
 
     @GET("shifts/employee/{employeeId}")
-    Call<ApiResponse<List<Shift>>> getEmployeeShiftHistory(@Path("employeeId") String employeeId,
-                                                           @QueryMap Map<String, String> params);
+    Call<ApiResponse<List<Shift>>> getEmployeeShiftHistory(
+            @Path("employeeId") String employeeId,
+            @QueryMap Map<String, String> params
+    );
 
     // ===========================
     // --- VOUCHER ENDPOINTS ---
@@ -244,9 +386,33 @@ public interface ApiService {
     @GET("vouchers/code/{code}")
     Call<ApiResponse<Voucher>> getVoucherByCode(@Path("code") String code);
 
+    /**
+     * Tạo voucher mới
+     */
+    @POST("vouchers")
+    Call<ApiResponse<Voucher>> createVoucher(@Body Voucher voucher);
+
+    /**
+     * Cập nhật voucher
+     */
+    @PUT("vouchers/{id}")
+    Call<ApiResponse<Voucher>> updateVoucher(
+            @Path("id") String voucherId,
+            @Body Voucher voucher
+    );
+
+    /**
+     * Xóa voucher
+     */
+    @DELETE("vouchers/{id}")
+    Call<ApiResponse<Void>> deleteVoucher(@Path("id") String voucherId);
+
     // ===========================
     // --- HELPER CLASSES ---
     // ===========================
+    /**
+     * Class helper cho cập nhật status
+     */
     class StatusUpdate {
         public String status;
 
