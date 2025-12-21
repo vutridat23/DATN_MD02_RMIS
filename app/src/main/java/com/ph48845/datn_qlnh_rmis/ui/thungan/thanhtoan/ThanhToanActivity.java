@@ -54,85 +54,60 @@ public class ThanhToanActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_thanh_toan);
-        // ====== LOG KIỂM TRA INTENT ======
-        String orderId = getIntent().getStringExtra("orderId");
-        ArrayList<String> orderIds = getIntent().getStringArrayListExtra("orderIds");
-        double totalAmount = getIntent().getDoubleExtra("totalAmount", -1);
-        int tableNumber = getIntent().getIntExtra("tableNumber", -1);
-        String voucherId = getIntent().getStringExtra("voucherId");
+        Log.d("ThanhToanDebug", "orderId=" + getIntent().getStringExtra("orderId") +
+                ", orderIds=" + getIntent().getStringArrayListExtra("orderIds") +
+                ", totalAmount=" + getIntent().getDoubleExtra("totalAmount", -1) +
+                ", voucherId=" + getIntent().getStringExtra("voucherId"));
 
-        Log.d("ThanhToanActivity", "orderId=" + orderId);
-        Log.d("ThanhToanActivity", "orderIds=" + orderIds);
-        Log.d("ThanhToanActivity", "totalAmount=" + totalAmount);
-        Log.d("ThanhToanActivity", "tableNumber=" + tableNumber);
-        Log.d("ThanhToanActivity", "voucherId=" + voucherId);
 
         initViews();
-
-//        excludeUnreadyItems = getIntent().getBooleanExtra("excludeUnreadyItems", false);
-//
-//        if (excludeUnreadyItems) {
-//            payItems = (ArrayList<Order.OrderItem>)
-//                    getIntent().getSerializableExtra("pay_items");
-//
-//        }
-
-
 
         excludeUnreadyItems = getIntent().getBooleanExtra("excludeUnreadyItems", false);
 
         if (excludeUnreadyItems) {
-            payItems = (ArrayList<Order.OrderItem>) getIntent().getSerializableExtra("pay_items");
+            payItems = (ArrayList<Order.OrderItem>)
+                    getIntent().getSerializableExtra("pay_items");
         }
-
 
         orderRepository = new OrderRepository();
         tableRepository = new TableRepository();
 
-        // Kiểm tra xem có nhiều orders hay một order
+        // Kiểm tra nhiều order hay một order
         ArrayList<String> orderIdsList = getIntent().getStringArrayListExtra("orderIds");
         if (orderIdsList != null && !orderIdsList.isEmpty()) {
-            // Trường hợp thanh toán nhiều hóa đơn
+            // Thanh toán nhiều hóa đơn
             orderIds = orderIdsList;
             totalAmount = getIntent().getDoubleExtra("totalAmount", 0.0);
             tableNumber = getIntent().getIntExtra("tableNumber", 0);
             voucherId = getIntent().getStringExtra("voucherId");
-            
-            if (totalAmount <= 0) {
-                Toast.makeText(this, "Lỗi: Tổng tiền không hợp lệ", Toast.LENGTH_SHORT).show();
-                finish();
-                return;
-            }
-            
+
             tvTotalAmount.setText("Tổng: " + String.format("%,.0f₫", totalAmount));
             setupPaymentButtons();
         } else {
-            // Trường hợp thanh toán một hóa đơn
-            orderId = getIntent().getStringExtra("orderId");
+            // Thanh toán một hóa đơn
+            String orderId = getIntent().getStringExtra("orderId");
             if (orderId == null || orderId.isEmpty()) {
-                Toast.makeText(this, "Lỗi: không có đơn hàng để thanh toán", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Không có đơn hàng để thanh toán", Toast.LENGTH_SHORT).show();
                 finish();
                 return;
             }
-            
-            // Kiểm tra xem có tổng tiền đã tính sẵn không (từ InvoiceActivity với voucher)
-            double preCalculatedTotal = getIntent().getDoubleExtra("totalAmount", -1);
-            if (preCalculatedTotal > 0) {
-                // Có tổng tiền đã tính sẵn (đã có voucher), dùng luôn
-                totalAmount = preCalculatedTotal;
-                tableNumber = getIntent().getIntExtra("tableNumber", 0);
-                voucherId = getIntent().getStringExtra("voucherId");
 
+            // 🔹 Kiểm tra tổng tiền đã tính voucher truyền từ Intent
+            orderId = getIntent().getStringExtra("orderId");
+            double preCalculatedTotal = getIntent().getDoubleExtra("totalAmount", -1);
+
+            if (preCalculatedTotal > 0) {
+                totalAmount = preCalculatedTotal;
+                voucherId = getIntent().getStringExtra("voucherId");
                 tvTotalAmount.setText("Tổng: " + String.format("%,.0f₫", totalAmount));
                 setupPaymentButtons();
-                return;
+            } else {
+                fetchOrder(orderId); // chỉ khi thực sự không có totalAmount
             }
-            else {
-                // Không có tổng tiền tính sẵn, fetch order và tính lại
-                fetchOrder(orderId);
-            }
+
         }
     }
+
 
     private void initViews() {
         cardCash = findViewById(R.id.cardCash);
@@ -145,66 +120,42 @@ public class ThanhToanActivity extends AppCompatActivity {
     }
 
     private void fetchOrder(String orderId) {
-        orderRepository.getOrdersByTableNumber(null, null, new OrderRepository.RepositoryCallback<List<Order>>() {
+        if (orderId == null || orderId.isEmpty()) {
+            Toast.makeText(this, "Không có đơn hàng để thanh toán", Toast.LENGTH_SHORT).show();
+            finish();
+            return;
+        }
+
+        orderRepository.getOrderById(orderId, new OrderRepository.RepositoryCallback<Order>() {
             @Override
-            public void onSuccess(List<Order> orders) {
-                for (Order order : orders) {
-                    if (order.getId().equals(orderId)) {
-                        currentOrder = order;
-                        break;
-                    }
-                }
-
+            public void onSuccess(Order order) {
+                currentOrder = order;
                 runOnUiThread(() -> {
-                    if (currentOrder != null) {
-
-                        if (excludeUnreadyItems && payItems != null && !payItems.isEmpty()) {
-                            totalAmount = 0;
-                            for (Order.OrderItem item : payItems) {
-                                totalAmount += item.getPrice() * item.getQuantity();
-                            }
-                        } else {
-                            double preCalculatedTotal = getIntent().getDoubleExtra("totalAmount", -1);
-
-                            if (preCalculatedTotal > 0) {
-                                // ✅ ĐÃ ÁP VOUCHER → KHÔNG TÍNH LẠI
-                                totalAmount = preCalculatedTotal;
-                            } else {
-                                // ❌ KHÔNG CÓ VOUCHER → TÍNH BÌNH THƯỜNG
-                                totalAmount = currentOrder.getFinalAmount();
-                            }
+                    // Nếu chỉ thanh toán các món đã chọn
+                    if (excludeUnreadyItems && payItems != null && !payItems.isEmpty()) {
+                        totalAmount = 0;
+                        for (Order.OrderItem item : payItems) {
+                            totalAmount += item.getPrice() * item.getQuantity();
                         }
-
-
-                        if (excludeUnreadyItems && payItems != null && !payItems.isEmpty()) {
-                            totalAmount = 0;
-                            for (Order.OrderItem item : payItems) {
-                                totalAmount += item.getPrice() * item.getQuantity();
-                            }
-                        } else {
-                            totalAmount = currentOrder.getFinalAmount();
-                        }
-
-                        tvTotalAmount.setText("Tổng: " + String.format("%,.0f₫", totalAmount));
-                        setupPaymentButtons();
-
                     } else {
-                        Toast.makeText(ThanhToanActivity.this, "Không tìm thấy đơn hàng", Toast.LENGTH_SHORT).show();
-                        finish();
+                        totalAmount = currentOrder.getFinalAmount();
                     }
-                });
 
+                    tvTotalAmount.setText("Tổng: " + String.format("%,.0f₫", totalAmount));
+                    setupPaymentButtons();
+                });
             }
 
             @Override
             public void onError(String message) {
                 runOnUiThread(() -> {
-                    Toast.makeText(ThanhToanActivity.this, "Lỗi khi lấy đơn hàng: " + message, Toast.LENGTH_SHORT).show();
+                    Toast.makeText(ThanhToanActivity.this, "Không tìm thấy đơn hàng: " + message, Toast.LENGTH_SHORT).show();
                     finish();
                 });
             }
         });
     }
+
 
     private void setupPaymentButtons() {
 
@@ -265,17 +216,23 @@ public class ThanhToanActivity extends AppCompatActivity {
 
     private void processPayment(String method) {
         if (orderIds != null && !orderIds.isEmpty()) {
-            // Thanh toán nhiều hóa đơn
             processMultipleOrdersPayment(method);
-        } else if (currentOrder != null) {
-            // Thanh toán một hóa đơn (như cũ)
+        } else {
+            String orderId = getIntent().getStringExtra("orderId");
+            if (orderId == null || orderId.isEmpty()) {
+                Toast.makeText(this, "Không có đơn hàng để thanh toán", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
             double amountCustomerGiven = method.equals("Tiền mặt") ? totalAmount : 0;
             String voucherIdParam = getIntent().getStringExtra("voucherId");
 
-            orderRepository.payOrder(currentOrder.getId(), method, amountCustomerGiven, voucherIdParam, new OrderRepository.RepositoryCallback<Order>() {
+            orderRepository.payOrder(orderId, method, amountCustomerGiven, voucherIdParam, new OrderRepository.RepositoryCallback<Order>() {
                 @Override
                 public void onSuccess(Order updatedOrder) {
-                    Toast.makeText(ThanhToanActivity.this, "Thanh toán thành công", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(ThanhToanActivity.this,
+                            "Thanh toán thành công",
+                            Toast.LENGTH_SHORT).show();
                     resetTableAndFinish(updatedOrder);
                 }
 
@@ -284,11 +241,9 @@ public class ThanhToanActivity extends AppCompatActivity {
                     Toast.makeText(ThanhToanActivity.this, "Thanh toán thất bại: " + message, Toast.LENGTH_SHORT).show();
                 }
             });
-        } else {
-            Toast.makeText(this, "Lỗi: không có đơn hàng để thanh toán", Toast.LENGTH_SHORT).show();
-            finish();
         }
     }
+
 
     /**
      * Thanh toán nhiều hóa đơn
@@ -300,15 +255,15 @@ public class ThanhToanActivity extends AppCompatActivity {
         }
 
         double amountCustomerGiven = method.equals("Tiền mặt") ? totalAmount : 0;
-        
+
         // Tính discount cho mỗi hóa đơn
-        double discountPerOrder = orderIds.size() > 0 ? 
-            (getIntent().getDoubleExtra("voucherDiscount", 0.0) / orderIds.size()) : 0.0;
-        
+        double discountPerOrder = orderIds.size() > 0 ?
+                (getIntent().getDoubleExtra("voucherDiscount", 0.0) / orderIds.size()) : 0.0;
+
         final java.util.concurrent.atomic.AtomicInteger successCount = new java.util.concurrent.atomic.AtomicInteger(0);
         final java.util.concurrent.atomic.AtomicInteger totalCount = new java.util.concurrent.atomic.AtomicInteger(orderIds.size());
         final java.util.concurrent.atomic.AtomicBoolean allSuccess = new java.util.concurrent.atomic.AtomicBoolean(true);
-        
+
         // Lấy totalAmount của từng order để tính lại
         orderRepository.getOrdersByTableNumber(tableNumber, null, new OrderRepository.RepositoryCallback<List<Order>>() {
             @Override
@@ -323,55 +278,55 @@ public class ThanhToanActivity extends AppCompatActivity {
                         }
                     }
                 }
-                
+
                 if (ordersToPay.isEmpty()) {
                     Toast.makeText(ThanhToanActivity.this, "Không tìm thấy hóa đơn để thanh toán", Toast.LENGTH_SHORT).show();
                     return;
                 }
-                
+
                 // Tính lại discount cho mỗi order dựa trên tỷ lệ
                 double totalBeforeDiscount = 0.0;
                 for (Order order : ordersToPay) {
                     totalBeforeDiscount += order.getTotalAmount() > 0 ? order.getTotalAmount() : order.getFinalAmount();
                 }
-                
+
                 // Thanh toán từng hóa đơn
                 for (Order order : ordersToPay) {
                     double orderTotal = order.getTotalAmount() > 0 ? order.getTotalAmount() : order.getFinalAmount();
-                    double orderDiscount = totalBeforeDiscount > 0 ? 
-                        (getIntent().getDoubleExtra("voucherDiscount", 0.0) * orderTotal / totalBeforeDiscount) : 0.0;
+                    double orderDiscount = totalBeforeDiscount > 0 ?
+                            (getIntent().getDoubleExtra("voucherDiscount", 0.0) * orderTotal / totalBeforeDiscount) : 0.0;
                     double orderFinalAmount = orderTotal - orderDiscount;
                     if (orderFinalAmount < 0) orderFinalAmount = 0;
-                    
+
                     orderRepository.payOrder(order.getId(), method, orderFinalAmount, voucherId, new OrderRepository.RepositoryCallback<Order>() {
                         @Override
                         public void onSuccess(Order result) {
-                            int current = successCount.incrementAndGet();
-                            if (current >= totalCount.get()) {
-                                runOnUiThread(() -> {
-                                    if (allSuccess.get()) {
-                                        Toast.makeText(ThanhToanActivity.this, "Thanh toán thành công " + totalCount.get() + " hóa đơn", Toast.LENGTH_SHORT).show();
-                                        resetTableAndFinishMultiple();
-                                    } else {
-                                        Toast.makeText(ThanhToanActivity.this, "Một số hóa đơn thanh toán thất bại", Toast.LENGTH_LONG).show();
-                                        finish();
-                                    }
-                                });
+                            int finished = successCount.incrementAndGet(); // đã xong 1 hóa đơn
+                            runOnUiThread(() -> {
+                                Toast.makeText(ThanhToanActivity.this,
+                                        "Thanh toán thành công " + finished + "/" + totalCount.get() + " hóa đơn",
+                                        Toast.LENGTH_SHORT).show();
+                            });
+
+                            if (finished >= totalCount.get()) {
+                                runOnUiThread(() -> resetTableAndFinishMultiple());
                             }
                         }
 
                         @Override
                         public void onError(String message) {
                             allSuccess.set(false);
-                            int current = successCount.incrementAndGet();
-                            if (current >= totalCount.get()) {
-                                runOnUiThread(() -> {
-                                    Toast.makeText(ThanhToanActivity.this, "Thanh toán thất bại: " + message, Toast.LENGTH_LONG).show();
-                                    finish();
-                                });
-                            }
+                            int finished = successCount.incrementAndGet();
+                            runOnUiThread(() -> {
+                                Toast.makeText(ThanhToanActivity.this,
+                                        "Thanh toán thất bại " + finished + "/" + totalCount.get() + " hóa đơn",
+                                        Toast.LENGTH_LONG).show();
+                            });
+
                         }
                     });
+
+
                 }
             }
 
@@ -394,7 +349,7 @@ public class ThanhToanActivity extends AppCompatActivity {
                             break;
                         }
                     }
-                    
+
                     if (tableId != null) {
                         tableRepository.resetTableAfterPayment(tableId, new TableRepository.RepositoryCallback<TableItem>() {
                             @Override
