@@ -253,7 +253,7 @@ public class ThuNganActivity extends BaseMenuActivity {
                         headerFloor2.setVisibility(floor2Tables.isEmpty() ? View.GONE : View.VISIBLE);
 
                     loadOrdersForServingStatus(floor1Tables, floor2Tables);
-                    startSocketRealtime();
+//                    startSocketRealtime();
                 });
             }
 

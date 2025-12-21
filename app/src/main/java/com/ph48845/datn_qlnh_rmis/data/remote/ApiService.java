@@ -202,8 +202,7 @@ public interface ApiService {
      * Body: { orderId, orderIds, amount }
      * Response: { paymentUrl }
      */
-    @POST("payment/card/create")
-    Call<Map<String, Object>> createCardPayment(@Body Map<String, Object> body);
+
 
     /**
      * Xác nhận kiểm tra bàn (dùng JsonObject)

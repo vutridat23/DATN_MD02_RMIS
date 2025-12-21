@@ -2994,7 +2994,7 @@ public class InvoiceActivity extends AppCompatActivity {
             ArrayList<Order.OrderItem> readyItems = getReadyItems(order);
             intent.putExtra("pay_items", readyItems);
         }
-
+        Log.d("InvoiceActivity", "goToPayment called: orderId=" + order.getId());
         startActivity(intent);
     }
 

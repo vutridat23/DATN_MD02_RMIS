@@ -504,13 +504,9 @@ public class Order implements Serializable {
     }
 
     // Các trường thời gian (At) vẫn giữ nguyên là String vì Server trả về chuỗi ngày tháng
-    public String getTempCalculationRequestedAt() {
-        return tempCalculationRequestedAtAnnotated;
-    }
 
-    public void setTempCalculationRequestedAt(String tempCalculationRequestedAt) {
-        this.tempCalculationRequestedAtAnnotated = tempCalculationRequestedAt;
-    }
+
+    
 
     public String getCheckItemsRequestedAt() {
         return checkItemsRequestedAtAnnotated;

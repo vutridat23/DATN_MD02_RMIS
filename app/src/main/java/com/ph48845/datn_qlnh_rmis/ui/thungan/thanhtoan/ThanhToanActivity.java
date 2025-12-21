@@ -3,6 +3,7 @@ package com.ph48845.datn_qlnh_rmis.ui.thungan.thanhtoan;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.widget.ImageButton;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -53,25 +54,35 @@ public class ThanhToanActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_thanh_toan);
+        // ====== LOG KIỂM TRA INTENT ======
+        String orderId = getIntent().getStringExtra("orderId");
+        ArrayList<String> orderIds = getIntent().getStringArrayListExtra("orderIds");
+        double totalAmount = getIntent().getDoubleExtra("totalAmount", -1);
+        int tableNumber = getIntent().getIntExtra("tableNumber", -1);
+        String voucherId = getIntent().getStringExtra("voucherId");
+
+        Log.d("ThanhToanActivity", "orderId=" + orderId);
+        Log.d("ThanhToanActivity", "orderIds=" + orderIds);
+        Log.d("ThanhToanActivity", "totalAmount=" + totalAmount);
+        Log.d("ThanhToanActivity", "tableNumber=" + tableNumber);
+        Log.d("ThanhToanActivity", "voucherId=" + voucherId);
 
         initViews();
 
+//        excludeUnreadyItems = getIntent().getBooleanExtra("excludeUnreadyItems", false);
+//
+//        if (excludeUnreadyItems) {
+//            payItems = (ArrayList<Order.OrderItem>)
+//                    getIntent().getSerializableExtra("pay_items");
+//
+//        }
+
+
+
         excludeUnreadyItems = getIntent().getBooleanExtra("excludeUnreadyItems", false);
 
         if (excludeUnreadyItems) {
-            payItems = (ArrayList<Order.OrderItem>)
-                    getIntent().getSerializableExtra("pay_items");
-
-        }
-
-
-
-        excludeUnreadyItems = getIntent().getBooleanExtra("excludeUnreadyItems", false);
-
-        if (excludeUnreadyItems) {
-            payItems = (ArrayList<Order.OrderItem>)
-                    getIntent().getSerializableExtra("pay_items");
-
+            payItems = (ArrayList<Order.OrderItem>) getIntent().getSerializableExtra("pay_items");
         }
 
 
@@ -97,7 +108,7 @@ public class ThanhToanActivity extends AppCompatActivity {
             setupPaymentButtons();
         } else {
             // Trường hợp thanh toán một hóa đơn
-            String orderId = getIntent().getStringExtra("orderId");
+            orderId = getIntent().getStringExtra("orderId");
             if (orderId == null || orderId.isEmpty()) {
                 Toast.makeText(this, "Lỗi: không có đơn hàng để thanh toán", Toast.LENGTH_SHORT).show();
                 finish();
@@ -219,21 +230,21 @@ public class ThanhToanActivity extends AppCompatActivity {
         });
 
         // ====== THẺ NGÂN HÀNG ======
-        cardCard.setOnClickListener(v -> {
-            Intent intent = new Intent(ThanhToanActivity.this, PaymentCardActivity.class);
-
-            if (currentOrder != null) {
-                intent.putExtra("orderId", currentOrder.getId());
-            } else if (orderIds != null && !orderIds.isEmpty()) {
-                intent.putStringArrayListExtra("orderIds", new ArrayList<>(orderIds));
-            } else {
-                Toast.makeText(this, "Không có đơn hàng để thanh toán", Toast.LENGTH_SHORT).show();
-                return;
-            }
-
-            intent.putExtra("amount", totalAmount);
-            startActivity(intent);
-        });
+//        cardCard.setOnClickListener(v -> {
+//            Intent intent = new Intent(ThanhToanActivity.this, PaymentCardActivity.class);
+//
+//            if (currentOrder != null) {
+//                intent.putExtra("orderId", currentOrder.getId());
+//            } else if (orderIds != null && !orderIds.isEmpty()) {
+//                intent.putStringArrayListExtra("orderIds", new ArrayList<>(orderIds));
+//            } else {
+//                Toast.makeText(this, "Không có đơn hàng để thanh toán", Toast.LENGTH_SHORT).show();
+//                return;
+//            }
+//
+//            intent.putExtra("amount", totalAmount);
+//            startActivity(intent);
+//        });
 
         // ====== DISABLE CARD PAYMENT KHI CÓ VOUCHER ======
         if (hasVoucherApplied()) {
