@@ -1,5 +1,6 @@
-package com.ph48845.datn_qlnh_rmis.data.model;
+package com.ph48845.datn_qlnh_rmis. data.model;
 
+import android.util.Log;
 import com.google.gson.annotations.SerializedName;
 
 import java.io.Serializable;
@@ -106,7 +107,18 @@ public class Order implements Serializable {
     @SerializedName("checkItemsRequestedAt")
     private String checkItemsRequestedAtAnnotated;
 
-    // ✨ Annotated field mới
+    @SerializedName("checkItemsStatus")
+    private String checkItemsStatusAnnotated;
+
+    @SerializedName("checkItemsCompletedBy")
+    private Object checkItemsCompletedByAnnotated;
+
+    @SerializedName("checkItemsCompletedAt")
+    private String checkItemsCompletedAtAnnotated;
+
+    @SerializedName("checkItemsNote")
+    private String checkItemsNoteAnnotated;
+
     @SerializedName("cancelReason")
     private String cancelReasonAnnotated;
 
@@ -170,6 +182,10 @@ public class Order implements Serializable {
         // ✨ ensure cancelReason default
         if (cancelReasonAnnotated == null) cancelReasonAnnotated = "";
     }
+
+    // ======================================================================
+    // BASIC GETTERS/SETTERS
+    // ======================================================================
 
     public String getCancelReason() {
         return cancelReasonAnnotated != null ? cancelReasonAnnotated : cancelReasonLegacy;
@@ -414,6 +430,7 @@ public class Order implements Serializable {
      */
     public String getTempCalculationRequestedById() {
         if (tempCalculationRequestedByAnnotated == null) return "";
+
         if (tempCalculationRequestedByAnnotated instanceof Map) {
             try {
                 Map<?, ?> map = (Map<?, ?>) tempCalculationRequestedByAnnotated;
@@ -426,9 +443,11 @@ public class Order implements Serializable {
                 return "";
             }
         }
+
         if (tempCalculationRequestedByAnnotated instanceof String) {
             return (String) tempCalculationRequestedByAnnotated;
         }
+
         return String.valueOf(tempCalculationRequestedByAnnotated);
     }
 
@@ -437,12 +456,29 @@ public class Order implements Serializable {
         this.tempCalculationRequestedByAnnotated = tempCalculationRequestedBy;
     }
 
+    public String getTempCalculationRequestedAt() {
+        return tempCalculationRequestedAtAnnotated;
+    }
+
+    public void setTempCalculationRequestedAt(String tempCalculationRequestedAt) {
+        this.tempCalculationRequestedAtAnnotated = tempCalculationRequestedAt;
+    }
+
+    // ======================================================================
+    // CHECK ITEMS REQUEST FIELDS
+    // ======================================================================
+
     public String getCheckItemsRequestedBy() {
         if (checkItemsRequestedByAnnotated == null) return "";
 
         if (checkItemsRequestedByAnnotated instanceof Map) {
             try {
                 Map<?, ?> map = (Map<?, ?>) checkItemsRequestedByAnnotated;
+                Object fullName = map.get("fullName");
+                if (fullName != null && !String.valueOf(fullName).trim().isEmpty()) {
+                    return String.valueOf(fullName).trim();
+                }
+
                 Object name = map.get("name");
                 if (name != null) return String.valueOf(name);
 
@@ -484,6 +520,79 @@ public class Order implements Serializable {
         this.checkItemsRequestedAtAnnotated = checkItemsRequestedAt;
     }
 
+    // ======================================================================
+    // CHECK ITEMS COMPLETION FIELDS
+    // ======================================================================
+
+    public String getCheckItemsStatus() {
+        return checkItemsStatusAnnotated != null ? checkItemsStatusAnnotated : "";
+    }
+
+    public void setCheckItemsStatus(String status) {
+        this.checkItemsStatusAnnotated = status;
+    }
+
+    public String getCheckItemsCompletedBy() {
+        if (checkItemsCompletedByAnnotated == null) return "";
+
+        if (checkItemsCompletedByAnnotated instanceof Map) {
+            try {
+                Map<?, ?> map = (Map<?, ?>) checkItemsCompletedByAnnotated;
+
+                Object fullName = map.get("fullName");
+                if (fullName != null && !String. valueOf(fullName).trim().isEmpty()) {
+                    return String. valueOf(fullName).trim();
+                }
+
+                Object name = map.get("name");
+                if (name != null && !String.valueOf(name).trim().isEmpty()) {
+                    return String.valueOf(name).trim();
+                }
+
+                Object username = map.get("username");
+                if (username != null && !String.valueOf(username).trim().isEmpty()) {
+                    return String. valueOf(username).trim();
+                }
+
+                Object id = map. get("_id");
+                return id != null ? String.valueOf(id) : "";
+            } catch (Exception e) {
+                Log.w("Order", "Failed to extract checkItemsCompletedBy", e);
+                return "";
+            }
+        }
+
+        if (checkItemsCompletedByAnnotated instanceof String) {
+            return (String) checkItemsCompletedByAnnotated;
+        }
+
+        return String.valueOf(checkItemsCompletedByAnnotated);
+    }
+
+    public void setCheckItemsCompletedBy(String userId) {
+        this.checkItemsCompletedByAnnotated = userId;
+    }
+
+    public String getCheckItemsCompletedAt() {
+        return checkItemsCompletedAtAnnotated;
+    }
+
+    public void setCheckItemsCompletedAt(String timestamp) {
+        this.checkItemsCompletedAtAnnotated = timestamp;
+    }
+
+    public String getCheckItemsNote() {
+        return checkItemsNoteAnnotated != null ? checkItemsNoteAnnotated : "";
+    }
+
+    public void setCheckItemsNote(String note) {
+        this.checkItemsNoteAnnotated = note;
+    }
+
+    // ======================================================================
+    // HELPER METHODS
+    // ======================================================================
+
     private String createdAtEpochToString() {
         return createdAtAnnotated != null ? createdAtAnnotated : (createdAt > 0 ? String.valueOf(createdAt) : null);
     }
@@ -505,14 +614,10 @@ public class Order implements Serializable {
                 ", paymentMethod='" + getPaymentMethod() + '\'' +
                 ", orderStatus='" + getOrderStatus() + '\'' +
                 ", cancelReason='" + getCancelReason() + '\'' +
-                ", mergedFrom=" + getMergedFrom() +
-                ", splitTo=" + getSplitTo() +
-                ", createdAt='" + getCreatedAt() + '\'' +
-                ", paidAt='" + getPaidAt() + '\'' +
+                ", checkItemsStatus='" + getCheckItemsStatus() + '\'' +
                 '}';
     }
 
-    // ===================== toMapPayload() updated =====================
     public Map<String, Object> toMapPayload() {
         Map<String, Object> m = new HashMap<>();
         if (tableNumberAnnotated != null) m.put("tableNumber", tableNumberAnnotated);
@@ -524,7 +629,7 @@ public class Order implements Serializable {
         for (OrderItem oi : getItems()) {
             itemsList.add(oi.toMap());
         }
-        m.put("items", itemsList);
+        m. put("items", itemsList);
 
         m.put("totalAmount", getTotalAmount());
         m.put("discount", getDiscount());
@@ -537,11 +642,19 @@ public class Order implements Serializable {
         if (checkItemsRequestedByAnnotated != null) m.put("checkItemsRequestedBy", checkItemsRequestedByAnnotated);
         if (checkItemsRequestedAtAnnotated != null) m.put("checkItemsRequestedAt", checkItemsRequestedAtAnnotated);
 
-        // ✨ add cancelReason
+        if (checkItemsStatusAnnotated != null) m.put("checkItemsStatus", checkItemsStatusAnnotated);
+        if (checkItemsCompletedByAnnotated != null) m.put("checkItemsCompletedBy", checkItemsCompletedByAnnotated);
+        if (checkItemsCompletedAtAnnotated != null) m.put("checkItemsCompletedAt", checkItemsCompletedAtAnnotated);
+        if (checkItemsNoteAnnotated != null) m.put("checkItemsNote", checkItemsNoteAnnotated);
+
         m.put("cancelReason", getCancelReason());
 
         return m;
     }
+
+    // ======================================================================
+    // ORDER ITEM CLASS
+    // ======================================================================
 
 
 

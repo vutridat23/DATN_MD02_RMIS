@@ -1,0 +1,385 @@
+[33mcommit 75ea73eb3946e24679ab5c35c04cc19b52e18958[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mhari17[m[33m)[m
+Merge: 6895c3e 8f2d079
+Author: haivipdztb <haivipdztb123@gmail.com>
+Date:   Fri Dec 19 01:06:25 2025 +0700
+
+    Merge branch 'main' of https://github.com/vutridat23/DATN_MD02_RMIS into hari17
+    
+    # Conflicts:
+    #       app/src/main/java/com/ph48845/datn_qlnh_rmis/data/remote/ApiService.java
+    #       app/src/main/java/com/ph48845/datn_qlnh_rmis/data/remote/RetrofitClient.java
+    #       app/src/main/java/com/ph48845/datn_qlnh_rmis/ui/MainActivity.java
+
+[33mcommit 6895c3e34818d9838576450c731345839acc5ba2[m
+Author: haivipdztb <haivipdztb123@gmail.com>
+Date:   Fri Dec 19 00:52:58 2025 +0700
+
+     update tách bàn và nut back
+
+[33mcommit 8f2d07956746a190d736044f5cdaeb21caae2742[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m
+Author: vutridat23 <141719934+vutridat23@users.noreply.github.com>
+Date:   Fri Dec 19 00:06:51 2025 +0700
+
+    Loi (#77)
+    
+    * Update bep - Sua giao dien, sua bug
+    
+    * Bep new
+    
+    * Update tru nguyen lieu theo cong thuc
+    
+    * Push
+    
+    * Save local changes
+    
+    * Update Bep Last
+    
+    * Update Status request
+    
+    ---------
+    
+    Co-authored-by: surtant236 <57491049+surtant236@users.noreply.github.com>
+
+[33mcommit 85d62959f05c237568b5ee1411f4e7e17f0313c3[m
+Author: vutridat23 <141719934+vutridat23@users.noreply.github.com>
+Date:   Thu Dec 18 23:23:02 2025 +0700
+
+    Loi (#76)
+    
+    * Update bep - Sua giao dien, sua bug
+    
+    * Bep new
+    
+    * Update tru nguyen lieu theo cong thuc
+    
+    * Push
+    
+    * Save local changes
+    
+    * Update Bep Last
+    
+    ---------
+    
+    Co-authored-by: surtant236 <57491049+surtant236@users.noreply.github.com>
+
+[33mcommit 2fc14e564803c6ac3a0be729aee0a114a7445d3f[m
+Author: vutridat23 <141719934+vutridat23@users.noreply.github.com>
+Date:   Thu Dec 18 21:03:49 2025 +0700
+
+    update admin role (#75)
+    
+    Co-authored-by: ducnvph <141711991+Ngquy03@users.noreply.github.com>
+
+[33mcommit de7174f556a67e22f5a8264614e2be1932611f3b[m
+Merge: 062f3b3 e99103a
+Author: haivipdztb <haivipdztb123@gmail.com>
+Date:   Thu Dec 18 18:25:25 2025 +0700
+
+    Merge branch 'main' of https://github.com/vutridat23/DATN_MD02_RMIS into hari17
+
+[33mcommit e99103ae40127a2ab3a6dced31a06c5e55298575[m
+Author: vutridat23 <141719934+vutridat23@users.noreply.github.com>
+Date:   Wed Dec 17 14:43:50 2025 +0700
+
+    Hoanglvph49144 (#73)
+    
+    * Man hinh danh sach hoat doan, hoa don, doanh thu
+    
+    * Hoan thanh chuc nang Hoa don
+    
+    * Sua nut back
+    
+    * Sua nut back
+    
+    * Sua nut back
+    
+    * Sua
+    
+    * Sua
+    
+    * Sua
+    
+    * Sua
+    
+    * Sua
+    
+    * Sua
+    
+    * Sua
+    
+    * Sua
+    
+    * Sua
+    
+    * Sua code 13/12
+    
+    * Sua code 13/12
+    
+    * Sua code 15/12
+    
+    * Sua code 16/12
+    
+    * Sua code 16/12
+    
+    ---------
+    
+    Co-authored-by: Hoanglvph49144 <162542666+Hoanglvph49144@users.noreply.github.com>
+
+[33mcommit 00a2993bfc447befbb2a0d666bfc95807b832620[m
+Author: vutridat23 <141719934+vutridat23@users.noreply.github.com>
+Date:   Tue Dec 16 22:37:46 2025 +0700
+
+    Hoanglvph49144 (#71)
+    
+    * Man hinh danh sach hoat doan, hoa don, doanh thu
+    
+    * Hoan thanh chuc nang Hoa don
+    
+    * Sua nut back
+    
+    * Sua nut back
+    
+    * Sua nut back
+    
+    * Sua
+    
+    * Sua
+    
+    * Sua
+    
+    * Sua
+    
+    * Sua
+    
+    * Sua
+    
+    * Sua
+    
+    * Sua
+    
+    * Sua
+    
+    * Sua code 13/12
+    
+    * Sua code 13/12
+    
+    * Sua code 15/12
+    
+    * Sua code 16/12
+    
+    ---------
+    
+    Co-authored-by: Hoanglvph49144 <162542666+Hoanglvph49144@users.noreply.github.com>
+
+[33mcommit 362a6ba57ffd8683cafe1a3fe7d99c30cc7d925a[m
+Author: vutridat23 <141719934+vutridat23@users.noreply.github.com>
+Date:   Tue Dec 16 21:50:35 2025 +0700
+
+    Loi (#70)
+    
+    * Update bep - Sua giao dien, sua bug
+    
+    * Bep new
+    
+    * Update tru nguyen lieu theo cong thuc
+    
+    * Push
+    
+    ---------
+    
+    Co-authored-by: surtant236 <57491049+surtant236@users.noreply.github.com>
+
+[33mcommit aa45ac292401cdd786a535e5992cde8ed323ca26[m
+Author: Hoanglvph49144 <162542666+Hoanglvph49144@users.noreply.github.com>
+Date:   Mon Dec 15 23:08:57 2025 +0700
+
+    hoanglvph49144 (#68)
+    
+    * Man hinh danh sach hoat doan, hoa don, doanh thu
+    
+    * Hoan thanh chuc nang Hoa don
+    
+    * Sua nut back
+    
+    * Sua nut back
+    
+    * Sua nut back
+    
+    * Sua
+    
+    * Sua
+    
+    * Sua
+    
+    * Sua
+    
+    * Sua
+    
+    * Sua
+    
+    * Sua
+    
+    * Sua
+    
+    * Sua
+    
+    * Sua code 13/12
+    
+    * Sua code 13/12
+    
+    * Sua code 15/12
+    
+    ---------
+    
+    Co-authored-by: vutridat23 <141719934+vutridat23@users.noreply.github.com>
+
+[33mcommit 66835f268bef81aba8fbe31fc714fa22132ebd49[m
+Author: vutridat23 <141719934+vutridat23@users.noreply.github.com>
+Date:   Sat Dec 13 22:07:11 2025 +0700
+
+    Hoanglvph49144 (#67)
+    
+    * Man hinh danh sach hoat doan, hoa don, doanh thu
+    
+    * Hoan thanh chuc nang Hoa don
+    
+    * Sua nut back
+    
+    * Sua nut back
+    
+    * Sua nut back
+    
+    * Sua
+    
+    * Sua
+    
+    * Sua
+    
+    * Sua
+    
+    * Sua
+    
+    * Sua
+    
+    * Sua
+    
+    * Sua
+    
+    * Sua
+    
+    * Sua code 13/12
+    
+    * Sua code 13/12
+    
+    ---------
+    
+    Co-authored-by: Hoanglvph49144 <162542666+Hoanglvph49144@users.noreply.github.com>
+
+[33mcommit 83440d8bfa73bf03bb6f1fede4b2d8f51745d7c9[m
+Author: vutridat23 <141719934+vutridat23@users.noreply.github.com>
+Date:   Sat Dec 13 21:40:10 2025 +0700
+
+    Manager (#64)
+    
+    * fix thu ngan
+    
+    * fix thu ngan
+    
+    * fix thu ngan
+    
+    * fix thu ngan
+    
+    * Chỉnh sua layout cho cac acticity
+    
+    * Chỉnh sua layout cho cac acticity
+    
+    * Fix conflix in order item
+    
+    * Fix conflix in order item
+    
+    * Fix conflix in order item
+
+[33mcommit df726403195bfae93753a36fe7c30cb197281c97[m
+Author: vutridat23 <141719934+vutridat23@users.noreply.github.com>
+Date:   Sat Dec 13 21:29:31 2025 +0700
+
+    Loi (#63)
+    
+    * Update bep - Sua giao dien, sua bug
+    
+    * Bep new
+    
+    ---------
+    
+    Co-authored-by: surtant236 <57491049+surtant236@users.noreply.github.com>
+
+[33mcommit 30d706705b75bf4f1371670e5f3c6e2053e2d32a[m
+Author: vutridat23 <141719934+vutridat23@users.noreply.github.com>
+Date:   Fri Dec 12 17:57:58 2025 +0700
+
+    Hari17 (#61)
+    
+    * update new
+    
+    * import
+    
+    * import
+    
+    * Update Tách bàn và tách hóa đơn
+    
+    ---------
+    
+    Co-authored-by: haivipdztb <haivipdztb123@gmail.com>
+
+[33mcommit 062f3b319bf18989bcc028ec6a294bf5c29c7d86[m[33m ([m[1;31morigin/hari17[m[33m)[m
+Merge: a1c410f 304c473
+Author: haivipdztb <haivipdztb123@gmail.com>
+Date:   Fri Dec 12 02:32:54 2025 +0700
+
+    Merge branch 'main' of https://github.com/vutridat23/DATN_MD02_RMIS into hari17
+
+[33mcommit a1c410ffa189fbe6e5fa638162390b1a18fa7105[m
+Author: haivipdztb <haivipdztb123@gmail.com>
+Date:   Fri Dec 12 02:32:08 2025 +0700
+
+    Update Tách bàn và tách hóa đơn
+
+[33mcommit 304c473c65115f6fbb41fab5e4220b995fdabc0a[m
+Author: vutridat23 <141719934+vutridat23@users.noreply.github.com>
+Date:   Fri Dec 12 02:06:03 2025 +0700
+
+    Hari17 (#60)
+    
+    * update new
+    
+    * import
+    
+    * import
+    
+    ---------
+    
+    Co-authored-by: haivipdztb <haivipdztb123@gmail.com>
+
+[33mcommit 2692d73f626d059a6cf63be22e190f0dc30d343a[m
+Author: haivipdztb <haivipdztb123@gmail.com>
+Date:   Fri Dec 12 01:04:44 2025 +0700
+
+    import
+
+[33mcommit 8a3b664303dcd86fe0a104284d85a81a7b14d8a2[m
+Author: haivipdztb <haivipdztb123@gmail.com>
+Date:   Fri Dec 12 00:55:33 2025 +0700
+
+    import
+
+[33mcommit 1c93fe6b39a1dbd9eb44fce7ac82a4a8742d89ae[m
+Merge: c45d526 7039ced
+Author: haivipdztb <haivipdztb123@gmail.com>
+Date:   Fri Dec 12 00:54:24 2025 +0700
+
+    Merge branch 'main' of https://github.com/vutridat23/DATN_MD02_RMIS into hari17
+    
+    # Conflicts:
+    #       app/src/main/java/com/ph48845/datn_qlnh_rmis/data/model/Order.java
+
+[33mcommit c45d5

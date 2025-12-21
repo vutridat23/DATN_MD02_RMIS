@@ -66,6 +66,15 @@ public class ThanhToanActivity extends AppCompatActivity {
 
 
 
+        excludeUnreadyItems = getIntent().getBooleanExtra("excludeUnreadyItems", false);
+
+        if (excludeUnreadyItems) {
+            payItems = (ArrayList<Order.OrderItem>)
+                    getIntent().getSerializableExtra("pay_items");
+
+        }
+
+
         orderRepository = new OrderRepository();
         tableRepository = new TableRepository();
 
@@ -98,6 +107,7 @@ public class ThanhToanActivity extends AppCompatActivity {
             // Kiểm tra xem có tổng tiền đã tính sẵn không (từ InvoiceActivity với voucher)
             double preCalculatedTotal = getIntent().getDoubleExtra("totalAmount", -1);
             if (preCalculatedTotal > 0) {
+                // Có tổng tiền đã tính sẵn (đã có voucher), dùng luôn
                 totalAmount = preCalculatedTotal;
                 tableNumber = getIntent().getIntExtra("tableNumber", 0);
                 voucherId = getIntent().getStringExtra("voucherId");
@@ -152,6 +162,16 @@ public class ThanhToanActivity extends AppCompatActivity {
                                 // ❌ KHÔNG CÓ VOUCHER → TÍNH BÌNH THƯỜNG
                                 totalAmount = currentOrder.getFinalAmount();
                             }
+                        }
+
+
+                        if (excludeUnreadyItems && payItems != null && !payItems.isEmpty()) {
+                            totalAmount = 0;
+                            for (Order.OrderItem item : payItems) {
+                                totalAmount += item.getPrice() * item.getQuantity();
+                            }
+                        } else {
+                            totalAmount = currentOrder.getFinalAmount();
                         }
 
                         tvTotalAmount.setText("Tổng: " + String.format("%,.0f₫", totalAmount));
