@@ -169,5 +169,15 @@ public class Voucher implements Serializable {
                 ", status='" + getStatus() + '\'' +
                 '}';
     }
+
+    private Voucher appliedVoucher;
+
+    public Voucher getAppliedVoucher() {
+        return appliedVoucher;
+    }
+
+    public void setAppliedVoucher(Voucher appliedVoucher) {
+        this.appliedVoucher = appliedVoucher;
+    }
 }
 

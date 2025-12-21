@@ -1727,28 +1727,32 @@ public class InvoiceActivity extends AppCompatActivity {
                             printTemporaryBillForOrder(order);
                             break;
                         case 3: // Thanh toán
-                            // Kiểm tra có voucher cho order hoặc voucher chung không
-                            Voucher orderVoucher = orderVoucherMap.get(order.getId());
-                            boolean hasVoucher =
-                                    (orderVoucher != null && orderVoucher.canApply())
-                                            || (selectedVoucher != null && selectedVoucher.canApply());
 
-                            if (hasVoucher) {
-                                // Có voucher → dùng luồng btnProceedPayment
-                                if (btnProceedPayment != null) {
-                                    btnProceedPayment.performClick();
-                                } else {
-                                    Toast.makeText(this, "Không tìm thấy nút thanh toán", Toast.LENGTH_SHORT).show();
-                                }
-                            } else {
-                                // Không có voucher → dùng luồng cũ
-                                handlePayment(order);
-                            }
+//                            Voucher voucher = orderVoucherMap.get(order.getId());
+//
+//                            double finalAmount = order.getFinalAmount();
+//
+//                            if (voucher != null && voucher.canApply()) {
+//                                double discount = voucher.calculateDiscount(order.getTotalAmount());
+//                                finalAmount = order.getTotalAmount() - discount;
+//                                if (finalAmount < 0) finalAmount = 0;
+//                            }
+//
+//                            // ⭐ LƯU TẠM TIỀN ĐÃ ÁP VOUCHER
+//                            Intent paymentIntent = new Intent(this, ThanhToanActivity.class);
+//                            paymentIntent.putExtra("orderId", order.getId());
+//                            paymentIntent.putExtra("tableNumber", tableNumber);
+//                            paymentIntent.putExtra("totalAmount", finalAmount);
+//
+//                            if (voucher != null) {
+//                                paymentIntent.putExtra("voucherId", voucher.getId());
+//                                paymentIntent.putExtra("voucherDiscount",
+//                                        order.getTotalAmount() - finalAmount);
+//                            }
+//
+//                            startActivity(paymentIntent);
+                            handlePayment(order);
                             break;
-
-
-
-
 
                         case 4:
                             requestCheckItemsForOrder(order);
@@ -2924,6 +2928,7 @@ public class InvoiceActivity extends AppCompatActivity {
 
 
     private void handlePayment(Order order) {
+
         if (order == null || order.getId() == null) {
             Toast.makeText(this, "Hóa đơn không hợp lệ", Toast.LENGTH_SHORT).show();
             return;
@@ -2956,15 +2961,38 @@ public class InvoiceActivity extends AppCompatActivity {
 
 
     private void goToPayment(Order order, boolean excludeUnreadyItems) {
+
+        // 🔹 LẤY VOUCHER CỦA RIÊNG HÓA ĐƠN NÀY
+        Voucher voucher = orderVoucherMap.get(order.getId());
+
+        double finalAmount = order.getFinalAmount();
+
+        // 🔹 NẾU CÓ VOUCHER → TÍNH LẠI TIỀN
+        if (voucher != null && voucher.canApply()) {
+            double discount = voucher.calculateDiscount(order.getTotalAmount());
+            finalAmount = order.getTotalAmount() - discount;
+            if (finalAmount < 0) finalAmount = 0;
+        }
+
         Intent intent = new Intent(InvoiceActivity.this, ThanhToanActivity.class);
         intent.putExtra("orderId", order.getId());
         intent.putExtra("tableNumber", tableNumber);
         intent.putExtra("excludeUnreadyItems", excludeUnreadyItems);
 
+        // ⭐ QUAN TRỌNG: GỬI TIỀN ĐÃ ÁP VOUCHER
+        intent.putExtra("totalAmount", finalAmount);
+
+        if (voucher != null) {
+            intent.putExtra("voucherId", voucher.getId());
+            intent.putExtra(
+                    "voucherDiscount",
+                    order.getTotalAmount() - finalAmount
+            );
+        }
+
         if (excludeUnreadyItems) {
             ArrayList<Order.OrderItem> readyItems = getReadyItems(order);
             intent.putExtra("pay_items", readyItems);
-
         }
 
         startActivity(intent);

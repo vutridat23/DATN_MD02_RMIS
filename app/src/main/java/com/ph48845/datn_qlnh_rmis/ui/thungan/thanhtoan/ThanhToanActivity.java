@@ -65,6 +65,7 @@ public class ThanhToanActivity extends AppCompatActivity {
         }
 
 
+
         orderRepository = new OrderRepository();
         tableRepository = new TableRepository();
 
@@ -97,14 +98,15 @@ public class ThanhToanActivity extends AppCompatActivity {
             // Kiểm tra xem có tổng tiền đã tính sẵn không (từ InvoiceActivity với voucher)
             double preCalculatedTotal = getIntent().getDoubleExtra("totalAmount", -1);
             if (preCalculatedTotal > 0) {
-                // Có tổng tiền đã tính sẵn (đã có voucher), dùng luôn
                 totalAmount = preCalculatedTotal;
                 tableNumber = getIntent().getIntExtra("tableNumber", 0);
                 voucherId = getIntent().getStringExtra("voucherId");
-                
+
                 tvTotalAmount.setText("Tổng: " + String.format("%,.0f₫", totalAmount));
                 setupPaymentButtons();
-            } else {
+                return;
+            }
+            else {
                 // Không có tổng tiền tính sẵn, fetch order và tính lại
                 fetchOrder(orderId);
             }
@@ -141,7 +143,15 @@ public class ThanhToanActivity extends AppCompatActivity {
                                 totalAmount += item.getPrice() * item.getQuantity();
                             }
                         } else {
-                            totalAmount = currentOrder.getFinalAmount();
+                            double preCalculatedTotal = getIntent().getDoubleExtra("totalAmount", -1);
+
+                            if (preCalculatedTotal > 0) {
+                                // ✅ ĐÃ ÁP VOUCHER → KHÔNG TÍNH LẠI
+                                totalAmount = preCalculatedTotal;
+                            } else {
+                                // ❌ KHÔNG CÓ VOUCHER → TÍNH BÌNH THƯỜNG
+                                totalAmount = currentOrder.getFinalAmount();
+                            }
                         }
 
                         tvTotalAmount.setText("Tổng: " + String.format("%,.0f₫", totalAmount));
@@ -230,7 +240,7 @@ public class ThanhToanActivity extends AppCompatActivity {
             // Thanh toán một hóa đơn (như cũ)
             double amountCustomerGiven = method.equals("Tiền mặt") ? totalAmount : 0;
             String voucherIdParam = getIntent().getStringExtra("voucherId");
-            
+
             orderRepository.payOrder(currentOrder.getId(), method, amountCustomerGiven, voucherIdParam, new OrderRepository.RepositoryCallback<Order>() {
                 @Override
                 public void onSuccess(Order updatedOrder) {

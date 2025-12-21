@@ -66,4 +66,8 @@ public class RetrofitClient {
     public ApiService getApiService() {
         return apiService;
     }
+    public static String getBaseUrl() {
+        return BASE_URL;
+    }
+
 }

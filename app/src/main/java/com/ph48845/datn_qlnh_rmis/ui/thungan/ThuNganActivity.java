@@ -209,12 +209,18 @@ public class ThuNganActivity extends BaseMenuActivity {
 
         // Sự kiện click vào bàn -> Mở màn hình hóa đơn
         ThuNganAdapter.OnTableClickListener listener = table -> {
-            // Cần Activity hóa đơn
-             Intent intent = new Intent(ThuNganActivity.this, InvoiceActivity.class);
-             intent.putExtra("tableNumber", table.getTableNumber());
-             startActivity(intent);
-            Toast.makeText(ThuNganActivity.this, "Mở hóa đơn Bàn " + table.getTableNumber(), Toast.LENGTH_SHORT).show();
+            // ✅ lưu trạng thái ĐÃ XEM
+            tableViewStateMap.put(
+                    table.getId(),
+                    TableItem.ViewState.SEEN
+            );
+
+            Intent intent = new Intent(ThuNganActivity.this, InvoiceActivity.class);
+            intent.putExtra("tableNumber", table.getTableNumber());
+            startActivity(intent);
         };
+
+
 
         // Khởi tạo Adapter
         adapterFloor1 = new ThuNganAdapter(this, new ArrayList<>(), listener);
@@ -222,6 +228,7 @@ public class ThuNganActivity extends BaseMenuActivity {
 
         rvFloor1.setAdapter(adapterFloor1);
         rvFloor2.setAdapter(adapterFloor2);
+
     }
 
     private void loadActiveTables() {
@@ -233,16 +240,20 @@ public class ThuNganActivity extends BaseMenuActivity {
                 runOnUiThread(() -> {
                     progressBar.setVisibility(View.GONE);
 
-                    // Cập nhật dữ liệu lên UI
+                    // 🔥 RESTORE VIEW STATE
+                    restoreViewState(floor1Tables);
+                    restoreViewState(floor2Tables);
+
                     adapterFloor1.updateList(floor1Tables);
                     adapterFloor2.updateList(floor2Tables);
 
-                    // Ẩn hiện tiêu đề tầng
-                    if (headerFloor1 != null) headerFloor1.setVisibility(floor1Tables.isEmpty() ? View.GONE : View.VISIBLE);
-                    if (headerFloor2 != null) headerFloor2.setVisibility(floor2Tables.isEmpty() ? View.GONE : View.VISIBLE);
+                    if (headerFloor1 != null)
+                        headerFloor1.setVisibility(floor1Tables.isEmpty() ? View.GONE : View.VISIBLE);
+                    if (headerFloor2 != null)
+                        headerFloor2.setVisibility(floor2Tables.isEmpty() ? View.GONE : View.VISIBLE);
 
-                    // Check trạng thái món ăn để đổi màu thẻ (Đỏ -> Cam)
                     loadOrdersForServingStatus(floor1Tables, floor2Tables);
+                    startSocketRealtime();
                 });
             }
 
@@ -255,6 +266,17 @@ public class ThuNganActivity extends BaseMenuActivity {
             }
         });
     }
+    private void restoreViewState(List<TableItem> tables) {
+        for (TableItem table : tables) {
+            TableItem.ViewState savedState = tableViewStateMap.get(table.getId());
+            if (savedState != null) {
+                table.setViewState(savedState);
+            } else {
+                table.setViewState(TableItem.ViewState.UNSEEN);
+            }
+        }
+    }
+
 
     private void loadOrdersForServingStatus(List<TableItem> floor1Tables, List<TableItem> floor2Tables) {
         orderRepository.getOrdersByTableNumber(null, null, new OrderRepository.RepositoryCallback<List<Order>>() {
@@ -280,10 +302,15 @@ public class ThuNganActivity extends BaseMenuActivity {
 
                 boolean needUpdate = false;
 
+                // Giả sử bạn có adapter tên adapterFloor1 / adapterFloor2
                 for (TableItem table : allTables) {
                     List<Order> tableOrders = ordersByTable.get(table.getTableNumber());
 
                     boolean allServed = determineIfAllServed(tableOrders);
+
+                    // Lưu trạng thái món đã lên hết vào adapter map
+                    adapterFloor1.updateFullServingStatus(table.getTableNumber(), allServed);
+                    adapterFloor2.updateFullServingStatus(table.getTableNumber(), allServed);
 
                     // Nếu đã đủ món -> Đổi trạng thái sang FINISH_SERVE
                     if (allServed && table.getStatus() != TableItem.Status.FINISH_SERVE) {
@@ -392,19 +419,19 @@ public class ThuNganActivity extends BaseMenuActivity {
                 if (response.isSuccessful() && response.body() != null) {
                     ApiResponse<List<User>> apiResponse = response.body();
                     List<User> users = apiResponse.getData();
-                    
+
                     if (users != null && !users.isEmpty()) {
                         userIdToNameMap.clear();
                         for (User user : users) {
                             if (user != null && user.getId() != null) {
                                 String userId = user.getId().trim();
-                                
+
                                 // Ưu tiên fullName (từ field "name" trong JSON), nếu không có thì dùng username
                                 String name = user.getFullName();
                                 if (name == null || name.trim().isEmpty()) {
                                     name = user.getUsername();
                                 }
-                                
+
                                 if (name != null && !name.trim().isEmpty()) {
                                     // Normalize: trim cả key và value
                                     userIdToNameMap.put(userId, name.trim());
@@ -463,53 +490,53 @@ public class ThuNganActivity extends BaseMenuActivity {
             Log.w(TAG, "getEmployeeNameFromOrder: order is null");
             return "Nhân viên";
         }
-        
+
         // Bước 1: Thử lấy ID từ getTempCalculationRequestedById() (ưu tiên)
         String userId = order.getTempCalculationRequestedById();
         Log.d(TAG, "getEmployeeNameFromOrder: getTempCalculationRequestedById() returned: '" + userId + "'");
-        
+
         if (userId != null && !userId.trim().isEmpty()) {
             userId = userId.trim();
-            
+
             // Tra cứu trong map (đã được normalize khi load)
             String name = userIdToNameMap.get(userId);
             Log.d(TAG, "getEmployeeNameFromOrder: Looking up userId '" + userId + "' in map");
             Log.d(TAG, "getEmployeeNameFromOrder: Map size: " + userIdToNameMap.size());
-            
+
             if (name != null && !name.trim().isEmpty()) {
                 Log.d(TAG, "getEmployeeNameFromOrder: ✓ Found name: '" + name + "' for userId: '" + userId + "'");
                 return name.trim();
             } else {
                 // Thử tìm với các biến thể của ID (nếu có)
                 Log.w(TAG, "getEmployeeNameFromOrder: ✗ UserId '" + userId + "' not found in map");
-                Log.d(TAG, "getEmployeeNameFromOrder: Available keys in map (first 10): " + 
+                Log.d(TAG, "getEmployeeNameFromOrder: Available keys in map (first 10): " +
                       userIdToNameMap.keySet().stream().limit(10).collect(java.util.stream.Collectors.toList()));
             }
         }
-        
+
         // Bước 2: Fallback - thử lấy từ getTempCalculationRequestedBy()
         String requester = order.getTempCalculationRequestedBy();
         Log.d(TAG, "getEmployeeNameFromOrder: getTempCalculationRequestedBy() returned: '" + requester + "'");
-        
+
         if (requester != null && !requester.trim().isEmpty()) {
             requester = requester.trim();
-            
+
             // Nếu có khoảng trắng, có vẻ đã là tên rồi (full name như "Nhân viên 2")
             if (requester.contains(" ")) {
                 Log.d(TAG, "getEmployeeNameFromOrder: ✓ Requester contains space, assuming it's a name: '" + requester + "'");
                 return requester;
             }
-            
+
             // Thử check xem có trong map không (có thể là ID)
             String name = userIdToNameMap.get(requester);
             if (name != null && !name.trim().isEmpty()) {
                 Log.d(TAG, "getEmployeeNameFromOrder: ✓ Found name from requester in map: '" + name + "'");
                 return name.trim();
             }
-            
+
             Log.w(TAG, "getEmployeeNameFromOrder: ✗ Requester '" + requester + "' not found in map");
         }
-        
+
         Log.w(TAG, "getEmployeeNameFromOrder: ✗ Could not find employee name, returning default 'Nhân viên'");
         return "Nhân viên";
     }
@@ -521,13 +548,13 @@ public class ThuNganActivity extends BaseMenuActivity {
         if (userId == null || userId.trim().isEmpty()) {
             return "Nhân viên";
         }
-        
+
         // Kiểm tra trong map
         String name = userIdToNameMap.get(userId.trim());
         if (name != null && !name.trim().isEmpty()) {
             return name;
         }
-        
+
         // Nếu không tìm thấy, trả về "Nhân viên" thay vì ID
         return "Nhân viên";
     }
@@ -540,10 +567,10 @@ public class ThuNganActivity extends BaseMenuActivity {
         String[] items = new String[orders.size()];
         for (int i = 0; i < orders.size(); i++) {
             Order order = orders.get(i);
-            
+
             // Thông tin bàn
             String tableInfo = "Bàn " + order.getTableNumber();
-            
+
             // Thông tin thời gian
             String timeInfo = "";
             if (order.getTempCalculationRequestedAt() != null) {
@@ -556,25 +583,25 @@ public class ThuNganActivity extends BaseMenuActivity {
                     timeInfo = order.getTempCalculationRequestedAt();
                 }
             }
-            
+
             // Lấy tên nhân viên yêu cầu (luôn có giá trị, ít nhất là "Nhân viên")
             String requesterName = getEmployeeNameFromOrder(order);
             if (requesterName == null || requesterName.trim().isEmpty()) {
                 requesterName = "Nhân viên";
             }
-            
+
             // Format hiển thị: "Bàn X - DD/MM/YYYY HH:mm • NV: Tên nhân viên"
             // Luôn hiển thị tên nhân viên để người dùng biết ai yêu cầu
             StringBuilder displayText = new StringBuilder();
             displayText.append(tableInfo);
-            
+
             if (!timeInfo.isEmpty()) {
                 displayText.append(" - ").append(timeInfo);
             }
-            
+
             // Luôn thêm thông tin nhân viên
             displayText.append(" • NV: ").append(requesterName);
-            
+
             items[i] = displayText.toString();
         }
 
@@ -680,10 +707,15 @@ public class ThuNganActivity extends BaseMenuActivity {
 
     private void startSocketRealtime() {
         try {
-            socketManager.init("http://192.168.1.84:3000");
+            String baseUrl = RetrofitClient.getBaseUrl();
+            socketManager.init(baseUrl);
             socketManager.setOnEventListener(new SocketManager.OnEventListener() {
                 @Override
                 public void onOrderCreated(org.json.JSONObject payload) {
+                    runOnUiThread(() -> {
+                        tableViewStateMap.clear(); // reset trạng thái xem
+                        loadActiveTables();
+                    });
                     scheduleRefresh();
                 }
 
@@ -708,8 +740,9 @@ public class ThuNganActivity extends BaseMenuActivity {
         refreshHandler.postDelayed(() -> {
             loadActiveTables();
             loadTempCalculationRequestsCount();
-        }, SOCKET_REFRESH_DELAY_MS);
+        }, SOCKET_REFRESH_DELAY_MS); // 5 giây
     }
+
 
     private void registerRefreshTablesReceiver() {
         refreshTablesReceiver = new BroadcastReceiver() {
@@ -729,5 +762,7 @@ public class ThuNganActivity extends BaseMenuActivity {
             registerReceiver(refreshTablesReceiver, filter);
         }
     }
+
+    private final Map<String, TableItem.ViewState> tableViewStateMap = new HashMap<>();
 
 }
