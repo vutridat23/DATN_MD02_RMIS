@@ -20,6 +20,8 @@ import android.widget.Toast;
 import android.os.Handler;
 import android.os.Looper;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.widget.Toolbar;
 import androidx.core.view.GravityCompat;
 import androidx.core.view.ViewCompat;
@@ -81,6 +83,7 @@ public class ThuNganActivity extends BaseMenuActivity {
     private BroadcastReceiver refreshTablesReceiver;
     private static final String ACTION_REFRESH_TABLES = "com.ph48845.datn_qlnh_rmis.ACTION_REFRESH_TABLES";
     private Map<String, String> userIdToNameMap = new HashMap<>(); // Map user ID -> user name
+    private ActivityResultLauncher<Intent> invoiceLauncher; // Launcher để mở InvoiceActivity và nhận kết quả
 
 
     @Override
@@ -99,6 +102,35 @@ public class ThuNganActivity extends BaseMenuActivity {
         setupToolbar();
         setupNavigationDrawer();
         setupRecyclerViews();
+        
+        // Khởi tạo ActivityResultLauncher để mở InvoiceActivity và nhận kết quả
+        invoiceLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                // Khi quay lại từ InvoiceActivity, reload lại danh sách yêu cầu tạm tính
+                Log.d(TAG, "invoiceLauncher: Returned from InvoiceActivity, resultCode=" + result.getResultCode());
+                if (result.getResultCode() == RESULT_OK) {
+                    Intent data = result.getData();
+                    boolean invoicePrinted = data != null && data.getBooleanExtra("invoicePrinted", false);
+                    if (invoicePrinted) {
+                        Log.d(TAG, "invoiceLauncher: Invoice was printed, will reload temp calculation requests after delay");
+                        // Reload lại số lượng yêu cầu tạm tính
+                        loadTempCalculationRequestsCount();
+                        // Đợi lâu hơn để đảm bảo database đã được cập nhật hoàn toàn, sau đó mới reload dialog
+                        refreshHandler.postDelayed(() -> {
+                            Log.d(TAG, "invoiceLauncher: Reloading temp calculation requests dialog after delay (1.5s)");
+                            showTempCalculationRequests();
+                        }, 1500); // Delay 1.5s để đảm bảo DB đã được cập nhật hoàn toàn
+                    } else {
+                        // Chỉ reload số lượng, không mở lại dialog
+                        loadTempCalculationRequestsCount();
+                    }
+                } else {
+                    // Chỉ reload số lượng
+                    loadTempCalculationRequestsCount();
+                }
+            }
+        );
 
         // 3. Load dữ liệu ban đầu
         updateNavHeaderInfo();
@@ -257,10 +289,15 @@ public class ThuNganActivity extends BaseMenuActivity {
     }
 
     private void loadOrdersForServingStatus(List<TableItem> floor1Tables, List<TableItem> floor2Tables) {
-        orderRepository.getOrdersByTableNumber(null, null, new OrderRepository.RepositoryCallback<List<Order>>() {
+        // Dùng getAllOrders để đảm bảo lấy đủ dữ liệu từ server
+        orderRepository.getAllOrders(new OrderRepository.RepositoryCallback<List<Order>>() {
             @Override
             public void onSuccess(List<Order> allOrders) {
-                if (allOrders == null) return;
+                if (allOrders == null) {
+                    Log.w(TAG, "loadOrdersForServingStatus: Received null orders");
+                    return;
+                }
+                Log.d(TAG, "loadOrdersForServingStatus: Received " + allOrders.size() + " orders from server");
 
                 Map<Integer, List<Order>> ordersByTable = new HashMap<>();
                 for (Order order : allOrders) {
@@ -337,22 +374,52 @@ public class ThuNganActivity extends BaseMenuActivity {
         // Đảm bảo load users trước khi load orders
         loadUsersForNameMapping(() -> {
             // Sau khi load users xong, mới load orders
-            orderRepository.getOrdersByTableNumber(null, null, new OrderRepository.RepositoryCallback<List<Order>>() {
+            // Dùng getAllOrders để đảm bảo lấy tất cả orders mới nhất từ server (force refresh)
+            Log.d(TAG, "showTempCalculationRequests: Loading all orders from server (force refresh)");
+            orderRepository.getAllOrders(new OrderRepository.RepositoryCallback<List<Order>>() {
                 @Override
                 public void onSuccess(List<Order> allOrders) {
                     runOnUiThread(() -> {
                         if (progressBar != null) progressBar.setVisibility(View.GONE);
 
-                        // Lọc các orders có tempCalculationRequestedAt
+                        // Lọc các orders có tempCalculationRequestedAt (KHÔNG NULL và KHÔNG RỖNG)
                         List<Order> tempCalculationOrders = new ArrayList<>();
                         if (allOrders != null) {
+                            Log.d(TAG, "showTempCalculationRequests: Checking " + allOrders.size() + " orders for temp calculation requests");
                             for (Order order : allOrders) {
-                                if (order != null && order.getTempCalculationRequestedAt() != null
-                                        && !order.getTempCalculationRequestedAt().trim().isEmpty()) {
+                                if (order == null) continue;
+                                String tempCalcRequestedAt = order.getTempCalculationRequestedAt();
+                                String orderStatus = order.getOrderStatus();
+                                String orderId = order.getId();
+                                int tableNumber = order.getTableNumber();
+                                
+                                // CHỈ thêm vào danh sách nếu:
+                                // 1. tempCalculationRequestedAt không null và không rỗng
+                                // 2. orderStatus KHÔNG phải "temp_bill_printed" (đã in hóa đơn rồi)
+                                // (Khi in hóa đơn, tempCalculationRequestedAt sẽ được set null và orderStatus = "temp_bill_printed")
+                                boolean hasTempCalcRequest = tempCalcRequestedAt != null && !tempCalcRequestedAt.trim().isEmpty();
+                                boolean isNotPrinted = orderStatus == null || !orderStatus.equals("temp_bill_printed");
+                                
+                                if (hasTempCalcRequest && isNotPrinted) {
                                     tempCalculationOrders.add(order);
+                                    Log.d(TAG, "showTempCalculationRequests: ✅ Found temp calc request for order " + orderId + 
+                                          " (table " + tableNumber + "), tempCalculationRequestedAt=" + tempCalcRequestedAt + 
+                                          ", orderStatus=" + orderStatus);
+                                } else {
+                                    if (!hasTempCalcRequest) {
+                                        Log.d(TAG, "showTempCalculationRequests: Order " + orderId + " (table " + tableNumber + 
+                                              ") has no temp calc request (tempCalculationRequestedAt=" + tempCalcRequestedAt + 
+                                              ", orderStatus=" + orderStatus + ")");
+                                    } else if (!isNotPrinted) {
+                                        Log.d(TAG, "showTempCalculationRequests: Order " + orderId + " (table " + tableNumber + 
+                                              ") already printed (orderStatus=" + orderStatus + "), skipping");
+                                    }
                                 }
                             }
                         }
+
+                        Log.d(TAG, "showTempCalculationRequests: 📊 Summary - Found " + tempCalculationOrders.size() + 
+                              " temp calculation requests out of " + (allOrders != null ? allOrders.size() : 0) + " total orders");
 
                         if (tempCalculationOrders.isEmpty()) {
                             Toast.makeText(ThuNganActivity.this, "Không có yêu cầu tạm tính nào", Toast.LENGTH_SHORT).show();
@@ -578,11 +645,17 @@ public class ThuNganActivity extends BaseMenuActivity {
                 .setItems(items, (dialog, which) -> {
                     // Mở đúng hóa đơn (theo orderId) trong cùng bàn
                     Order selectedOrder = orders.get(which);
+                    if (selectedOrder == null) {
+                        Toast.makeText(ThuNganActivity.this, "Hóa đơn không hợp lệ", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
                     Intent intent = new Intent(ThuNganActivity.this, InvoiceActivity.class);
                     intent.putExtra("tableNumber", selectedOrder.getTableNumber());
                     intent.putExtra("orderId", selectedOrder.getId()); // focus đúng hóa đơn
-                    startActivity(intent);
-                    Toast.makeText(ThuNganActivity.this, "Mở hóa đơn bàn " + selectedOrder.getTableNumber(), Toast.LENGTH_SHORT).show();
+                    // Sử dụng launcher để có thể nhận kết quả khi quay lại
+                    invoiceLauncher.launch(intent);
+                    Log.d(TAG, "showTempCalculationRequestsDialog: Opening InvoiceActivity for table " + 
+                          selectedOrder.getTableNumber() + ", orderId: " + selectedOrder.getId());
                 })
                 .setNegativeButton("Đóng", null)
                 .show();
@@ -623,9 +696,15 @@ public class ThuNganActivity extends BaseMenuActivity {
                     int count = 0;
                     if (allOrders != null) {
                         for (Order order : allOrders) {
-                            if (order != null && order.getTempCalculationRequestedAt() != null
-                                    && !order.getTempCalculationRequestedAt().trim().isEmpty()) {
-                                count++;
+                            if (order != null) {
+                                String tempCalcRequestedAt = order.getTempCalculationRequestedAt();
+                                String orderStatus = order.getOrderStatus();
+                                // Chỉ đếm nếu có yêu cầu tạm tính VÀ chưa in hóa đơn
+                                boolean hasTempCalcRequest = tempCalcRequestedAt != null && !tempCalcRequestedAt.trim().isEmpty();
+                                boolean isNotPrinted = orderStatus == null || !orderStatus.equals("temp_bill_printed");
+                                if (hasTempCalcRequest && isNotPrinted) {
+                                    count++;
+                                }
                             }
                         }
                     }
@@ -712,7 +791,10 @@ public class ThuNganActivity extends BaseMenuActivity {
             public void onReceive(Context context, Intent intent) {
                 if (ACTION_REFRESH_TABLES.equals(intent.getAction())) {
                     // Reload danh sách yêu cầu tạm tính
+                    Log.d(TAG, "refreshTablesReceiver: Received ACTION_REFRESH_TABLES, reloading temp calculation requests");
                     loadTempCalculationRequestsCount();
+                    // Tự động reload lại dialog nếu có yêu cầu tạm tính
+                    // (sẽ chỉ reload nếu người dùng mở lại menu)
                 }
             }
         };

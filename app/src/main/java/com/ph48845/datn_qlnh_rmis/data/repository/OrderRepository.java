@@ -254,12 +254,29 @@ public class OrderRepository {
                     ApiResponse<Order> apiResp = response.body();
                     if (apiResp.getData() != null) {
                         Order updatedOrder = apiResp.getData();
+                        boolean needRequery = false;
+                        
                         // Kiểm tra xem response có chứa checkItemsRequestedAt không
                         // Nếu không có, query lại order để lấy dữ liệu mới nhất
                         if (updates.containsKey("checkItemsRequestedAt") && 
                             (updatedOrder.getCheckItemsRequestedAt() == null || 
                              updatedOrder.getCheckItemsRequestedAt().trim().isEmpty())) {
                             Log.d(TAG, "Response does not contain checkItemsRequestedAt, querying order again...");
+                            needRequery = true;
+                        }
+                        
+                        // Kiểm tra xem response có chứa tempCalculationRequestedAt không
+                        // Nếu đang clear (set null), luôn query lại để đảm bảo có dữ liệu mới nhất
+                        if (updates.containsKey("tempCalculationRequestedAt") && updates.get("tempCalculationRequestedAt") == null) {
+                            String tempCalcAt = updatedOrder.getTempCalculationRequestedAt();
+                            Log.d(TAG, "Clearing tempCalculationRequestedAt - response has: " + tempCalcAt);
+                            // Luôn query lại để đảm bảo có dữ liệu mới nhất từ server
+                            // (vì server có thể không trả về field này trong response)
+                            Log.d(TAG, "Will query order again to verify tempCalculationRequestedAt is cleared...");
+                            needRequery = true;
+                        }
+                        
+                        if (needRequery) {
                             // Query lại order để lấy dữ liệu mới nhất
                             getOrderById(orderId, callback);
                         } else {

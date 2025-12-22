@@ -86,30 +86,71 @@ public class InvoiceActivity extends AppCompatActivity {
     // Launcher cho PrintBillActivity để nhận kết quả sau khi in xong
     private final ActivityResultLauncher<Intent> printBillLauncher =
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
+                Log.d(TAG, "printBillLauncher: Received result, resultCode=" + result.getResultCode());
                 if (result.getResultCode() == RESULT_OK) {
                     String orderId = result.getData() != null ? result.getData().getStringExtra("orderId") : null;
+                    Log.d(TAG, "printBillLauncher: orderId from result = " + orderId);
                     if (orderId != null) {
-                        Log.d(TAG, "printBillLauncher: Received result for orderId: " + orderId);
-                        // Tìm order và clear temp calculation request
+                        Log.d(TAG, "printBillLauncher: ✅ Received RESULT_OK for orderId: " + orderId);
+                        // SetResult NGAY để đảm bảo ThuNganActivity nhận được (không đợi clearTempCalculationRequest)
+                        Intent resultIntent = new Intent();
+                        resultIntent.putExtra("orderId", orderId);
+                        resultIntent.putExtra("invoicePrinted", true);
+                        setResult(RESULT_OK, resultIntent);
+                        Log.d(TAG, "printBillLauncher: ✅ SetResult OK immediately to notify parent activity");
+                        
+                        // Tìm order và clear temp calculation request (async, không block)
                         Order foundOrder = null;
-                        for (Order order : orders) {
-                            if (order != null && order.getId() != null && order.getId().equals(orderId)) {
-                                foundOrder = order;
-                                break;
+                        if (orders != null) {
+                            for (Order order : orders) {
+                                if (order != null && order.getId() != null && order.getId().equals(orderId)) {
+                                    foundOrder = order;
+                                    Log.d(TAG, "printBillLauncher: Found order in list - table " + order.getTableNumber() + 
+                                          ", tempCalculationRequestedAt=" + order.getTempCalculationRequestedAt());
+                                    break;
+                                }
                             }
                         }
                         
                         if (foundOrder != null) {
-                            // Clear temp calculation request và reload danh sách
+                            Log.d(TAG, "printBillLauncher: Calling clearTempCalculationRequest for order " + orderId);
+                            // Clear temp calculation request và reload danh sách (async)
                             clearTempCalculationRequest(foundOrder, () -> {
                                 Log.d(TAG, "printBillLauncher: Temp calculation request cleared, reloading data");
                                 // Reload dữ liệu để cập nhật danh sách
                                 loadInvoiceData();
+                            }, () -> {
+                                // Callback khi clear thành công (đã setResult rồi, không cần set lại)
+                                Log.d(TAG, "printBillLauncher: ✅ Temp calculation request cleared successfully");
                             });
                         } else {
-                            Log.w(TAG, "printBillLauncher: Order not found in current list: " + orderId);
+                            Log.w(TAG, "printBillLauncher: ❌ Order not found in current list: " + orderId);
+                            Log.w(TAG, "printBillLauncher: Current orders list size: " + (orders != null ? orders.size() : 0));
+                            // Vẫn cố gắng clear bằng cách query order từ server (async)
+                            orderRepository.getOrderById(orderId, new OrderRepository.RepositoryCallback<Order>() {
+                                @Override
+                                public void onSuccess(Order order) {
+                                    if (order != null) {
+                                        Log.d(TAG, "printBillLauncher: Found order from server, calling clearTempCalculationRequest");
+                                        clearTempCalculationRequest(order, () -> {
+                                            loadInvoiceData();
+                                        }, () -> {
+                                            Log.d(TAG, "printBillLauncher: Temp calculation request cleared after querying from server");
+                                        });
+                                    }
+                                }
+
+                                @Override
+                                public void onError(String message) {
+                                    Log.e(TAG, "printBillLauncher: Failed to query order from server: " + message);
+                                }
+                            });
                         }
+                    } else {
+                        Log.w(TAG, "printBillLauncher: ⚠️ orderId is null in result data");
                     }
+                } else {
+                    Log.w(TAG, "printBillLauncher: ⚠️ Result code is not OK: " + result.getResultCode());
                 }
             });
 
@@ -279,12 +320,6 @@ public class InvoiceActivity extends AppCompatActivity {
                     } else {
                         Log.d(TAG, "No editingOrder to replace - editingOrder: " + (editingOrder != null) +
                               ", orders: " + (orders != null));
-                    }
-
-                    if (orders == null || orders.isEmpty()) {
-                        Log.w(TAG, "loadInvoiceData: No unpaid orders after filtering");
-                        Toast.makeText(InvoiceActivity.this, "Không có đơn hàng chưa thanh toán cho bàn này", Toast.LENGTH_SHORT).show();
-                        return;
                     }
 
                     Log.d(TAG, "loadInvoiceData: Calling displayInvoice with " + orders.size() + " orders");
@@ -2034,9 +2069,12 @@ public class InvoiceActivity extends AppCompatActivity {
     }
 
     /**
-     * Xóa cờ yêu cầu tạm tính trên DB để yêu cầu biến mất
+     * Xóa cờ yêu cầu tạm tính trên DB và đổi trạng thái thành temp_bill_printed khi in hóa đơn
+     * @param order Order cần xóa yêu cầu tạm tính
+     * @param onDone Callback được gọi sau khi hoàn thành (thành công hoặc thất bại)
+     * @param onSuccess Callback được gọi chỉ khi thành công
      */
-    private void clearTempCalculationRequest(Order order, Runnable onDone) {
+    private void clearTempCalculationRequest(Order order, Runnable onDone, Runnable onSuccess) {
         if (order == null || order.getId() == null) {
             if (onDone != null) onDone.run();
             return;
@@ -2045,17 +2083,65 @@ public class InvoiceActivity extends AppCompatActivity {
         Map<String, Object> updates = new HashMap<>();
         updates.put("tempCalculationRequestedBy", null);
         updates.put("tempCalculationRequestedAt", null);
+        // Đổi trạng thái thành temp_bill_printed khi đã in hóa đơn tạm tính
+        updates.put("orderStatus", "temp_bill_printed");
 
-        Log.d(TAG, "clearTempCalculationRequest: Clearing temp calculation request for order " + order.getId());
+        Log.d(TAG, "clearTempCalculationRequest: Clearing temp calculation request and setting orderStatus to temp_bill_printed for order " + order.getId());
 
         orderRepository.updateOrder(order.getId(), updates, new OrderRepository.RepositoryCallback<Order>() {
             @Override
             public void onSuccess(Order result) {
-                Log.d(TAG, "clearTempCalculationRequest: Successfully cleared temp calculation request for order " + order.getId());
+                Log.d(TAG, "clearTempCalculationRequest: Successfully cleared temp calculation request and updated status to temp_bill_printed for order " + order.getId());
+                // Kiểm tra xem result có đúng không (tempCalculationRequestedAt phải là null, orderStatus phải là temp_bill_printed)
+                if (result != null) {
+                    String tempCalcAt = result.getTempCalculationRequestedAt();
+                    String orderStatus = result.getOrderStatus();
+                    Log.d(TAG, "clearTempCalculationRequest: Verified - result.tempCalculationRequestedAt = " + tempCalcAt);
+                    Log.d(TAG, "clearTempCalculationRequest: Verified - result.orderStatus = " + orderStatus + " (expected: temp_bill_printed)");
+                    if (tempCalcAt != null && !tempCalcAt.trim().isEmpty()) {
+                        Log.w(TAG, "clearTempCalculationRequest: WARNING - Server response still has tempCalculationRequestedAt! Will query again...");
+                        // Query lại order để verify
+                        orderRepository.getOrderById(order.getId(), new OrderRepository.RepositoryCallback<Order>() {
+                            @Override
+                            public void onSuccess(Order freshOrder) {
+                                String freshTempCalcAt = freshOrder != null ? freshOrder.getTempCalculationRequestedAt() : null;
+                                Log.d(TAG, "clearTempCalculationRequest: After requery - tempCalculationRequestedAt = " + freshTempCalcAt);
+                                if (freshTempCalcAt == null || freshTempCalcAt.trim().isEmpty()) {
+                                    Log.d(TAG, "clearTempCalculationRequest: ✅ Confirmed - tempCalculationRequestedAt is now null after requery");
+                                } else {
+                                    Log.e(TAG, "clearTempCalculationRequest: ❌ ERROR - tempCalculationRequestedAt still exists after requery: " + freshTempCalcAt);
+                                }
+                                // Tiếp tục flow dù có lỗi hay không
+                                proceedAfterClear();
+                            }
+
+                            @Override
+                            public void onError(String message) {
+                                Log.e(TAG, "clearTempCalculationRequest: Failed to requery order: " + message);
+                                // Vẫn tiếp tục flow
+                                proceedAfterClear();
+                            }
+                            
+                            private void proceedAfterClear() {
+                                // Gửi broadcast để ThuNganActivity reload danh sách yêu cầu
+                                Intent refreshIntent = new Intent(ACTION_REFRESH_TABLES);
+                                sendBroadcast(refreshIntent);
+                                Log.d(TAG, "clearTempCalculationRequest: Broadcast sent to refresh tables");
+                                // Gọi onSuccess callback (chỉ khi thành công)
+                                if (onSuccess != null) onSuccess.run();
+                                if (onDone != null) onDone.run();
+                            }
+                        });
+                        return; // Return sớm, sẽ tiếp tục trong callback
+                    }
+                }
+                // Nếu tempCalculationRequestedAt đã null, tiếp tục bình thường
                 // Gửi broadcast để ThuNganActivity reload danh sách yêu cầu
                 Intent refreshIntent = new Intent(ACTION_REFRESH_TABLES);
                 sendBroadcast(refreshIntent);
                 Log.d(TAG, "clearTempCalculationRequest: Broadcast sent to refresh tables");
+                // Gọi onSuccess callback (chỉ khi thành công)
+                if (onSuccess != null) onSuccess.run();
                 if (onDone != null) onDone.run();
             }
 
@@ -2066,6 +2152,7 @@ public class InvoiceActivity extends AppCompatActivity {
                 // Vẫn gửi broadcast để reload (có thể server đã xóa rồi)
                 Intent refreshIntent = new Intent(ACTION_REFRESH_TABLES);
                 sendBroadcast(refreshIntent);
+                // KHÔNG gọi onSuccess nếu thất bại
                 if (onDone != null) onDone.run();
             }
         });
