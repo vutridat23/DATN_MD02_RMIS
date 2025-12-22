@@ -206,7 +206,7 @@ public class InvoiceActivity extends AppCompatActivity {
         scrollInvoice = findViewById(R.id.scrollInvoice);
 
         Log.d(TAG, "initViews: toolbar=" + (toolbar != null) + ", progressBar=" + (progressBar != null) +
-              ", llOrderCards=" + (llOrderCards != null) + ", scrollInvoice=" + (scrollInvoice != null));
+                ", llOrderCards=" + (llOrderCards != null) + ", scrollInvoice=" + (scrollInvoice != null));
 
         if (llOrderCards == null) {
             Log.e(TAG, "initViews: CRITICAL - llOrderCards is null! Check layout activity_invoice.xml");
@@ -292,7 +292,7 @@ public class InvoiceActivity extends AppCompatActivity {
                         }
                     } else {
                         Log.d(TAG, "No editingOrder to replace - editingOrder: " + (editingOrder != null) +
-                              ", orders: " + (orders != null));
+                                ", orders: " + (orders != null));
                     }
 
                     if (orders == null || orders.isEmpty()) {
@@ -355,8 +355,8 @@ public class InvoiceActivity extends AppCompatActivity {
             if (orderStatus != null) {
                 String status = orderStatus.toLowerCase().trim();
                 if (status.equals("paid") || status.contains("paid") ||
-                    status.equals("completed") || status.contains("completed") ||
-                    status.contains("đã thanh toán") || status.contains("hoàn thành")) {
+                        status.equals("completed") || status.contains("completed") ||
+                        status.contains("đã thanh toán") || status.contains("hoàn thành")) {
                     isPaid = true;
                 }
             }
@@ -367,7 +367,7 @@ public class InvoiceActivity extends AppCompatActivity {
                 Log.d(TAG, "filterUnpaidOrders: Added unpaid order " + (order.getId() != null ? order.getId() : "null"));
             } else {
                 Log.d(TAG, "filterUnpaidOrders: Skipping paid order " + (order.getId() != null ? order.getId() : "null") +
-                      " - paid: " + order.isPaid() + ", paidAt: " + order.getPaidAt() + ", status: " + order.getOrderStatus());
+                        " - paid: " + order.isPaid() + ", paidAt: " + order.getPaidAt() + ", status: " + order.getOrderStatus());
             }
         }
 
@@ -401,11 +401,11 @@ public class InvoiceActivity extends AppCompatActivity {
                 order.normalizeItems();
                 List<Order.OrderItem> items = order.getItems();
                 Log.d(TAG, "displayInvoice: Order " + (order.getId() != null ? order.getId() : "null") +
-                      " has " + (items != null ? items.size() : 0) + " items after normalize");
+                        " has " + (items != null ? items.size() : 0) + " items after normalize");
 
                 if (items == null || items.isEmpty()) {
                     Log.w(TAG, "displayInvoice: Order " + (order.getId() != null ? order.getId() : "null") +
-                          " has no items after normalize!");
+                            " has no items after normalize!");
                 }
 
                 createInvoiceCard(order);
@@ -465,17 +465,23 @@ public class InvoiceActivity extends AppCompatActivity {
      */
     private void updateVoucherButtonState() {
         Button btnSelectVoucher = findViewById(R.id.btn_select_voucher);
+
+        // 🔹 Kiểm tra có voucher riêng cho bất kỳ order nào không
+        boolean hasOrderVoucher = orderVoucherMap != null && !orderVoucherMap.isEmpty();
+
+        // ===== 1️⃣ NÚT CHỌN VOUCHER CHUNG =====
         if (btnSelectVoucher != null) {
-            // Nếu đã có voucher cho bất kỳ order nào, disable nút chọn voucher chung
-            boolean hasOrderVoucher = orderVoucherMap != null && !orderVoucherMap.isEmpty();
             btnSelectVoucher.setEnabled(!hasOrderVoucher);
-            if (hasOrderVoucher) {
-                btnSelectVoucher.setAlpha(0.5f); // Làm mờ nút
-            } else {
-                btnSelectVoucher.setAlpha(1.0f); // Bình thường
-            }
+            btnSelectVoucher.setAlpha(hasOrderVoucher ? 0.5f : 1.0f);
+        }
+
+        // ===== 2️⃣ NÚT THANH TOÁN CHUNG =====
+        if (btnProceedPayment != null) {
+            btnProceedPayment.setEnabled(!hasOrderVoucher);
+            btnProceedPayment.setAlpha(hasOrderVoucher ? 0.4f : 1.0f);
         }
     }
+
 
     /**
      * Cập nhật trạng thái nút chọn voucher cho tất cả các order (enable/disable)
@@ -693,14 +699,14 @@ public class InvoiceActivity extends AppCompatActivity {
 
                             // Debug: Log thông tin voucher
                             Log.d(TAG, "Attempting to select voucher: " + selectedV.getCode() +
-                                  ", minOrderAmount: " + selectedV.getMinOrderAmount() +
-                                  ", orderTotal: " + orderTotal);
+                                    ", minOrderAmount: " + selectedV.getMinOrderAmount() +
+                                    ", orderTotal: " + orderTotal);
 
                             // Kiểm tra điều kiện giá tối thiểu
                             double minAmount = selectedV.getMinOrderAmount();
                             if (minAmount > 0 && orderTotal < minAmount) {
                                 String message = "Voucher này yêu cầu đơn hàng tối thiểu " + formatCurrency(minAmount) +
-                                    ". Tổng đơn hiện tại: " + formatCurrency(orderTotal);
+                                        ". Tổng đơn hiện tại: " + formatCurrency(orderTotal);
                                 Log.w(TAG, "Voucher validation failed: " + message);
                                 Toast.makeText(InvoiceActivity.this, message, Toast.LENGTH_LONG).show();
                                 return;
@@ -708,7 +714,7 @@ public class InvoiceActivity extends AppCompatActivity {
 
                             orderVoucherMap.put(order.getId(), selectedV);
                             Log.d(TAG, "Voucher selected for order " + order.getId() + ": " + selectedV.getCode() +
-                                  ", minAmount: " + selectedV.getMinOrderAmount() + ", orderTotal: " + orderTotal);
+                                    ", minAmount: " + selectedV.getMinOrderAmount() + ", orderTotal: " + orderTotal);
                             // Xóa voucher chung nếu có (đảm bảo chỉ dùng một loại)
                             if (selectedVoucher != null) {
                                 selectedVoucher = null;
@@ -774,7 +780,7 @@ public class InvoiceActivity extends AppCompatActivity {
             // Chỉ tính discount từ voucher khi có chọn voucher
             orderDiscount = orderVoucher.calculateDiscount(orderTotal);
             Log.d(TAG, "refreshOrderCard: Voucher applied for order " + order.getId() +
-                  ", discount: " + formatCurrency(orderDiscount));
+                    ", discount: " + formatCurrency(orderDiscount));
         } else {
             // Không có voucher, không có discount
             Log.d(TAG, "refreshOrderCard: No voucher selected for order " + order.getId() + ", discount = 0");
@@ -862,18 +868,18 @@ public class InvoiceActivity extends AppCompatActivity {
                             // Kiểm tra điều kiện giá tối thiểu
                             if (voucherToSelect.getMinOrderAmount() > 0 && totalBeforeVoucher < voucherToSelect.getMinOrderAmount()) {
                                 Toast.makeText(InvoiceActivity.this,
-                                    "Voucher này yêu cầu đơn hàng tối thiểu " + formatCurrency(voucherToSelect.getMinOrderAmount()) +
-                                    ". Tổng đơn hiện tại: " + formatCurrency(totalBeforeVoucher),
-                                    Toast.LENGTH_LONG).show();
+                                        "Voucher này yêu cầu đơn hàng tối thiểu " + formatCurrency(voucherToSelect.getMinOrderAmount()) +
+                                                ". Tổng đơn hiện tại: " + formatCurrency(totalBeforeVoucher),
+                                        Toast.LENGTH_LONG).show();
                                 return;
                             }
 
                             selectedVoucher = voucherToSelect;
-                            Log.d(TAG, "Voucher selected: " + selectedVoucher.getCode() + 
-                                  ", valid: " + selectedVoucher.isValid() +
-                                  ", type: " + selectedVoucher.getDiscountType() +
-                                  ", value: " + selectedVoucher.getDiscountValue() +
-                                  ", minAmount: " + selectedVoucher.getMinOrderAmount());
+                            Log.d(TAG, "Voucher selected: " + selectedVoucher.getCode() +
+                                    ", valid: " + selectedVoucher.isValid() +
+                                    ", type: " + selectedVoucher.getDiscountType() +
+                                    ", value: " + selectedVoucher.getDiscountValue() +
+                                    ", minAmount: " + selectedVoucher.getMinOrderAmount());
                             // Xóa tất cả voucher của các order (đảm bảo chỉ dùng một loại)
                             if (orderVoucherMap != null && !orderVoucherMap.isEmpty()) {
                                 orderVoucherMap.clear();
@@ -952,7 +958,7 @@ public class InvoiceActivity extends AppCompatActivity {
         }
 
         Log.d(TAG, "updateTotalSummary: Total before voucher = " + formatCurrency(totalBeforeVoucher) +
-              ", Total order voucher discount = " + formatCurrency(totalOrderVoucherDiscount));
+                ", Total order voucher discount = " + formatCurrency(totalOrderVoucherDiscount));
 
         // Áp dụng voucher chung nếu có
         double finalTotal = totalBeforeVoucher - totalOrderVoucherDiscount; // Trừ discount từ voucher của từng order
@@ -962,12 +968,12 @@ public class InvoiceActivity extends AppCompatActivity {
             // Kiểm tra voucher có thể áp dụng được không
             boolean canApply = selectedVoucher.canApply();
             Log.d(TAG, "updateTotalSummary: Global voucher check - code: " + selectedVoucher.getCode() +
-                  ", status: " + selectedVoucher.getStatus() +
-                  ", discountType: " + selectedVoucher.getDiscountType() +
-                  ", discountValue: " + selectedVoucher.getDiscountValue() +
-                  ", minOrderAmount: " + selectedVoucher.getMinOrderAmount() +
-                  ", canApply: " + canApply +
-                  ", totalBeforeVoucher: " + totalBeforeVoucher);
+                    ", status: " + selectedVoucher.getStatus() +
+                    ", discountType: " + selectedVoucher.getDiscountType() +
+                    ", discountValue: " + selectedVoucher.getDiscountValue() +
+                    ", minOrderAmount: " + selectedVoucher.getMinOrderAmount() +
+                    ", canApply: " + canApply +
+                    ", totalBeforeVoucher: " + totalBeforeVoucher);
 
             if (canApply) {
                 double globalVoucherDiscount = selectedVoucher.calculateDiscount(totalBeforeVoucher);
@@ -978,7 +984,7 @@ public class InvoiceActivity extends AppCompatActivity {
                     finalTotal = totalBeforeVoucher - voucherDiscount;
                     if (finalTotal < 0) finalTotal = 0;
                     Log.d(TAG, "updateTotalSummary: Global voucher discount = " + formatCurrency(voucherDiscount) +
-                          ", Final total = " + formatCurrency(finalTotal));
+                            ", Final total = " + formatCurrency(finalTotal));
                 } else {
                     Log.w(TAG, "updateTotalSummary: Global discount = 0, using order vouchers");
                     // Nếu voucher chung không áp dụng được, dùng discount từ voucher của các order
@@ -1043,8 +1049,8 @@ public class InvoiceActivity extends AppCompatActivity {
 
         if (tvTable == null || tvOrderCode == null || llItemsContainer == null || llTotals == null) {
             Log.e(TAG, "createInvoiceCard: Required views not found - tvTable: " + (tvTable != null) +
-                  ", tvOrderCode: " + (tvOrderCode != null) + ", llItemsContainer: " + (llItemsContainer != null) +
-                  ", llTotals: " + (llTotals != null));
+                    ", tvOrderCode: " + (tvOrderCode != null) + ", llItemsContainer: " + (llItemsContainer != null) +
+                    ", llTotals: " + (llTotals != null));
             return;
         }
 
@@ -1075,16 +1081,16 @@ public class InvoiceActivity extends AppCompatActivity {
                 for (int i = 0; i < minLen; i++) {
                     if (editingId.charAt(i) != orderId.charAt(i)) {
                         Log.w(TAG, "Difference at position " + i + ": editingId='" + editingId.charAt(i) +
-                              "' (" + (int)editingId.charAt(i) + "), orderId='" + orderId.charAt(i) +
-                              "' (" + (int)orderId.charAt(i) + ")");
+                                "' (" + (int)editingId.charAt(i) + "), orderId='" + orderId.charAt(i) +
+                                "' (" + (int)orderId.charAt(i) + ")");
                         break;
                     }
                 }
             }
         } else {
             Log.d(TAG, "Edit mode check failed - editingOrder: " + (editingOrder != null) +
-                  ", editingOrderId: " + (editingOrder != null ? editingOrder.getId() : "null") +
-                  ", orderId: " + (order.getId() != null ? order.getId() : "null"));
+                    ", editingOrderId: " + (editingOrder != null ? editingOrder.getId() : "null") +
+                    ", orderId: " + (order.getId() != null ? order.getId() : "null"));
         }
 
         // CÁCH 2: So sánh object reference (fallback)
@@ -1118,7 +1124,7 @@ public class InvoiceActivity extends AppCompatActivity {
                 }
 
                 Log.d(TAG, "createInvoiceCard: Processing item " + i + ": name=" + item.getName() +
-                      ", quantity=" + item.getQuantity() + ", price=" + item.getPrice());
+                        ", quantity=" + item.getQuantity() + ", price=" + item.getPrice());
 
                 // Sử dụng layout khác nhau cho edit mode và view mode
                 View itemRow;
@@ -1155,7 +1161,7 @@ public class InvoiceActivity extends AppCompatActivity {
                             Log.d(TAG, "Edit buttons set up successfully for item: " + item.getName());
                         } else {
                             Log.e(TAG, "Edit layout buttons not found! btnMinus=" + (btnMinus != null) +
-                                  ", btnPlus=" + (btnPlus != null) + ", tvQty=" + (tvQty != null));
+                                    ", btnPlus=" + (btnPlus != null) + ", tvQty=" + (tvQty != null));
                         }
                     } else {
                         // Không ở chế độ chỉnh sửa - chỉ hiển thị số lượng
@@ -1182,7 +1188,7 @@ public class InvoiceActivity extends AppCompatActivity {
 
                     if (tvItemName == null || tvItemPrice == null) {
                         Log.e(TAG, "createInvoiceCard: Required views not found - tvItemName=" + (tvItemName != null) +
-                              ", tvItemPrice=" + (tvItemPrice != null));
+                                ", tvItemPrice=" + (tvItemPrice != null));
                         continue;
                     }
 
@@ -1192,7 +1198,7 @@ public class InvoiceActivity extends AppCompatActivity {
 
                     llItemsContainer.addView(itemRow);
                     Log.d(TAG, "createInvoiceCard: Successfully added item " + i + " to container. Container now has " +
-                          llItemsContainer.getChildCount() + " children");
+                            llItemsContainer.getChildCount() + " children");
                 } catch (Exception e) {
                     Log.e(TAG, "createInvoiceCard: Error creating item row for item " + i + ": " + e.getMessage(), e);
                 }
@@ -1277,7 +1283,7 @@ public class InvoiceActivity extends AppCompatActivity {
             // Chỉ tính discount từ voucher khi có chọn voucher
             orderDiscount = orderVoucher.calculateDiscount(orderTotal);
             Log.d(TAG, "createInvoiceCard: Voucher applied for order " + order.getId() +
-                  ", discount: " + formatCurrency(orderDiscount));
+                    ", discount: " + formatCurrency(orderDiscount));
         } else {
             // Không có voucher, không có discount
             Log.d(TAG, "createInvoiceCard: No voucher selected for order " + order.getId() + ", discount = 0");
@@ -1381,9 +1387,9 @@ public class InvoiceActivity extends AppCompatActivity {
         }
 
         Log.d(TAG, "processPaymentForOrder: orderId = " + order.getId() +
-              ", orderTotal = " + formatCurrency(orderTotal) +
-              ", discount = " + formatCurrency(discount) +
-              ", finalAmount = " + formatCurrency(finalAmount));
+                ", orderTotal = " + formatCurrency(orderTotal) +
+                ", discount = " + formatCurrency(discount) +
+                ", finalAmount = " + formatCurrency(finalAmount));
 
         // Chuyển sang màn hình thanh toán với tổng tiền đã tính voucher
         Intent intent = new Intent(InvoiceActivity.this, ThanhToanActivity.class);
@@ -1449,8 +1455,8 @@ public class InvoiceActivity extends AppCompatActivity {
         if (finalAmount < 0) finalAmount = 0;
 
         Log.d(TAG, "processPaymentForAllOrders: totalBeforeVoucher = " + formatCurrency(totalBeforeVoucher) +
-              ", discount = " + formatCurrency(discount) +
-              ", finalAmount = " + formatCurrency(finalAmount));
+                ", discount = " + formatCurrency(discount) +
+                ", finalAmount = " + formatCurrency(finalAmount));
 
         // Lấy danh sách orderIds
         ArrayList<String> orderIds = new ArrayList<>();
@@ -1629,9 +1635,9 @@ public class InvoiceActivity extends AppCompatActivity {
                                 @Override
                                 public void onSuccess(Order freshOrder) {
                                     Log.d(TAG, "Fresh order query - checkItemsRequestedAt: " +
-                                          (freshOrder != null ? freshOrder.getCheckItemsRequestedAt() : "null"));
+                                            (freshOrder != null ? freshOrder.getCheckItemsRequestedAt() : "null"));
                                     Log.d(TAG, "Fresh order query - checkItemsRequestedBy: " +
-                                          (freshOrder != null ? freshOrder.getCheckItemsRequestedBy() : "null"));
+                                            (freshOrder != null ? freshOrder.getCheckItemsRequestedBy() : "null"));
                                 }
 
                                 @Override
@@ -1737,23 +1743,9 @@ public class InvoiceActivity extends AppCompatActivity {
                             printTemporaryBillForOrder(order);
                             break;
                         case 3: // Thanh toán
-                            // Kiểm tra có voucher cho order hoặc voucher chung không
-                            Voucher orderVoucher = orderVoucherMap.get(order.getId());
-                            boolean hasVoucher =
-                                    (orderVoucher != null && orderVoucher.canApply())
-                                            || (selectedVoucher != null && selectedVoucher.canApply());
 
-                            if (hasVoucher) {
-                                // Có voucher → dùng luồng btnProceedPayment
-                                if (btnProceedPayment != null) {
-                                    btnProceedPayment.performClick();
-                                } else {
-                                    Toast.makeText(this, "Không tìm thấy nút thanh toán", Toast.LENGTH_SHORT).show();
-                                }
-                            } else {
-                                // Không có voucher → dùng luồng cũ
-                                handlePayment(order);
-                            }
+                            handlePayment(order);
+
                             break;
 
 
@@ -2188,18 +2180,18 @@ public class InvoiceActivity extends AppCompatActivity {
         EditText etReason = dialogView.findViewById(R.id.etReason);
 
         new AlertDialog.Builder(this)
-            .setTitle("Hủy hóa đơn")
-            .setView(dialogView)
-            .setPositiveButton("Hủy đơn", (dialog, which) -> {
-                String reason = etReason.getText().toString().trim();
-                if (reason.isEmpty()) {
-                    Toast.makeText(this, "Vui lòng nhập lý do hủy", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-                cancelInvoiceForOrder(order, reason);
-            })
-            .setNegativeButton("Không", null)
-            .show();
+                .setTitle("Hủy hóa đơn")
+                .setView(dialogView)
+                .setPositiveButton("Hủy đơn", (dialog, which) -> {
+                    String reason = etReason.getText().toString().trim();
+                    if (reason.isEmpty()) {
+                        Toast.makeText(this, "Vui lòng nhập lý do hủy", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    cancelInvoiceForOrder(order, reason);
+                })
+                .setNegativeButton("Không", null)
+                .show();
     }
 
     /**
@@ -2636,7 +2628,7 @@ public class InvoiceActivity extends AppCompatActivity {
         editingOrder.setFinalAmount(orderToEdit.getFinalAmount());
 
         Log.d(TAG, "editingOrder set with ID: '" + editingOrder.getId() + "'" +
-              ", items count: " + (editingOrder.getItems() != null ? editingOrder.getItems().size() : 0));
+                ", items count: " + (editingOrder.getItems() != null ? editingOrder.getItems().size() : 0));
 
         // Cập nhật order trong danh sách orders để khi reload, nó sẽ dùng editingOrder
         if (orders != null && editingOrder.getId() != null) {
@@ -2788,10 +2780,10 @@ public class InvoiceActivity extends AppCompatActivity {
                     }
 
                     android.widget.ArrayAdapter<String> adapter = new android.widget.ArrayAdapter<>(
-                        InvoiceActivity.this,
-                        R.layout.item_menu_dialog,
-                        R.id.tvMenuItem,
-                        itemNames
+                            InvoiceActivity.this,
+                            R.layout.item_menu_dialog,
+                            R.id.tvMenuItem,
+                            itemNames
                     );
                     lvMenuItems.setAdapter(adapter);
 
@@ -2942,6 +2934,7 @@ public class InvoiceActivity extends AppCompatActivity {
 
 
     private void handlePayment(Order order) {
+
         if (order == null || order.getId() == null) {
             Toast.makeText(this, "Hóa đơn không hợp lệ", Toast.LENGTH_SHORT).show();
             return;
@@ -2974,19 +2967,61 @@ public class InvoiceActivity extends AppCompatActivity {
 
 
     private void goToPayment(Order order, boolean excludeUnreadyItems) {
+        if (order == null || order.getId() == null) {
+            Toast.makeText(this, "Hóa đơn không hợp lệ", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // 🔹 Chọn voucher ưu tiên: selectedVoucher (voucher chung) > voucher riêng order
+        Voucher voucher = selectedVoucher != null ? selectedVoucher : orderVoucherMap.get(order.getId());
+
+        // 🔹 Tính tổng tiền hóa đơn
+        double orderTotal = order.getTotalAmount() > 0 ? order.getTotalAmount() : order.getFinalAmount();
+        double discount = 0;
+
+        // 🔹 Áp dụng voucher nếu có
+        if (voucher != null && voucher.canApply()) {
+            discount = voucher.calculateDiscount(orderTotal);
+            orderTotal -= discount;
+            if (orderTotal < 0) orderTotal = 0;
+        }
+
+        Log.d("InvoiceActivity", "goToPayment called: orderId=" + order.getId() +
+                ", orderTotal=" + orderTotal + ", discount=" + discount +
+                ", voucherId=" + (voucher != null ? voucher.getId() : "null"));
+
+        // 🔹 Tạo intent sang ThanhToanActivity
         Intent intent = new Intent(InvoiceActivity.this, ThanhToanActivity.class);
         intent.putExtra("orderId", order.getId());
         intent.putExtra("tableNumber", tableNumber);
         intent.putExtra("excludeUnreadyItems", excludeUnreadyItems);
 
+        // ⭐ Gửi tiền đã tính voucher
+        intent.putExtra("totalAmount", orderTotal);
+
+        // 🔹 Truyền voucher nếu có
+        if (voucher != null) {
+            intent.putExtra("voucherId", voucher.getId());
+            intent.putExtra("voucherDiscount", discount);
+        }
+
+        // 🔹 Nếu muốn thanh toán chỉ món đã sẵn sàng
         if (excludeUnreadyItems) {
             ArrayList<Order.OrderItem> readyItems = getReadyItems(order);
             intent.putExtra("pay_items", readyItems);
-
         }
+        Log.d("InvoiceDebug", "orderId=" + (order != null ? order.getId() : "null") +
+                ", tableNumber=" + tableNumber +
+                ", totalAmount=" + orderTotal +
+                ", voucherId=" + (voucher != null ? voucher.getId() : "null") +
+                ", excludeUnreadyItems=" + excludeUnreadyItems +
+                ", pay_items=" + (excludeUnreadyItems && getReadyItems(order) != null ? getReadyItems(order).size() : 0));
+
 
         startActivity(intent);
     }
+
+
 
 
     private ArrayList<Order.OrderItem> getReadyItems(Order order) {
