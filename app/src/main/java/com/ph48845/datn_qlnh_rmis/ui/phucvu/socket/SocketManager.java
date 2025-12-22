@@ -1,26 +1,22 @@
 package com.ph48845.datn_qlnh_rmis.ui.phucvu.socket;
 
-import android.os.Handler;
-import android.os.Looper;
 import android.util.Log;
 
 import org.json.JSONArray;
-import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.net.URISyntaxException;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.lang.reflect.Method;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import io.socket.client.IO;
 import io.socket.client.Socket;
 
 /**
- * SocketManager: use default transports (websocket + polling) by default to be robust in
- * environments where websocket is blocked. Keeps detailed logging for connect errors.
+ * SocketManager: use default transports (websocket + polling) by default
+ * to be robust in environments where websocket is blocked.
  *
- * Note: when emitting table events to listener, we now inject "eventName" into payload
- * so clients can distinguish between table_reserved / table_auto_released / table_status_changed.
+ * Note: when emitting table events to listener, we inject "eventName"
+ * into payload so clients can distinguish events.
  */
 public class SocketManager {
 
@@ -33,6 +29,9 @@ public class SocketManager {
 
     private Integer lastJoinedTable = null;
 
+    // =====================================================
+    // LISTENER
+    // =====================================================
     public interface OnEventListener {
         default void onOrderCreated(JSONObject payload) {}
         default void onOrderUpdated(JSONObject payload) {}
@@ -42,11 +41,7 @@ public class SocketManager {
         default void onTableUpdated(JSONObject payload) {}
         default void onCheckItemsRequest(JSONObject payload) {}
     }
-    public boolean isConnected() {
-        return socket != null && socket.connected();
-    }
 
-    // multi listeners
     private final CopyOnWriteArrayList<OnEventListener> listeners =
             new CopyOnWriteArrayList<>();
 
@@ -58,6 +53,10 @@ public class SocketManager {
     public static synchronized SocketManager getInstance() {
         if (instance == null) instance = new SocketManager();
         return instance;
+    }
+
+    public boolean isConnected() {
+        return socket != null && socket.connected();
     }
 
     // =====================================================
@@ -80,45 +79,26 @@ public class SocketManager {
         closeExistingSocket();
 
         try {
-            IO.Options opts = new IO.Options();
-            opts.transports = new String[]{"websocket", "polling"};
-            opts.reconnection = true;
-            opts.reconnectionAttempts = Integer.MAX_VALUE;
-            opts.reconnectionDelay = 1000;
-            opts.reconnectionDelayMax = 5000;
-            opts.timeout = 30000;
-            opts.forceNew = false;
-
-            socket = IO.socket(baseUrl, opts);
-            setupListeners();
-
-            Log.i(TAG, "Socket initialized: " + baseUrl);
-
-        } catch (URISyntaxException e) {
-            Log.e(TAG, "init socket failed", e);
-            dispatchError(e);
-        }
             IO.Options opts = buildDefaultOptions();
             socket = IO.socket(baseUrl, opts);
             setupListeners();
+            Log.i(TAG, "Socket initialized: " + baseUrl);
         } catch (URISyntaxException e) {
-            Log.e(TAG, "init socket failed (URISyntaxException): " + e.getMessage(), e);
-            if (listener != null) listener.onError(e);
+            Log.e(TAG, "init socket failed", e);
+            dispatchError(e);
         } catch (Exception e) {
-            Log.e(TAG, "init socket failed (unexpected): " + e.getMessage(), e);
-            if (listener != null) listener.onError(e);
+            Log.e(TAG, "init socket failed (unexpected)", e);
+            dispatchError(e);
         }
     }
 
     private IO.Options buildDefaultOptions() {
         IO.Options opts = new IO.Options();
-        // ✅ FIX: Chỉ dùng polling để tránh websocket error
-        // Polling ổn định hơn và ít bị lỗi hơn websocket trong môi trường Android
-        opts.transports = new String[] { "polling" }; // Chỉ dùng polling
-        Log.d(TAG, "Using polling transport only (more stable than websocket)");
+        // Dùng cả websocket + polling cho ổn định
+        opts.transports = new String[]{"websocket", "polling"};
         opts.reconnection = true;
-        opts.reconnectionAttempts = 5; // Giảm số lần retry
-        opts.reconnectionDelay = 3000; // Tăng delay
+        opts.reconnectionAttempts = Integer.MAX_VALUE;
+        opts.reconnectionDelay = 1000;
         opts.reconnectionDelayMax = 5000;
         opts.timeout = 30000;
         opts.forceNew = false;
@@ -138,6 +118,9 @@ public class SocketManager {
         }
     }
 
+    // =====================================================
+    // SOCKET EVENTS
+    // =====================================================
     private void setupListeners() {
         if (socket == null) return;
 
@@ -174,7 +157,9 @@ public class SocketManager {
 
         socket.on("table_auto_released", args -> {
             JSONObject payload = parseArgsToJson(args);
-            try { payload.put("eventName", "table_auto_released"); } catch (Exception ignored) {}
+            try {
+                payload.put("eventName", "table_auto_released");
+            } catch (Exception ignored) {}
             for (OnEventListener l : listeners) l.onTableUpdated(payload);
             if (singleListener != null) singleListener.onTableUpdated(payload);
         });
@@ -254,13 +239,13 @@ public class SocketManager {
     }
 
     // =====================================================
-    // EMIT EVENT (GIỮ ĐỂ KHÔNG LỖI CHỨC NĂNG KHÁC)
+    // EMIT
     // =====================================================
     public void emitEvent(String event, String payload) {
         try {
             if (socket != null) {
                 socket.emit(event, payload);
-                Log.d(TAG, "emitEvent: " + event + " | " + payload);
+                Log.d(TAG, "emitEvent: " + event);
             }
         } catch (Exception e) {
             Log.w(TAG, "emitEvent error", e);
@@ -271,7 +256,7 @@ public class SocketManager {
         try {
             if (socket != null) {
                 socket.emit(event, payload);
-                Log.d(TAG, "emitEvent: " + event + " | " + payload);
+                Log.d(TAG, "emitEvent: " + event);
             }
         } catch (Exception e) {
             Log.w(TAG, "emitEvent error", e);
