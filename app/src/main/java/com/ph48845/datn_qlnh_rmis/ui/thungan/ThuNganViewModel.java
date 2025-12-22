@@ -55,6 +55,11 @@ public class ThuNganViewModel extends ViewModel {
 
                 // Lọc chỉ bàn đang hoạt động
                 List<TableItem> activeTables = new ArrayList<>();
+                int occupiedCount = 0;
+                int pendingPaymentCount = 0;
+                int finishServeCount = 0;
+                int otherStatusCount = 0;
+                
                 for (TableItem table : allTables) {
                     if (table == null) continue;
                     TableItem.Status status = table.getStatus();
@@ -62,15 +67,27 @@ public class ThuNganViewModel extends ViewModel {
                         status == TableItem.Status.PENDING_PAYMENT ||
                         status == TableItem.Status.FINISH_SERVE) {
                         activeTables.add(table);
-                        Log.d(TAG, "loadActiveTables: Added table " + table.getTableNumber() + " with status " + status);
+                        if (status == TableItem.Status.OCCUPIED) occupiedCount++;
+                        else if (status == TableItem.Status.PENDING_PAYMENT) pendingPaymentCount++;
+                        else if (status == TableItem.Status.FINISH_SERVE) finishServeCount++;
+                        Log.d(TAG, "loadActiveTables: ✅ Added table " + table.getTableNumber() + " with status " + status);
                     } else {
-                        Log.d(TAG, "loadActiveTables: Skipped table " + table.getTableNumber() + " with status " + status);
+                        otherStatusCount++;
+                        if (otherStatusCount <= 5) { // Chỉ log 5 bàn đầu để tránh spam
+                            Log.d(TAG, "loadActiveTables: ⚠️ Skipped table " + table.getTableNumber() + " with status " + status);
+                        }
                     }
                 }
 
+                Log.d(TAG, "loadActiveTables: Summary - Total from DB: " + allTables.size() + 
+                      ", OCCUPIED: " + occupiedCount + 
+                      ", PENDING_PAYMENT: " + pendingPaymentCount + 
+                      ", FINISH_SERVE: " + finishServeCount + 
+                      ", Other status: " + otherStatusCount);
                 Log.d(TAG, "loadActiveTables: After status filter, " + activeTables.size() + " active tables remain");
                 // Lấy orders để xác định trạng thái phục vụ
-                loadOrdersAndDetermineServingStatus(activeTables, callback);
+                // Truyền TẤT CẢ bàn từ DB (không chỉ activeTables) để có thể tìm bàn có orders
+                loadOrdersAndDetermineServingStatus(allTables, callback);
             }
 
             @Override
@@ -85,20 +102,32 @@ public class ThuNganViewModel extends ViewModel {
      * Lấy orders và xác định trạng thái phục vụ cho từng bàn.
      * Nếu tất cả items trong order có status "done" -> "Đã phục vụ đủ món"
      * Ngược lại -> "Đang phục vụ lên món"
-     * CHỈ HIỂN THỊ CÁC BÀN CÓ HÓA ĐƠN CHƯA THANH TOÁN
+     * HIỂN THỊ TẤT CẢ CÁC BÀN CÓ HÓA ĐƠN CHƯA THANH TOÁN (không quan tâm status của bàn trong DB)
+     * @param allTablesFromDB Tất cả bàn từ DB (có thể có status AVAILABLE, OCCUPIED, etc.)
      */
-    private void loadOrdersAndDetermineServingStatus(List<TableItem> activeTables, DataCallback callback) {
-        if (activeTables.isEmpty()) {
-            // Phân chia theo tầng
-            splitByFloor(activeTables, callback);
-            return;
-        }
+    private void loadOrdersAndDetermineServingStatus(List<TableItem> allTablesFromDB, DataCallback callback) {
+        // KHÔNG return sớm nếu allTablesFromDB rỗng - vẫn cần load orders để tìm các bàn có orders
+        Log.d(TAG, "loadOrdersAndDetermineServingStatus: Starting with " + allTablesFromDB.size() + " tables from DB");
 
-        // Lấy tất cả orders (không filter theo tableNumber)
-        orderRepository.getOrdersByTableNumber(null, null, new OrderRepository.RepositoryCallback<List<Order>>() {
+        // Lấy TẤT CẢ orders từ server (dùng getAllOrders để đảm bảo lấy đủ dữ liệu)
+        orderRepository.getAllOrders(new OrderRepository.RepositoryCallback<List<Order>>() {
             @Override
             public void onSuccess(List<Order> allOrders) {
-                Log.d(TAG, "loadOrdersAndDetermineServingStatus: Received " + (allOrders != null ? allOrders.size() : 0) + " orders from API");
+                Log.d(TAG, "loadOrdersAndDetermineServingStatus: Received " + (allOrders != null ? allOrders.size() : 0) + " orders from API (all tables)");
+                
+                // Log chi tiết để debug
+                if (allOrders != null && !allOrders.isEmpty()) {
+                    Log.d(TAG, "loadOrdersAndDetermineServingStatus: Sample orders:");
+                    int count = 0;
+                    for (Order order : allOrders) {
+                        if (order != null && count < 5) {
+                            Log.d(TAG, "  Order " + order.getId() + " (Bàn " + order.getTableNumber() + 
+                                  "): status = " + order.getOrderStatus() + 
+                                  ", paid = " + order.isPaid());
+                            count++;
+                        }
+                    }
+                }
                 
                 // Tạo map: tableNumber -> List<Order> (tất cả orders, không phân biệt đã thanh toán hay chưa)
                 // Để đảm bảo hiển thị tất cả các bàn có orders
@@ -134,39 +163,89 @@ public class ThuNganViewModel extends ViewModel {
 
                 Log.d(TAG, "loadOrdersAndDetermineServingStatus: Orders found for " + allOrdersByTable.size() + " tables (all orders)");
                 Log.d(TAG, "loadOrdersAndDetermineServingStatus: Unpaid orders found for " + unpaidOrdersByTable.size() + " tables");
-                Log.d(TAG, "loadOrdersAndDetermineServingStatus: Checking " + activeTables.size() + " active tables");
+                Log.d(TAG, "loadOrdersAndDetermineServingStatus: Checking " + allTablesFromDB.size() + " tables from DB");
 
-                // Hiển thị các bàn có orders (ưu tiên các bàn có orders chưa thanh toán)
-                // Nếu bàn có orders (dù đã thanh toán hay chưa) thì vẫn hiển thị
-                List<TableItem> tablesWithOrders = new ArrayList<>();
-                for (TableItem table : activeTables) {
-                    List<Order> allTableOrders = allOrdersByTable.get(table.getTableNumber());
-                    List<Order> unpaidTableOrders = unpaidOrdersByTable.get(table.getTableNumber());
+                // Tạo map để tránh duplicate và thêm các bàn có orders CHƯA THANH TOÁN
+                Map<Integer, TableItem> tablesWithOrdersMap = new HashMap<>();
+                
+                // Tạo map nhanh: tableNumber -> TableItem từ DB
+                Map<Integer, TableItem> tablesFromDBMap = new HashMap<>();
+                for (TableItem table : allTablesFromDB) {
+                    if (table != null) {
+                        tablesFromDBMap.put(table.getTableNumber(), table);
+                    }
+                }
+                
+                // DEBUG: Kiểm tra bàn 1 cụ thể
+                if (allOrdersByTable.containsKey(1)) {
+                    List<Order> table1Orders = allOrdersByTable.get(1);
+                    Log.d(TAG, "🔍 DEBUG Bàn 1: Found " + table1Orders.size() + " orders");
+                    for (Order order : table1Orders) {
+                        if (order != null) {
+                            Log.d(TAG, "🔍 DEBUG Bàn 1 Order: ID=" + order.getId() + 
+                                  ", status=" + order.getOrderStatus() + 
+                                  ", isPaid=" + order.isPaid() + 
+                                  ", paidAt=" + order.getPaidAt());
+                        }
+                    }
+                } else {
+                    Log.d(TAG, "🔍 DEBUG Bàn 1: NO orders found in allOrdersByTable");
+                }
+                if (unpaidOrdersByTable.containsKey(1)) {
+                    List<Order> table1UnpaidOrders = unpaidOrdersByTable.get(1);
+                    Log.d(TAG, "🔍 DEBUG Bàn 1: Found " + table1UnpaidOrders.size() + " UNPAID orders");
+                } else {
+                    Log.d(TAG, "🔍 DEBUG Bàn 1: NO unpaid orders found (bàn 1 có thể đã thanh toán hết)");
+                }
+                if (tablesFromDBMap.containsKey(1)) {
+                    TableItem table1 = tablesFromDBMap.get(1);
+                    Log.d(TAG, "🔍 DEBUG Bàn 1: Found in DB with status=" + (table1 != null ? table1.getStatus() : "null"));
+                } else {
+                    Log.d(TAG, "🔍 DEBUG Bàn 1: NOT found in DB");
+                }
+                
+                // Hiển thị TẤT CẢ các bàn có orders (kể cả đã thanh toán và chưa thanh toán)
+                // Ưu tiên hiển thị bàn có orders chưa thanh toán, nhưng cũng hiển thị bàn có orders đã thanh toán
+                for (Integer tableNum : allOrdersByTable.keySet()) {
+                    List<Order> allTableOrders = allOrdersByTable.get(tableNum);
+                    List<Order> unpaidTableOrders = unpaidOrdersByTable.get(tableNum);
                     
-                    // Hiển thị bàn nếu có ít nhất một order (dù đã thanh toán hay chưa)
+                    // Hiển thị bàn nếu có BẤT KỲ orders nào (kể cả đã thanh toán)
                     if (allTableOrders != null && !allTableOrders.isEmpty()) {
-                        // Sử dụng unpaid orders để xác định trạng thái phục vụ
-                        List<Order> ordersForStatus = unpaidTableOrders != null && !unpaidTableOrders.isEmpty() 
-                            ? unpaidTableOrders : allTableOrders;
+                        // Tìm bàn trong DB (có thể có status AVAILABLE, OCCUPIED, etc.)
+                        TableItem tableFromDB = tablesFromDBMap.get(tableNum);
                         
-                        boolean allServed = determineIfAllServed(ordersForStatus);
-                        
-                        // Nếu tất cả đã phục vụ xong, set status thành FINISH_SERVE (nếu chưa phải)
-                        if (allServed && table.getStatus() != TableItem.Status.FINISH_SERVE) {
-                            // Có thể cập nhật status trên server nếu cần, nhưng ở đây chỉ dùng để hiển thị
-                            // Giữ nguyên status hiện tại, adapter sẽ dựa vào orders để quyết định màu
+                        TableItem tableToAdd;
+                        if (tableFromDB != null) {
+                            // Dùng bàn từ DB (giữ nguyên status, location, capacity)
+                            tableToAdd = tableFromDB;
+                            int unpaidCount = (unpaidTableOrders != null) ? unpaidTableOrders.size() : 0;
+                            int totalCount = allTableOrders.size();
+                            Log.d(TAG, "loadOrdersAndDetermineServingStatus: ✅ Added table " + tableNum + 
+                                  " from DB (status: " + tableFromDB.getStatus() + ") with " + 
+                                  totalCount + " total orders (" + unpaidCount + " unpaid, " + 
+                                  (totalCount - unpaidCount) + " paid)");
+                        } else {
+                            // Tạo TableItem mới cho bàn này (nếu không có trong DB)
+                            tableToAdd = new TableItem();
+                            tableToAdd.setTableNumber(tableNum);
+                            tableToAdd.setStatus(TableItem.Status.OCCUPIED); // Mặc định
+                            tableToAdd.setLocation(""); // Mặc định tầng 1
+                            tableToAdd.setCapacity(4); // Mặc định
+                            int unpaidCount = (unpaidTableOrders != null) ? unpaidTableOrders.size() : 0;
+                            int totalCount = allTableOrders.size();
+                            Log.d(TAG, "loadOrdersAndDetermineServingStatus: ✅ Created new table " + tableNum + 
+                                  " (not in DB) with " + totalCount + " total orders (" + unpaidCount + " unpaid, " + 
+                                  (totalCount - unpaidCount) + " paid)");
                         }
                         
-                        tablesWithOrders.add(table);
-                        int unpaidCount = unpaidTableOrders != null ? unpaidTableOrders.size() : 0;
-                        Log.d(TAG, "loadOrdersAndDetermineServingStatus: Added table " + table.getTableNumber() + 
-                              " with " + allTableOrders.size() + " total orders (" + unpaidCount + " unpaid)");
-                    } else {
-                        Log.d(TAG, "loadOrdersAndDetermineServingStatus: Skipped table " + table.getTableNumber() + " - no orders at all");
+                        tablesWithOrdersMap.put(tableNum, tableToAdd);
                     }
                 }
 
-                Log.d(TAG, "loadOrdersAndDetermineServingStatus: Final result - " + tablesWithOrders.size() + " tables with orders");
+                List<TableItem> tablesWithOrders = new ArrayList<>(tablesWithOrdersMap.values());
+                Log.d(TAG, "loadOrdersAndDetermineServingStatus: Final result - " + tablesWithOrders.size() + " tables with orders (including paid orders)");
+                
                 // Phân chia theo tầng (các bàn có orders)
                 splitByFloor(tablesWithOrders, callback);
             }
