@@ -31,6 +31,7 @@ public class BepAdapter extends RecyclerView.Adapter<BepAdapter.VH> {
 
     // NEW
     private Set<Integer> attentionTables = new HashSet<>();
+    private Set<Integer> mutedTables = new HashSet<>();
 
     public interface OnTableClickListener {
         void onTableClick(TableItem table);
@@ -59,6 +60,12 @@ public class BepAdapter extends RecyclerView.Adapter<BepAdapter.VH> {
         notifyDataSetChanged();
     }
 
+    // NEW: allow activity/fragment to mute blink for some tables (keeps ordering)
+    public void setMutedTables(Set<Integer> mutedTables) {
+        this.mutedTables = mutedTables != null ? mutedTables : new HashSet<>();
+        notifyDataSetChanged();
+    }
+
     @NonNull
     @Override
     public BepAdapter.VH onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
@@ -84,12 +91,13 @@ public class BepAdapter extends RecyclerView.Adapter<BepAdapter.VH> {
         holder.stopBlink();
 
         boolean isAttention = attentionTables != null && attentionTables.contains(tn);
+        boolean isMuted = mutedTables != null && mutedTables.contains(tn);
 
-        if (isAttention) {
+        if (isAttention && !isMuted) {
             holder.viewStatusStrip.setBackgroundColor(Color.parseColor("#FB8C00"));
             holder.startBlink(); // blink nhẹ
         } else {
-            // default after "seen"
+            // default after "seen" or not attention
             holder.viewStatusStrip.setBackgroundColor(Color.parseColor("#AA0000"));
         }
 
