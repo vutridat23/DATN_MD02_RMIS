@@ -283,11 +283,13 @@ public class PrintBillActivity extends AppCompatActivity {
         builder.setMediaSize(PrintAttributes.MediaSize.ISO_A4);
         PrintJob printJob = printManager.print(jobName, printAdapter, builder.build());
         
+        // Lấy orderId từ Intent
+        String orderId = getIntent().getStringExtra("orderId");
+        Log.d("PrintBillActivity", "createPrintJob: orderId = " + orderId);
+        
         if (printJob != null) {
             android.widget.Toast.makeText(this, "Đang in hóa đơn...", android.widget.Toast.LENGTH_SHORT).show();
-            
-            // Lấy orderId từ Intent
-            String orderId = getIntent().getStringExtra("orderId");
+            Log.d("PrintBillActivity", "createPrintJob: Print job created successfully");
             
             // SetResult ngay để InvoiceActivity có thể clear temp calculation request
             // (PrintJob không có callback rõ ràng, nên setResult ngay sau khi tạo print job)
@@ -295,13 +297,20 @@ public class PrintBillActivity extends AppCompatActivity {
                 Intent resultIntent = new Intent();
                 resultIntent.putExtra("orderId", orderId);
                 setResult(RESULT_OK, resultIntent);
-                Log.d("PrintBillActivity", "SetResult OK for orderId: " + orderId);
+                Log.d("PrintBillActivity", "✅ SetResult OK for orderId: " + orderId);
+            } else {
+                Log.w("PrintBillActivity", "⚠️ WARNING: orderId is null, cannot setResult!");
             }
-            
-            // Có thể finish ngay hoặc để user tự đóng
-            // finish(); // Uncomment nếu muốn tự động đóng sau khi in
         } else {
             android.widget.Toast.makeText(this, "Không thể tạo print job", android.widget.Toast.LENGTH_SHORT).show();
+            Log.e("PrintBillActivity", "❌ Failed to create print job");
+            // Vẫn setResult để InvoiceActivity biết đã thử in (dù thất bại)
+            if (orderId != null) {
+                Intent resultIntent = new Intent();
+                resultIntent.putExtra("orderId", orderId);
+                setResult(RESULT_CANCELED, resultIntent);
+                Log.d("PrintBillActivity", "SetResult CANCELED for orderId: " + orderId + " (print job failed)");
+            }
         }
     }
 

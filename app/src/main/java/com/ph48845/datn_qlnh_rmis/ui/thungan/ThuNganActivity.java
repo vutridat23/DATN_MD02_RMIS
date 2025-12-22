@@ -20,6 +20,8 @@ import android.widget.Toast;
 import android.os.Handler;
 import android.os.Looper;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.widget.Toolbar;
 import androidx.core.view.GravityCompat;
 import androidx.core.view.ViewCompat;
@@ -51,8 +53,15 @@ import com.ph48845.datn_qlnh_rmis.ui.thungan.adapter.ThuNganAdapter;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+
+import org.json.JSONObject;
+import android.app.AlertDialog;
+import android.view.LayoutInflater;
+import android.animation.ObjectAnimator;
 
 /**
  * Activity Thu Ngân: Quản lý danh sách bàn đang hoạt động/chờ thanh toán.
@@ -81,6 +90,9 @@ public class ThuNganActivity extends BaseMenuActivity {
     private BroadcastReceiver refreshTablesReceiver;
     private static final String ACTION_REFRESH_TABLES = "com.ph48845.datn_qlnh_rmis.ACTION_REFRESH_TABLES";
     private Map<String, String> userIdToNameMap = new HashMap<>(); // Map user ID -> user name
+    private ActivityResultLauncher<Intent> invoiceLauncher; // Launcher để mở InvoiceActivity và nhận kết quả
+    private Set<String> knownTempCalcRequestOrderIds = new HashSet<>(); // Lưu các order IDs đã có yêu cầu tạm tính để phát hiện yêu cầu mới
+    private AlertDialog currentNotificationDialog; // Dialog thông báo hiện tại (để tránh hiển thị nhiều dialog cùng lúc)
 
 
     @Override
@@ -99,6 +111,35 @@ public class ThuNganActivity extends BaseMenuActivity {
         setupToolbar();
         setupNavigationDrawer();
         setupRecyclerViews();
+        
+        // Khởi tạo ActivityResultLauncher để mở InvoiceActivity và nhận kết quả
+        invoiceLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                // Khi quay lại từ InvoiceActivity, reload lại danh sách yêu cầu tạm tính
+                Log.d(TAG, "invoiceLauncher: Returned from InvoiceActivity, resultCode=" + result.getResultCode());
+                if (result.getResultCode() == RESULT_OK) {
+                    Intent data = result.getData();
+                    boolean invoicePrinted = data != null && data.getBooleanExtra("invoicePrinted", false);
+                    if (invoicePrinted) {
+                        Log.d(TAG, "invoiceLauncher: Invoice was printed, will reload temp calculation requests after delay");
+                        // Reload lại số lượng yêu cầu tạm tính
+                        loadTempCalculationRequestsCount();
+                        // Đợi lâu hơn để đảm bảo database đã được cập nhật hoàn toàn, sau đó mới reload dialog
+                        refreshHandler.postDelayed(() -> {
+                            Log.d(TAG, "invoiceLauncher: Reloading temp calculation requests dialog after delay (1.5s)");
+                            showTempCalculationRequests();
+                        }, 1500); // Delay 1.5s để đảm bảo DB đã được cập nhật hoàn toàn
+                    } else {
+                        // Chỉ reload số lượng, không mở lại dialog
+                        loadTempCalculationRequestsCount();
+                    }
+                } else {
+                    // Chỉ reload số lượng
+                    loadTempCalculationRequestsCount();
+                }
+            }
+        );
 
         // 3. Load dữ liệu ban đầu
         updateNavHeaderInfo();
@@ -257,10 +298,15 @@ public class ThuNganActivity extends BaseMenuActivity {
     }
 
     private void loadOrdersForServingStatus(List<TableItem> floor1Tables, List<TableItem> floor2Tables) {
-        orderRepository.getOrdersByTableNumber(null, null, new OrderRepository.RepositoryCallback<List<Order>>() {
+        // Dùng getAllOrders để đảm bảo lấy đủ dữ liệu từ server
+        orderRepository.getAllOrders(new OrderRepository.RepositoryCallback<List<Order>>() {
             @Override
             public void onSuccess(List<Order> allOrders) {
-                if (allOrders == null) return;
+                if (allOrders == null) {
+                    Log.w(TAG, "loadOrdersForServingStatus: Received null orders");
+                    return;
+                }
+                Log.d(TAG, "loadOrdersForServingStatus: Received " + allOrders.size() + " orders from server");
 
                 Map<Integer, List<Order>> ordersByTable = new HashMap<>();
                 for (Order order : allOrders) {
@@ -342,22 +388,52 @@ public class ThuNganActivity extends BaseMenuActivity {
         // Đảm bảo load users trước khi load orders
         loadUsersForNameMapping(() -> {
             // Sau khi load users xong, mới load orders
-            orderRepository.getOrdersByTableNumber(null, null, new OrderRepository.RepositoryCallback<List<Order>>() {
+            // Dùng getAllOrders để đảm bảo lấy tất cả orders mới nhất từ server (force refresh)
+            Log.d(TAG, "showTempCalculationRequests: Loading all orders from server (force refresh)");
+            orderRepository.getAllOrders(new OrderRepository.RepositoryCallback<List<Order>>() {
                 @Override
                 public void onSuccess(List<Order> allOrders) {
                     runOnUiThread(() -> {
                         if (progressBar != null) progressBar.setVisibility(View.GONE);
 
-                        // Lọc các orders có tempCalculationRequestedAt
+                        // Lọc các orders có tempCalculationRequestedAt (KHÔNG NULL và KHÔNG RỖNG)
                         List<Order> tempCalculationOrders = new ArrayList<>();
                         if (allOrders != null) {
+                            Log.d(TAG, "showTempCalculationRequests: Checking " + allOrders.size() + " orders for temp calculation requests");
                             for (Order order : allOrders) {
-                                if (order != null && order.getTempCalculationRequestedAt() != null
-                                        && !order.getTempCalculationRequestedAt().trim().isEmpty()) {
+                                if (order == null) continue;
+                                String tempCalcRequestedAt = order.getTempCalculationRequestedAt();
+                                String orderStatus = order.getOrderStatus();
+                                String orderId = order.getId();
+                                int tableNumber = order.getTableNumber();
+                                
+                                // CHỈ thêm vào danh sách nếu:
+                                // 1. tempCalculationRequestedAt không null và không rỗng
+                                // 2. orderStatus KHÔNG phải "temp_bill_printed" (đã in hóa đơn rồi)
+                                // (Khi in hóa đơn, tempCalculationRequestedAt sẽ được set null và orderStatus = "temp_bill_printed")
+                                boolean hasTempCalcRequest = tempCalcRequestedAt != null && !tempCalcRequestedAt.trim().isEmpty();
+                                boolean isNotPrinted = orderStatus == null || !orderStatus.equals("temp_bill_printed");
+                                
+                                if (hasTempCalcRequest && isNotPrinted) {
                                     tempCalculationOrders.add(order);
+                                    Log.d(TAG, "showTempCalculationRequests: ✅ Found temp calc request for order " + orderId + 
+                                          " (table " + tableNumber + "), tempCalculationRequestedAt=" + tempCalcRequestedAt + 
+                                          ", orderStatus=" + orderStatus);
+                                } else {
+                                    if (!hasTempCalcRequest) {
+                                        Log.d(TAG, "showTempCalculationRequests: Order " + orderId + " (table " + tableNumber + 
+                                              ") has no temp calc request (tempCalculationRequestedAt=" + tempCalcRequestedAt + 
+                                              ", orderStatus=" + orderStatus + ")");
+                                    } else if (!isNotPrinted) {
+                                        Log.d(TAG, "showTempCalculationRequests: Order " + orderId + " (table " + tableNumber + 
+                                              ") already printed (orderStatus=" + orderStatus + "), skipping");
+                                    }
                                 }
                             }
                         }
+
+                        Log.d(TAG, "showTempCalculationRequests: 📊 Summary - Found " + tempCalculationOrders.size() + 
+                              " temp calculation requests out of " + (allOrders != null ? allOrders.size() : 0) + " total orders");
 
                         if (tempCalculationOrders.isEmpty()) {
                             Toast.makeText(ThuNganActivity.this, "Không có yêu cầu tạm tính nào", Toast.LENGTH_SHORT).show();
@@ -583,11 +659,17 @@ public class ThuNganActivity extends BaseMenuActivity {
                 .setItems(items, (dialog, which) -> {
                     // Mở đúng hóa đơn (theo orderId) trong cùng bàn
                     Order selectedOrder = orders.get(which);
+                    if (selectedOrder == null) {
+                        Toast.makeText(ThuNganActivity.this, "Hóa đơn không hợp lệ", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
                     Intent intent = new Intent(ThuNganActivity.this, InvoiceActivity.class);
                     intent.putExtra("tableNumber", selectedOrder.getTableNumber());
                     intent.putExtra("orderId", selectedOrder.getId()); // focus đúng hóa đơn
-                    startActivity(intent);
-                    Toast.makeText(ThuNganActivity.this, "Mở hóa đơn bàn " + selectedOrder.getTableNumber(), Toast.LENGTH_SHORT).show();
+                    // Sử dụng launcher để có thể nhận kết quả khi quay lại
+                    invoiceLauncher.launch(intent);
+                    Log.d(TAG, "showTempCalculationRequestsDialog: Opening InvoiceActivity for table " + 
+                          selectedOrder.getTableNumber() + ", orderId: " + selectedOrder.getId());
                 })
                 .setNegativeButton("Đóng", null)
                 .show();
@@ -626,14 +708,25 @@ public class ThuNganActivity extends BaseMenuActivity {
             public void onSuccess(List<Order> allOrders) {
                 runOnUiThread(() -> {
                     int count = 0;
+                    // Cập nhật danh sách order IDs đã có yêu cầu tạm tính
+                    Set<String> currentTempCalcOrderIds = new HashSet<>();
                     if (allOrders != null) {
                         for (Order order : allOrders) {
-                            if (order != null && order.getTempCalculationRequestedAt() != null
-                                    && !order.getTempCalculationRequestedAt().trim().isEmpty()) {
-                                count++;
+                            if (order != null && order.getId() != null) {
+                                String tempCalcRequestedAt = order.getTempCalculationRequestedAt();
+                                String orderStatus = order.getOrderStatus();
+                                // Chỉ đếm nếu có yêu cầu tạm tính VÀ chưa in hóa đơn
+                                boolean hasTempCalcRequest = tempCalcRequestedAt != null && !tempCalcRequestedAt.trim().isEmpty();
+                                boolean isNotPrinted = orderStatus == null || !orderStatus.equals("temp_bill_printed");
+                                if (hasTempCalcRequest && isNotPrinted) {
+                                    count++;
+                                    currentTempCalcOrderIds.add(order.getId());
+                                }
                             }
                         }
                     }
+                    // Cập nhật danh sách đã biết (để phát hiện yêu cầu mới)
+                    knownTempCalcRequestOrderIds = currentTempCalcOrderIds;
                     updateTempCalculationMenuBadge(count);
                 });
             }
@@ -663,6 +756,14 @@ public class ThuNganActivity extends BaseMenuActivity {
         super.onResume();
         loadActiveTables();
         loadTempCalculationRequestsCount();
+        
+        // Đảm bảo socket được kết nối khi activity resume
+        if (socketManager != null && !socketManager.isConnected()) {
+            Log.d(TAG, "onResume: Socket not connected, reconnecting...");
+            startSocketRealtime();
+        } else if (socketManager != null) {
+            Log.d(TAG, "onResume: Socket is connected");
+        }
     }
 
     @Override
@@ -680,25 +781,85 @@ public class ThuNganActivity extends BaseMenuActivity {
 
     private void startSocketRealtime() {
         try {
-            socketManager.init("http://192.168.1.84:3000");
+            // Lấy socket URL từ Intent hoặc SharedPreferences, fallback về BASE_URL từ RetrofitClient
+            String socketUrl = getIntent().getStringExtra("socketUrl");
+            if (socketUrl == null || socketUrl.trim().isEmpty()) {
+                SharedPreferences prefs = getSharedPreferences("RestaurantPrefs", MODE_PRIVATE);
+                socketUrl = prefs.getString("socketUrl", null);
+            }
+            if (socketUrl == null || socketUrl.trim().isEmpty()) {
+                // Dùng cùng URL với API để đảm bảo consistency
+                socketUrl = RetrofitClient.getBaseUrl();
+                Log.d(TAG, "Using API BASE_URL for socket: " + socketUrl);
+            }
+            
+            Log.d(TAG, "startSocketRealtime: Initializing socket with URL: " + socketUrl);
+            
+            // Setup event listener TRƯỚC khi init và connect
             socketManager.setOnEventListener(new SocketManager.OnEventListener() {
                 @Override
                 public void onOrderCreated(org.json.JSONObject payload) {
+                    Log.d(TAG, "Socket: onOrderCreated received");
+                    // Kiểm tra xem có yêu cầu tạm tính mới không
+                    checkForNewTempCalculationRequest(payload);
                     scheduleRefresh();
                 }
 
                 @Override
                 public void onOrderUpdated(org.json.JSONObject payload) {
+                    Log.d(TAG, "Socket: onOrderUpdated received");
+                    // Kiểm tra xem có yêu cầu tạm tính mới không
+                    checkForNewTempCalculationRequest(payload);
                     scheduleRefresh();
                 }
 
-                @Override public void onConnect() {}
-                @Override public void onDisconnect() {}
-                @Override public void onError(Exception e) {}
+                @Override
+                public void onConnect() {
+                    Log.d(TAG, "Socket: ✅ Connected successfully");
+                    runOnUiThread(() -> {
+                        // Có thể hiển thị thông báo hoặc reload data ngay khi connect
+                        loadActiveTables();
+                        loadTempCalculationRequestsCount();
+                    });
+                }
+
+                @Override
+                public void onDisconnect() {
+                    Log.w(TAG, "Socket: ⚠️ Disconnected");
+                }
+
+                @Override
+                public void onError(Exception e) {
+                    Log.e(TAG, "Socket: ❌ Error occurred: " + (e != null ? e.getMessage() : "unknown"), e);
+                }
             });
+            
+            // Kiểm tra xem socket đã được init và connected chưa
+            if (socketManager.isConnected()) {
+                Log.d(TAG, "startSocketRealtime: Socket already connected, skipping init");
+            } else {
+                // Init socket nếu chưa được init hoặc chưa connected
+                Log.d(TAG, "startSocketRealtime: Initializing socket...");
+                socketManager.init(socketUrl);
+            }
+            
+            // Connect socket
             socketManager.connect();
+            Log.d(TAG, "startSocketRealtime: Socket connect() called, isConnected=" + socketManager.isConnected());
+            
+            // Nếu socket chưa connect ngay, đợi một chút rồi check lại
+            if (!socketManager.isConnected()) {
+                refreshHandler.postDelayed(() -> {
+                    boolean connected = socketManager.isConnected();
+                    Log.d(TAG, "startSocketRealtime: After delay, isConnected=" + connected);
+                    if (!connected) {
+                        Log.w(TAG, "startSocketRealtime: Socket still not connected, retrying...");
+                        socketManager.connect();
+                    }
+                }, 1000);
+            }
         } catch (Exception e) {
-            Log.w(TAG, "Socket init failed: " + e.getMessage());
+            Log.e(TAG, "startSocketRealtime: Failed to initialize socket: " + e.getMessage(), e);
         }
     }
 
@@ -711,13 +872,124 @@ public class ThuNganActivity extends BaseMenuActivity {
         }, SOCKET_REFRESH_DELAY_MS);
     }
 
+    /**
+     * Kiểm tra xem có yêu cầu tạm tính mới từ socket payload không
+     */
+    private void checkForNewTempCalculationRequest(org.json.JSONObject payload) {
+        if (payload == null) return;
+        
+        try {
+            String orderIdRaw = payload.optString("_id", null);
+            if (orderIdRaw == null || orderIdRaw.trim().isEmpty()) {
+                orderIdRaw = payload.optString("id", null);
+            }
+            
+            if (orderIdRaw == null || orderIdRaw.trim().isEmpty()) {
+                Log.d(TAG, "checkForNewTempCalculationRequest: No order ID in payload");
+                return;
+            }
+            
+            // Tạo biến final để sử dụng trong lambda
+            final String orderId = orderIdRaw.trim();
+            
+            // Kiểm tra xem order này đã có yêu cầu tạm tính chưa
+            if (knownTempCalcRequestOrderIds.contains(orderId)) {
+                // Đã biết rồi, không phải yêu cầu mới
+                return;
+            }
+            
+            // Kiểm tra xem có tempCalculationRequestedAt không
+            String tempCalcRequestedAt = payload.optString("tempCalculationRequestedAt", null);
+            String orderStatus = payload.optString("orderStatus", null);
+            
+            // Chỉ hiển thị thông báo nếu:
+            // 1. Có tempCalculationRequestedAt (không null, không rỗng)
+            // 2. orderStatus không phải "temp_bill_printed" (chưa in)
+            boolean hasTempCalcRequest = tempCalcRequestedAt != null && !tempCalcRequestedAt.trim().isEmpty();
+            boolean isNotPrinted = orderStatus == null || !orderStatus.equals("temp_bill_printed");
+            
+            if (hasTempCalcRequest && isNotPrinted) {
+                // Đây là yêu cầu mới!
+                int tableNumber = payload.optInt("tableNumber", -1);
+                Log.d(TAG, "checkForNewTempCalculationRequest: ✅ New temp calculation request detected! Order: " + orderId + ", Table: " + tableNumber);
+                
+                // Thêm vào danh sách đã biết
+                knownTempCalcRequestOrderIds.add(orderId);
+                
+                // Tạo biến final cho tableNumber để sử dụng trong lambda
+                final int finalTableNumber = tableNumber;
+                
+                // Hiển thị thông báo
+                runOnUiThread(() -> {
+                    showTempCalculationNotification(finalTableNumber, orderId);
+                });
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "checkForNewTempCalculationRequest: Error parsing payload", e);
+        }
+    }
+
+    /**
+     * Hiển thị popup thông báo yêu cầu tạm tính mới (tự động đóng sau 3 giây)
+     */
+    private void showTempCalculationNotification(int tableNumber, String orderId) {
+        // Đóng dialog cũ nếu có
+        if (currentNotificationDialog != null && currentNotificationDialog.isShowing()) {
+            currentNotificationDialog.dismiss();
+        }
+        
+        // Tạo dialog thông báo
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_temp_calc_notification, null);
+        builder.setView(dialogView);
+        
+        // Set nội dung
+        TextView tvMessage = dialogView.findViewById(R.id.tv_notification_message);
+        if (tvMessage != null) {
+            String message = "Có yêu cầu tạm tính mới";
+            if (tableNumber > 0) {
+                message += "\nBàn " + tableNumber;
+            }
+            tvMessage.setText(message);
+        }
+        
+        // Tạo dialog
+        currentNotificationDialog = builder.create();
+        currentNotificationDialog.setCancelable(true);
+        currentNotificationDialog.setCanceledOnTouchOutside(true);
+        
+        // Lấy progress bar để animate đếm ngược
+        ProgressBar progressBar = dialogView.findViewById(R.id.progress_countdown);
+        
+        // Hiển thị dialog
+        currentNotificationDialog.show();
+        
+        // Animate progress bar từ 100 xuống 0 trong 3 giây
+        if (progressBar != null) {
+            ObjectAnimator progressAnimator = ObjectAnimator.ofInt(progressBar, "progress", 100, 0);
+            progressAnimator.setDuration(3000); // 3 giây
+            progressAnimator.start();
+        }
+        
+        // Tự động đóng sau 3 giây
+        refreshHandler.postDelayed(() -> {
+            if (currentNotificationDialog != null && currentNotificationDialog.isShowing()) {
+                currentNotificationDialog.dismiss();
+                currentNotificationDialog = null;
+            }
+        }, 3000); // 3 giây
+    }
+
     private void registerRefreshTablesReceiver() {
         refreshTablesReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
                 if (ACTION_REFRESH_TABLES.equals(intent.getAction())) {
                     // Reload danh sách yêu cầu tạm tính
+                    Log.d(TAG, "refreshTablesReceiver: Received ACTION_REFRESH_TABLES, reloading temp calculation requests");
                     loadTempCalculationRequestsCount();
+                    // Tự động reload lại dialog nếu có yêu cầu tạm tính
+                    // (sẽ chỉ reload nếu người dùng mở lại menu)
                 }
             }
         };

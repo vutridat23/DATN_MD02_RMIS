@@ -26,6 +26,11 @@ public class SocketManager {
     private Socket socket;
     private String baseUrl;
     private final AtomicBoolean connected = new AtomicBoolean(false);
+    private int websocketErrorCount = 0;
+    private static final int MAX_WEBSOCKET_ERRORS = 2; // Sau 2 lỗi websocket, chuyển sang polling
+    private static boolean usePollingOnly = false; // Flag để nhớ rằng websocket không hoạt động
+    private int pollingErrorCount = 0;
+    private static final int MAX_POLLING_ERRORS = 3; // Sau 3 lỗi polling, dừng retry
 
     public interface OnEventListener {
         void onOrderCreated(JSONObject payload);
@@ -60,13 +65,18 @@ public class SocketManager {
 
         try {
             IO.Options opts = new IO.Options();
-            // ✅ FIX: cho phép fallback polling
-            opts.transports = new String[]{"websocket", "polling"};
+            
+            // ✅ FIX: Chỉ dùng polling để tránh websocket error
+            // Polling ổn định hơn và ít bị lỗi hơn websocket trong môi trường Android
+            opts.transports = new String[]{"polling"}; // Chỉ dùng polling
+            usePollingOnly = true; // Đánh dấu để đảm bảo luôn dùng polling
+            Log.d(TAG, "Using polling transport only (more stable than websocket)");
+            
             opts.reconnection = true;
-            opts.reconnectionAttempts = Integer.MAX_VALUE;
-            opts.reconnectionDelay = 2000;
+            opts.reconnectionAttempts = 5; // Giảm số lần retry để tránh spam
+            opts.reconnectionDelay = 3000; // Tăng delay giữa các lần retry
             opts.timeout = 20000;
-            opts.forceNew = true;
+            opts.forceNew = false; // Không force new connection mỗi lần
 
             socket = IO.socket(baseUrl, opts);
             setupListeners();
@@ -82,7 +92,10 @@ public class SocketManager {
 
         socket.on(Socket.EVENT_CONNECT, args -> {
             connected.set(true);
-            Log.d(TAG, "✅ socket connected");
+            // Reset error count khi connect thành công
+            websocketErrorCount = 0;
+            pollingErrorCount = 0;
+            Log.d(TAG, "✅ socket connected via polling");
             if (listener != null) listener.onConnect();
         });
 
@@ -93,8 +106,63 @@ public class SocketManager {
         });
 
         socket.on(Socket.EVENT_CONNECT_ERROR, args -> {
-            Log.e(TAG, "❌ socket connect error: " + (args != null && args.length > 0 ? args[0] : "null"));
-            if (listener != null) listener.onError(new Exception("connect_error"));
+            String errorMsg = args != null && args.length > 0 ? String.valueOf(args[0]) : "null";
+            Log.e(TAG, "❌ socket connect error: " + errorMsg);
+            
+            // Kiểm tra loại lỗi
+            boolean isWebsocketError = errorMsg.contains("websocket") || errorMsg.contains("WebSocket");
+            boolean isPollingError = errorMsg.contains("xhr poll") || errorMsg.contains("polling");
+            boolean isNetworkError = errorMsg.contains("EngineIOException") && !isWebsocketError && !isPollingError;
+            
+            // Chỉ xử lý websocket error, không xử lý polling error (vì đã dùng polling rồi)
+            if (isWebsocketError) {
+                websocketErrorCount++;
+                Log.w(TAG, "WebSocket error detected! Count: " + websocketErrorCount + "/" + MAX_WEBSOCKET_ERRORS);
+                
+                // Đánh dấu dùng polling only ngay từ lần đầu tiên detect websocket error
+                if (!usePollingOnly) {
+                    usePollingOnly = true;
+                    Log.w(TAG, "Setting usePollingOnly=true, will use polling only from now on");
+                    
+                    // Reinit với polling only
+                    if (socket != null && baseUrl != null) {
+                        Log.w(TAG, "Reinitializing with polling only...");
+                        try {
+                            String savedBaseUrl = baseUrl;
+                            socket.disconnect();
+                            socket.off();
+                            socket.close();
+                            socket = null;
+                            
+                            init(savedBaseUrl);
+                            connect();
+                        } catch (Exception e) {
+                            Log.e(TAG, "Error reinitializing socket: " + e.getMessage(), e);
+                        }
+                    }
+                }
+            } else if (isPollingError || isNetworkError) {
+                // Đây là lỗi polling hoặc network - không phải websocket
+                pollingErrorCount++;
+                Log.e(TAG, "Polling/Network error (" + pollingErrorCount + "/" + MAX_POLLING_ERRORS + 
+                      ") - server may be down or URL incorrect: " + errorMsg);
+                Log.e(TAG, "Please check: 1) Server is running, 2) URL is correct: " + baseUrl);
+                
+                // Sau một số lần lỗi, dừng retry để tránh spam log
+                if (pollingErrorCount >= MAX_POLLING_ERRORS) {
+                    Log.e(TAG, "Too many polling errors. Stopping retry. Please check server connection.");
+                    // Disable reconnection để tránh spam
+                    if (socket != null) {
+                        try {
+                            socket.io().reconnection(false);
+                        } catch (Exception e) {
+                            // Ignore
+                        }
+                    }
+                }
+            }
+            
+            if (listener != null) listener.onError(new Exception("connect_error: " + errorMsg));
         });
 
         socket.on("error", args -> {
