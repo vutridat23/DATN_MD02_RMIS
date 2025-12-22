@@ -33,6 +33,7 @@ import com.ph48845.datn_qlnh_rmis.data.repository.MenuRepository;
 import com.ph48845.datn_qlnh_rmis.data.repository.OrderRepository;
 import com.ph48845.datn_qlnh_rmis.data.repository.TableRepository;
 import com.ph48845.datn_qlnh_rmis.data.repository.VoucherRepository;
+import com.ph48845.datn_qlnh_rmis.data.remote.RetrofitClient;
 import com.ph48845.datn_qlnh_rmis.ui.bep.SocketManager;
 import com.ph48845.datn_qlnh_rmis.ui.thungan.thanhtoan.ThanhToanActivity;
 
@@ -85,7 +86,7 @@ public class InvoiceActivity extends AppCompatActivity {
 
     // Socket để gửi request lên server
     private final SocketManager socketManager = SocketManager.getInstance();
-    private final String SOCKET_URL = "http://192.168.1.84:3000"; // đổi theo server của bạn
+    private final String SOCKET_URL = RetrofitClient.getBaseUrl(); // Dùng cùng URL với API
 
     // Launcher cho PrintBillActivity để nhận kết quả sau khi in xong
     private final ActivityResultLauncher<Intent> printBillLauncher =
@@ -154,7 +155,14 @@ public class InvoiceActivity extends AppCompatActivity {
      */
     private void initSocket() {
         try {
-            socketManager.init(SOCKET_URL);
+            // Chỉ init nếu socket chưa được init hoặc chưa connected
+            if (!socketManager.isConnected()) {
+                Log.d(TAG, "Socket not connected, initializing...");
+                socketManager.init(SOCKET_URL);
+            } else {
+                Log.d(TAG, "Socket already connected, skipping init");
+            }
+            
             socketManager.setOnEventListener(new SocketManager.OnEventListener() {
                 @Override
                 public void onOrderCreated(org.json.JSONObject payload) {
@@ -2074,13 +2082,21 @@ public class InvoiceActivity extends AppCompatActivity {
         Map<String, Object> updates = new HashMap<>();
         updates.put("tempCalculationRequestedBy", null);
         updates.put("tempCalculationRequestedAt", null);
+        // Đổi trạng thái thành temp_bill_printed khi đã in hóa đơn tạm tính
+        updates.put("orderStatus", "temp_bill_printed");
 
-        Log.d(TAG, "clearTempCalculationRequest: Clearing temp calculation request for order " + order.getId());
+        Log.d(TAG, "clearTempCalculationRequest: Clearing temp calculation request and setting orderStatus to temp_bill_printed for order " + order.getId());
 
         orderRepository.updateOrder(order.getId(), updates, new OrderRepository.RepositoryCallback<Order>() {
             @Override
             public void onSuccess(Order result) {
-                Log.d(TAG, "clearTempCalculationRequest: Successfully cleared temp calculation request for order " + order.getId());
+                Log.d(TAG, "clearTempCalculationRequest: Successfully cleared temp calculation request and updated status to temp_bill_printed for order " + order.getId());
+                if (result != null) {
+                    String orderStatus = result.getOrderStatus();
+                    String tempCalcAt = result.getTempCalculationRequestedAt();
+                    Log.d(TAG, "clearTempCalculationRequest: Verified - result.orderStatus = " + orderStatus + " (expected: temp_bill_printed)");
+                    Log.d(TAG, "clearTempCalculationRequest: Verified - result.tempCalculationRequestedAt = " + tempCalcAt + " (expected: null)");
+                }
                 // Gửi broadcast để ThuNganActivity reload danh sách yêu cầu
                 Intent refreshIntent = new Intent(ACTION_REFRESH_TABLES);
                 sendBroadcast(refreshIntent);

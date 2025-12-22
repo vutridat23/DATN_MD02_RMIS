@@ -19,7 +19,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class RetrofitClient {
 
-    private static final String BASE_URL = "http://192.168.110.85:3000/";
+    private static final String BASE_URL = "http://192.168.0.104:3000/";
 
     private static RetrofitClient instance = null;
     private final ApiService apiService;
@@ -66,8 +66,13 @@ public class RetrofitClient {
     public ApiService getApiService() {
         return apiService;
     }
-    public static String getBaseUrl() {
-        return BASE_URL;
-    }
 
+    /**
+     * Lấy BASE_URL để dùng cho socket connection
+     * @return BASE_URL (không có trailing slash)
+     */
+    public static String getBaseUrl() {
+        // Trả về BASE_URL không có trailing slash để dùng cho socket
+        return BASE_URL.endsWith("/") ? BASE_URL.substring(0, BASE_URL.length() - 1) : BASE_URL;
+    }
 }
