@@ -998,7 +998,9 @@ public class ThuNganActivity extends BaseMenuActivity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(refreshTablesReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
         } else {
-            registerReceiver(refreshTablesReceiver, filter);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                registerReceiver(refreshTablesReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+            }
         }
     }
 

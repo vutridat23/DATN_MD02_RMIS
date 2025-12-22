@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -504,7 +505,9 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
 
         IntentFilter filter = new IntentFilter("com.ph48845.datn_qlnh_rmis.ACTION_CHECK_ITEMS");
         try {
-            registerReceiver(checkItemsReceiver, filter);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                registerReceiver(checkItemsReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+            }
             Log.d(TAG, "✅ Registered checkItemsReceiver");
         } catch (Exception e) {
             Log.e(TAG, "❌ Failed to register checkItemsReceiver", e);

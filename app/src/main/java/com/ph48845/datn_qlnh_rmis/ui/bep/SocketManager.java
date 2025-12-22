@@ -32,6 +32,22 @@ public class SocketManager {
     private int pollingErrorCount = 0;
     private static final int MAX_POLLING_ERRORS = 3; // Sau 3 lỗi polling, dừng retry
 
+    public boolean isInitialized() {
+        boolean initialized = false;
+        return initialized;
+    }
+
+    public boolean isConnecting() {
+        boolean connecting = false;
+        return connecting;
+    }
+
+    public boolean hasListener() {
+        boolean hasListener = false;
+        return hasListener;
+    }
+
+
     public interface OnEventListener {
         void onOrderCreated(JSONObject payload);
         void onOrderUpdated(JSONObject payload);
