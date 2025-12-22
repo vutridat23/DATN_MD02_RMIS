@@ -1,11 +1,14 @@
 package com.ph48845.datn_qlnh_rmis.ui.bep.adapter;
 
+import android.animation.ObjectAnimator;
+import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Color;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
+
 import androidx.annotation.NonNull;
 import androidx.cardview.widget.CardView;
 import androidx.recyclerview.widget.RecyclerView;
@@ -14,37 +17,45 @@ import com.ph48845.datn_qlnh_rmis.R;
 import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
-/**
- * Adapter hiển thị các bàn trong BepTableFragment.
- */
 public class BepAdapter extends RecyclerView.Adapter<BepAdapter.VH> {
 
     private final Context ctx;
     private List<TableItem> tables = new ArrayList<>();
     private Map<Integer, Integer> remainingCountMap;
     private Map<Integer, Long> earliestTimeMap;
-    private long overdueThresholdMs = 10 * 60 * 1000L;
+
+    // NEW
+    private Set<Integer> attentionTables = new HashSet<>();
 
     public interface OnTableClickListener {
         void onTableClick(TableItem table);
     }
 
-    private OnTableClickListener listener;
+    private final OnTableClickListener listener;
 
     public BepAdapter(Context ctx, OnTableClickListener listener) {
         this.ctx = ctx.getApplicationContext();
         this.listener = listener;
     }
 
-    public void setOverdueThresholdMs(long ms) { this.overdueThresholdMs = ms; }
-
-    public void updateList(List<TableItem> list, Map<Integer,Integer> remaining, Map<Integer,Long> earliestTimes) {
+    public void updateList(List<TableItem> list,
+                           Map<Integer, Integer> remaining,
+                           Map<Integer, Long> earliestTimes,
+                           Set<Integer> attentionTables) {
         this.tables = list != null ? list : new ArrayList<>();
         this.remainingCountMap = remaining;
         this.earliestTimeMap = earliestTimes;
+        this.attentionTables = attentionTables != null ? attentionTables : new HashSet<>();
+        notifyDataSetChanged();
+    }
+
+    public void setAttentionTables(Set<Integer> attentionTables) {
+        this.attentionTables = attentionTables != null ? attentionTables : new HashSet<>();
         notifyDataSetChanged();
     }
 
@@ -59,32 +70,27 @@ public class BepAdapter extends RecyclerView.Adapter<BepAdapter.VH> {
     public void onBindViewHolder(@NonNull BepAdapter.VH holder, int position) {
         TableItem t = tables.get(position);
         if (t == null) return;
-        holder.tvTableNumber.setText("Bàn " + t.getTableNumber());
 
-        Integer remain = remainingCountMap != null ? remainingCountMap.get(t.getTableNumber()) : null;
+        int tn = t.getTableNumber();
+
+        holder.tvTableNumber.setText("Bàn " + tn);
+
+        Integer remain = remainingCountMap != null ? remainingCountMap.get(tn) : null;
         if (remain == null) remain = 0;
         holder.tvCapacity.setText(remain > 0 ? ("Còn " + remain + " món") : "");
-
         holder.tvStatus.setText(t.getStatusDisplay());
 
-        if (remain == 0) {
-            holder.cardView.setCardElevation(2f);
-            holder.viewStatusStrip.setBackgroundColor(Color.parseColor("#E0E0E0"));
-            holder.tvTableNumber.setTextColor(Color.parseColor("#757575"));
-            holder.tvStatus.setTextColor(Color.parseColor("#9E9E9E"));
-        } else {
-            boolean overdue = false;
-            if (earliestTimeMap != null && earliestTimeMap.containsKey(t.getTableNumber())) {
-                long ts = earliestTimeMap.get(t.getTableNumber());
-                long now = System.currentTimeMillis();
-                if (ts > 0 && now - ts > overdueThresholdMs) overdue = true;
-            }
+        // stop old animation because RecyclerView reuses views
+        holder.stopBlink();
 
-            int stripColor = overdue ? Color.parseColor("#FBC02D") : Color.parseColor("#4CAF50");
-            holder.viewStatusStrip.setBackgroundColor(stripColor);
-            holder.tvTableNumber.setTextColor(Color.parseColor("#AA0000"));
-            holder.tvStatus.setTextColor(Color.parseColor("#333333"));
-            holder.cardView.setCardElevation(8f);
+        boolean isAttention = attentionTables != null && attentionTables.contains(tn);
+
+        if (isAttention) {
+            holder.viewStatusStrip.setBackgroundColor(Color.parseColor("#FB8C00"));
+            holder.startBlink(); // blink nhẹ
+        } else {
+            // default after "seen"
+            holder.viewStatusStrip.setBackgroundColor(Color.parseColor("#AA0000"));
         }
 
         holder.itemView.setOnClickListener(v -> {
@@ -99,6 +105,9 @@ public class BepAdapter extends RecyclerView.Adapter<BepAdapter.VH> {
         CardView cardView;
         TextView tvTableNumber, tvCapacity, tvStatus;
         View viewStatusStrip;
+
+        private ObjectAnimator blinkAnim;
+
         VH(@NonNull View itemView) {
             super(itemView);
             cardView = itemView.findViewById(R.id.card_table);
@@ -106,6 +115,23 @@ public class BepAdapter extends RecyclerView.Adapter<BepAdapter.VH> {
             tvCapacity = itemView.findViewById(R.id.tv_table_capacity);
             tvStatus = itemView.findViewById(R.id.tv_table_status);
             viewStatusStrip = itemView.findViewById(R.id.view_status_strip);
+        }
+
+        void startBlink() {
+            stopBlink();
+            blinkAnim = ObjectAnimator.ofFloat(itemView, "alpha", 1f, 0.65f, 1f);
+            blinkAnim.setDuration(900);
+            blinkAnim.setRepeatCount(ValueAnimator.INFINITE);
+            blinkAnim.setRepeatMode(ValueAnimator.RESTART);
+            blinkAnim.start();
+        }
+
+        void stopBlink() {
+            if (blinkAnim != null) {
+                try { blinkAnim.cancel(); } catch (Exception ignored) {}
+                blinkAnim = null;
+            }
+            itemView.setAlpha(1f);
         }
     }
 }

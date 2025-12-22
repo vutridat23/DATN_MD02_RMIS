@@ -1,17 +1,27 @@
 package com.ph48845.datn_qlnh_rmis.ui.phucvu.socket;
 
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.lang.reflect.Method;
 import java.net.URISyntaxException;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.lang.reflect.Method;
 
 import io.socket.client.IO;
 import io.socket.client.Socket;
 
+/**
+ * SocketManager: use default transports (websocket + polling) by default to be robust in
+ * environments where websocket is blocked. Keeps detailed logging for connect errors.
+ *
+ * Note: when emitting table events to listener, we now inject "eventName" into payload
+ * so clients can distinguish between table_reserved / table_auto_released / table_status_changed.
+ */
 public class SocketManager {
 
     private static final String TAG = "SocketManager";
@@ -88,6 +98,31 @@ public class SocketManager {
             Log.e(TAG, "init socket failed", e);
             dispatchError(e);
         }
+            IO.Options opts = buildDefaultOptions();
+            socket = IO.socket(baseUrl, opts);
+            setupListeners();
+        } catch (URISyntaxException e) {
+            Log.e(TAG, "init socket failed (URISyntaxException): " + e.getMessage(), e);
+            if (listener != null) listener.onError(e);
+        } catch (Exception e) {
+            Log.e(TAG, "init socket failed (unexpected): " + e.getMessage(), e);
+            if (listener != null) listener.onError(e);
+        }
+    }
+
+    private IO.Options buildDefaultOptions() {
+        IO.Options opts = new IO.Options();
+        // ✅ FIX: Chỉ dùng polling để tránh websocket error
+        // Polling ổn định hơn và ít bị lỗi hơn websocket trong môi trường Android
+        opts.transports = new String[] { "polling" }; // Chỉ dùng polling
+        Log.d(TAG, "Using polling transport only (more stable than websocket)");
+        opts.reconnection = true;
+        opts.reconnectionAttempts = 5; // Giảm số lần retry
+        opts.reconnectionDelay = 3000; // Tăng delay
+        opts.reconnectionDelayMax = 5000;
+        opts.timeout = 30000;
+        opts.forceNew = false;
+        return opts;
     }
 
     /**
@@ -103,9 +138,6 @@ public class SocketManager {
         }
     }
 
-    // =====================================================
-    // SETUP LISTENERS
-    // =====================================================
     private void setupListeners() {
         if (socket == null) return;
 
