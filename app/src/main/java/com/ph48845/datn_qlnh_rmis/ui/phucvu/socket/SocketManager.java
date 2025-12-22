@@ -77,10 +77,13 @@ public class SocketManager {
 
     private IO.Options buildDefaultOptions() {
         IO.Options opts = new IO.Options();
-        opts.transports = new String[] { "websocket", "polling" };
+        // ✅ FIX: Chỉ dùng polling để tránh websocket error
+        // Polling ổn định hơn và ít bị lỗi hơn websocket trong môi trường Android
+        opts.transports = new String[] { "polling" }; // Chỉ dùng polling
+        Log.d(TAG, "Using polling transport only (more stable than websocket)");
         opts.reconnection = true;
-        opts.reconnectionAttempts = Integer.MAX_VALUE;
-        opts.reconnectionDelay = 1000;
+        opts.reconnectionAttempts = 5; // Giảm số lần retry
+        opts.reconnectionDelay = 3000; // Tăng delay
         opts.reconnectionDelayMax = 5000;
         opts.timeout = 30000;
         opts.forceNew = false;
