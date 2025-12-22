@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <!-- Table Info -->
+    <TextView
+        android:id="@+id/tv_table_info"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Kiểm tra bàn 11"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:textColor="@android:color/black"
+        android:gravity="center"
+        android:paddingBottom="16dp" />
+
+    <!-- Note Label -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Ghi chú kiểm tra (tùy chọn):"
+        android:textSize="14sp"
+        android:textColor="#555555"
+        android:paddingBottom="8dp" />
+
+    <!-- Note Input -->
+    <EditText
+        android:id="@+id/tv_note"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="100dp"
+        android:hint="Nhập ghi chú về tình trạng bàn, món ăn..."
+        android:gravity="top|start"
+        android:inputType="textMultiLine"
+        android:lines="4"
+        android:maxLines="6"
+        android:padding="12dp"
+        android:background="@drawable/bg_edit_text"
+        android:textSize="14sp" />
+
+    <!-- Info text -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="⚠️ Sau khi xác nhận, yêu cầu kiểm tra sẽ được đánh dấu hoàn thành và thông báo sẽ được gửi đến thu ngân."
+        android:textSize="12sp"
+        android:textColor="#FF6600"
+        android:paddingTop="16dp"
+        android:lineSpacingExtra="4dp" />
+
+</LinearLayout>

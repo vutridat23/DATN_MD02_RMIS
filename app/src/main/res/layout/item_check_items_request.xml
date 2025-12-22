@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="8dp"
+    android:layout_marginBottom="8dp"
+    app:cardCornerRadius="8dp"
+    app:cardElevation="2dp"
+    android:background="@android:color/white">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- Header: Table Number -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <!-- Icon bàn -->
+            <TextView
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:text="🔍"
+                android:textSize="24sp"
+                android:gravity="center"
+                android:background="@drawable/bg_circle_blue"
+                android:layout_marginEnd="12dp" />
+
+            <!-- Số bàn -->
+            <TextView
+                android:id="@+id/tv_table_number"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Bàn 11"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="@android:color/black" />
+
+            <!-- Badge status -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Kiểm tra"
+                android:textSize="11sp"
+                android:textColor="@android:color/white"
+                android:background="@drawable/bg_status_check_items"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp" />
+        </LinearLayout>
+
+        <!-- Divider -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#E0E0E0"
+            android:layout_marginTop="12dp"
+            android:layout_marginBottom="12dp" />
+
+        <!-- Request Time -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🕒"
+                android:textSize="16sp"
+                android:layout_marginEnd="8dp" />
+
+            <TextView
+                android:id="@+id/tv_request_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="23:41 - 19/12/2025"
+                android:textSize="14sp"
+                android:textColor="#555555" />
+        </LinearLayout>
+
+        <!-- Requested By -->
+        <LinearLayout
+            android:id="@+id/layout_requested_by"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="8dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="👤"
+                android:textSize="16sp"
+                android:layout_marginEnd="8dp" />
+
+            <TextView
+                android:id="@+id/tv_requested_by"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Người yêu cầu: Nhân viên A"
+                android:textSize="14sp"
+                android:textColor="#555555"
+                android:textStyle="italic" />
+        </LinearLayout>
+
+    </LinearLayout>
+
+</androidx.cardview.widget.CardView>
