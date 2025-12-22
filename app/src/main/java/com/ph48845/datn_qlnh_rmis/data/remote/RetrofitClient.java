@@ -66,4 +66,13 @@ public class RetrofitClient {
     public ApiService getApiService() {
         return apiService;
     }
+
+    /**
+     * Lấy BASE_URL để dùng cho socket connection
+     * @return BASE_URL (không có trailing slash)
+     */
+    public static String getBaseUrl() {
+        // Trả về BASE_URL không có trailing slash để dùng cho socket
+        return BASE_URL.endsWith("/") ? BASE_URL.substring(0, BASE_URL.length() - 1) : BASE_URL;
+    }
 }

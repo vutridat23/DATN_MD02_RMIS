@@ -1,9 +1,15 @@
 package com.ph48845.datn_qlnh_rmis.ui.bep;
 
+import android.app.AlertDialog;
+import android.content.Context;
 import android.content.Intent;
+import android.media.Ringtone;
+import android.media.RingtoneManager;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.Vibrator;
 import android.util.Log;
 import android.view.View;
 import android.widget.ImageView;
@@ -65,11 +71,21 @@ public class BepActivity extends BaseMenuActivity implements BepTableFragment.On
     private final long POLL_INTERVAL_MS = 10000L;
     private boolean pollingActive = false;
 
-    // NEW: track previous "active item count" per table to detect new dishes
+    // track previous "active item count" per table to detect new dishes
     private final Map<Integer, Integer> prevActiveCountByTable = new HashMap<>();
 
-    // NEW: tables that have new dishes -> yellow + blink
+    // tables that have new dishes -> yellow + blink
     private final Set<Integer> attentionTables = new HashSet<>();
+
+    // muted attention set: tables that were viewed => no blink but keep ordering
+    private final Set<Integer> mutedAttention = new HashSet<>();
+
+    // attention sequence to order attention tables (higher = more recent)
+    private final Map<Integer, Long> attentionSeq = new HashMap<>();
+    private long attentionSeqCounter = 0L;
+
+    // last displayed order of table numbers (used to preserve relative order for non-attention tables)
+    private final List<Integer> lastDisplayedOrder = new ArrayList<>();
 
     private final Runnable pollRunnable = new Runnable() {
         @Override public void run() {
@@ -240,26 +256,40 @@ public class BepActivity extends BaseMenuActivity implements BepTableFragment.On
                     }
                 }
 
-                // NEW: detect new dishes per table (remainingCounts increased)
+                // detect new dishes per table (remainingCounts increased)
+                final List<Integer> newlyAddedTables = new ArrayList<>();
                 for (Map.Entry<Integer, Integer> e : remainingCounts.entrySet()) {
                     int tn = e.getKey();
                     int newCount = e.getValue() != null ? e.getValue() : 0;
                     int oldCount = prevActiveCountByTable.getOrDefault(tn, 0);
 
                     if (newCount > oldCount) {
-                        attentionTables.add(tn);
+                        // mark attention and set sequence so it becomes top-most (most recent first)
+                        if (!attentionTables.contains(tn)) {
+                            attentionTables.add(tn);
+                        }
+                        attentionSeqCounter++;
+                        attentionSeq.put(tn, attentionSeqCounter);
+
+                        // IMPORTANT: if this table was muted (user has viewed before), unmute it so it will blink again
+                        mutedAttention.remove(tn);
+
+                        if (!newlyAddedTables.contains(tn)) newlyAddedTables.add(tn);
                     }
                     prevActiveCountByTable.put(tn, newCount);
                 }
 
                 // cleanup tables that are no longer active
                 List<Integer> removed = new ArrayList<>();
-                for (Integer tn : prevActiveCountByTable.keySet()) {
+                for (Integer tn : new ArrayList<>(prevActiveCountByTable.keySet())) {
                     if (!remainingCounts.containsKey(tn)) removed.add(tn);
                 }
                 for (Integer tn : removed) {
                     prevActiveCountByTable.remove(tn);
                     attentionTables.remove(tn);
+                    attentionSeq.remove(tn);
+                    // also remove from muted set if table disappears
+                    mutedAttention.remove(tn);
                 }
 
                 final List<SummaryEntry> globalSummaryList = new ArrayList<>();
@@ -267,6 +297,11 @@ public class BepActivity extends BaseMenuActivity implements BepTableFragment.On
                     globalSummaryList.add(new SummaryEntry(e.getKey(), e.getValue().qty, e.getValue().image));
                 }
                 Collections.sort(globalSummaryList, (a, b) -> Integer.compare(b.getQty(), a.getQty()));
+
+                // If new tables found, show popup (once per detection)
+                if (!newlyAddedTables.isEmpty()) {
+                    showNewOrderPopup(newlyAddedTables, perTableItems, remainingCounts);
+                }
 
                 if (activeTableNumbers.isEmpty()) {
                     runOnUiThread(() -> {
@@ -279,6 +314,10 @@ public class BepActivity extends BaseMenuActivity implements BepTableFragment.On
                                     new ArrayList<>(), remainingCounts, earliestTs, perTableItems,
                                     new HashSet<>(attentionTables)
                             );
+                            // ensure muted state sent too
+                            ((BepTableFragment) fTables).setMutedAttention(new HashSet<>(mutedAttention));
+                            // update lastDisplayedOrder to empty
+                            lastDisplayedOrder.clear();
                         }
                         if (fSummary instanceof BepSummaryFragment) ((BepSummaryFragment) fSummary).updateSummary(globalSummaryList);
                     });
@@ -316,12 +355,35 @@ public class BepActivity extends BaseMenuActivity implements BepTableFragment.On
                                 }
                             }
 
+                            // SORT:
+                            // - attention tables first (by attention sequence desc => most recently marked first)
+                            // - non-attention tables: preserve lastDisplayedOrder if possible; otherwise by earliestTs then tableNumber
                             activeTables.sort((a, b) -> {
-                                long ta = earliestTs.getOrDefault(a.getTableNumber(), Long.MAX_VALUE);
-                                long tb = earliestTs.getOrDefault(b.getTableNumber(), Long.MAX_VALUE);
-                                return Long.compare(ta, tb);
+                                int an = a.getTableNumber();
+                                int bn = b.getTableNumber();
+                                boolean aAttention = attentionTables.contains(an);
+                                boolean bAttention = attentionTables.contains(bn);
+                                if (aAttention && bAttention) {
+                                    long sa = attentionSeq.getOrDefault(an, 0L);
+                                    long sb = attentionSeq.getOrDefault(bn, 0L);
+                                    // larger seq = more recent => first
+                                    return Long.compare(sb, sa);
+                                }
+                                if (aAttention && !bAttention) return -1;
+                                if (!aAttention && bAttention) return 1;
+                                // both not attention -> preserve previous displayed order if available
+                                int ia = lastDisplayedOrder.indexOf(an);
+                                int ib = lastDisplayedOrder.indexOf(bn);
+                                if (ia != -1 && ib != -1) return Integer.compare(ia, ib);
+                                if (ia != -1) return -1;
+                                if (ib != -1) return 1;
+                                long ta = earliestTs.getOrDefault(an, Long.MAX_VALUE);
+                                long tb = earliestTs.getOrDefault(bn, Long.MAX_VALUE);
+                                if (ta != tb) return Long.compare(ta, tb);
+                                return Integer.compare(an, bn);
                             });
 
+                            // Update fragment and remember lastDisplayedOrder (table numbers in displayed order)
                             Fragment fTables = pagerAdapter.getFragment(com.ph48845.datn_qlnh_rmis.ui.bep.BepPagerAdapter.INDEX_TABLES);
                             Fragment fSummary = pagerAdapter.getFragment(com.ph48845.datn_qlnh_rmis.ui.bep.BepPagerAdapter.INDEX_SUMMARY);
 
@@ -330,6 +392,14 @@ public class BepActivity extends BaseMenuActivity implements BepTableFragment.On
                                         activeTables, remainingCounts, earliestTs, perTableItems,
                                         new HashSet<>(attentionTables)
                                 );
+                                // also send muted set so adapter won't blink those tables
+                                ((BepTableFragment) fTables).setMutedAttention(new HashSet<>(mutedAttention));
+
+                                // remember displayed order (for next refresh)
+                                lastDisplayedOrder.clear();
+                                for (TableItem t : activeTables) {
+                                    if (t != null) lastDisplayedOrder.add(t.getTableNumber());
+                                }
                             }
                             if (fSummary instanceof BepSummaryFragment) ((BepSummaryFragment) fSummary).updateSummary(globalSummaryList);
                         });
@@ -348,7 +418,26 @@ public class BepActivity extends BaseMenuActivity implements BepTableFragment.On
                                 p.normalize();
                                 placeholders.add(p);
                             }
-                            placeholders.sort((a, b) -> Integer.compare(a.getTableNumber(), b.getTableNumber()));
+                            // same sorting: attention first (by seq desc), then preserve last order or tableNumber
+                            placeholders.sort((a, b) -> {
+                                int an = a.getTableNumber();
+                                int bn = b.getTableNumber();
+                                boolean aAttention = attentionTables.contains(an);
+                                boolean bAttention = attentionTables.contains(bn);
+                                if (aAttention && bAttention) {
+                                    long sa = attentionSeq.getOrDefault(an, 0L);
+                                    long sb = attentionSeq.getOrDefault(bn, 0L);
+                                    return Long.compare(sb, sa);
+                                }
+                                if (aAttention && !bAttention) return -1;
+                                if (!aAttention && bAttention) return 1;
+                                int ia = lastDisplayedOrder.indexOf(an);
+                                int ib = lastDisplayedOrder.indexOf(bn);
+                                if (ia != -1 && ib != -1) return Integer.compare(ia, ib);
+                                if (ia != -1) return -1;
+                                if (ib != -1) return 1;
+                                return Integer.compare(an, bn);
+                            });
 
                             Fragment fTables = pagerAdapter.getFragment(com.ph48845.datn_qlnh_rmis.ui.bep.BepPagerAdapter.INDEX_TABLES);
                             Fragment fSummary = pagerAdapter.getFragment(com.ph48845.datn_qlnh_rmis.ui.bep.BepPagerAdapter.INDEX_SUMMARY);
@@ -358,6 +447,10 @@ public class BepActivity extends BaseMenuActivity implements BepTableFragment.On
                                         placeholders, remainingCounts, earliestTs, perTableItems,
                                         new HashSet<>(attentionTables)
                                 );
+                                ((BepTableFragment) fTables).setMutedAttention(new HashSet<>(mutedAttention));
+
+                                lastDisplayedOrder.clear();
+                                for (TableItem t : placeholders) if (t != null) lastDisplayedOrder.add(t.getTableNumber());
                             }
                             if (fSummary instanceof BepSummaryFragment) ((BepSummaryFragment) fSummary).updateSummary(globalSummaryList);
                         });
@@ -376,6 +469,64 @@ public class BepActivity extends BaseMenuActivity implements BepTableFragment.On
         });
     }
 
+    private void showNewOrderPopup(List<Integer> newTables, Map<Integer, List<ItemWithOrder>> perTableItems, Map<Integer, Integer> remainingCounts) {
+        if (newTables == null || newTables.isEmpty()) return;
+
+        runOnUiThread(() -> {
+            StringBuilder sb = new StringBuilder();
+            for (Integer tn : newTables) {
+                int cnt = remainingCounts != null ? remainingCounts.getOrDefault(tn, 0) : 0;
+                sb.append("Bàn ").append(tn).append(": ").append(cnt).append(" món mới\n");
+
+                List<ItemWithOrder> items = perTableItems != null ? perTableItems.get(tn) : null;
+                if (items != null && !items.isEmpty()) {
+                    Map<String, Integer> byName = new HashMap<>();
+                    for (ItemWithOrder w : items) {
+                        if (w == null || w.getItem() == null) continue;
+                        String name = w.getItem().getMenuItemName();
+                        if (name == null || name.isEmpty()) name = w.getItem().getName();
+                        int q = w.getItem().getQuantity() <= 0 ? 1 : w.getItem().getQuantity();
+                        byName.put(name, byName.getOrDefault(name, 0) + q);
+                    }
+                    for (Map.Entry<String, Integer> e : byName.entrySet()) {
+                        sb.append("  - ").append(e.getKey()).append(" x").append(e.getValue()).append("\n");
+                    }
+                }
+                sb.append("\n");
+            }
+
+            AlertDialog.Builder b = new AlertDialog.Builder(BepActivity.this);
+            b.setTitle("Đơn hàng mới xuống bếp")
+                    .setMessage(sb.toString().trim())
+                    .setPositiveButton("Xem", (d, w) -> {
+                        try { viewPager.setCurrentItem(com.ph48845.datn_qlnh_rmis.ui.bep.BepPagerAdapter.INDEX_TABLES, true); } catch (Exception ignored) {}
+                    })
+                    .setNegativeButton("Đóng", (d, w) -> {})
+                    .setCancelable(true)
+                    .show();
+
+            // play notification sound
+            try {
+                Uri notification = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+                Ringtone r = RingtoneManager.getRingtone(getApplicationContext(), notification);
+                if (r != null) r.play();
+            } catch (Exception ignored) {}
+
+            // vibrate briefly (if available)
+            try {
+                Vibrator vibrator = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+                if (vibrator != null) {
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                        vibrator.vibrate(android.os.VibrationEffect.createOneShot(180, android.os.VibrationEffect.DEFAULT_AMPLITUDE));
+                    } else {
+                        //noinspection deprecation
+                        vibrator.vibrate(180);
+                    }
+                }
+            } catch (Exception ignored) {}
+        });
+    }
+
     private void startRealtime() {
         try {
             socketManager.init(SOCKET_URL);
@@ -385,7 +536,6 @@ public class BepActivity extends BaseMenuActivity implements BepTableFragment.On
                 @Override public void onConnect() { try { socketManager.emitEvent("join_room", "bep"); } catch (Exception ignored) {} }
                 @Override public void onDisconnect() {}
                 @Override public void onError(Exception e) { Log.w(TAG, "Socket error: " + (e != null ? e.getMessage() : "")); }
-                @Override public void onTableUpdated(JSONObject payload) {}
             });
             socketManager.connect();
         } catch (Exception e) {
@@ -407,17 +557,22 @@ public class BepActivity extends BaseMenuActivity implements BepTableFragment.On
         pollHandler.removeCallbacksAndMessages(null);
     }
 
-    // When user clicks a table => mark seen => stop yellow/blink => back to red
+    // When user clicks a table => DO NOT change attention/order so it stays in place
+    // Instead, mute blink for that table (stop visual blinking) but keep it in attentionTables
     @Override
     public void onTableSelected(TableItem table) {
         int tn = table != null ? table.getTableNumber() : -1;
-        if (tn > 0) {
-            attentionTables.remove(tn);
+        if (tn <= 0) return;
 
-            Fragment fTables = pagerAdapter.getFragment(com.ph48845.datn_qlnh_rmis.ui.bep.BepPagerAdapter.INDEX_TABLES);
-            if (fTables instanceof BepTableFragment) {
-                ((BepTableFragment) fTables).setAttentionTables(new HashSet<>(attentionTables));
-            }
+        // Add to muted set so blinking stops but ordering (attention) remains
+        mutedAttention.add(tn);
+
+        // Update fragment to reflect muted set (adapter will stop blinking that table)
+        Fragment fTables = pagerAdapter.getFragment(com.ph48845.datn_qlnh_rmis.ui.bep.BepPagerAdapter.INDEX_TABLES);
+        if (fTables instanceof BepTableFragment) {
+            ((BepTableFragment) fTables).setMutedAttention(new HashSet<>(mutedAttention));
         }
+
+        // Note: do NOT remove from attentionTables or attentionSeq, so ordering stays the same.
     }
 }
