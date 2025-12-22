@@ -93,6 +93,11 @@ public class ThuNganActivity extends BaseMenuActivity {
     private ActivityResultLauncher<Intent> invoiceLauncher; // Launcher để mở InvoiceActivity và nhận kết quả
     private Set<String> knownTempCalcRequestOrderIds = new HashSet<>(); // Lưu các order IDs đã có yêu cầu tạm tính để phát hiện yêu cầu mới
     private AlertDialog currentNotificationDialog; // Dialog thông báo hiện tại (để tránh hiển thị nhiều dialog cùng lúc)
+    // Bàn -> orderId đã click
+    private final Map<String, String> tableClickedOrderMap = new HashMap<>();
+    // Lưu trạng thái bàn có order hay không (lần load trước)
+    private final Map<String, Boolean> tableHasOrderMap = new HashMap<>();
+
 
 
     @Override
@@ -250,12 +255,19 @@ public class ThuNganActivity extends BaseMenuActivity {
 
         // Sự kiện click vào bàn -> Mở màn hình hóa đơn
         ThuNganAdapter.OnTableClickListener listener = table -> {
-            // Cần Activity hóa đơn
-             Intent intent = new Intent(ThuNganActivity.this, InvoiceActivity.class);
-             intent.putExtra("tableNumber", table.getTableNumber());
-             startActivity(intent);
-            Toast.makeText(ThuNganActivity.this, "Mở hóa đơn Bàn " + table.getTableNumber(), Toast.LENGTH_SHORT).show();
+
+            table.setViewState(TableItem.ViewState.SEEN);
+            tableViewStateMap.put(table.getId(), TableItem.ViewState.SEEN);
+
+            adapterFloor1.notifyDataSetChanged();
+            adapterFloor2.notifyDataSetChanged();
+
+            Intent intent = new Intent(ThuNganActivity.this, InvoiceActivity.class);
+            intent.putExtra("tableNumber", table.getTableNumber());
+            startActivity(intent);
         };
+
+
 
         // Khởi tạo Adapter
         adapterFloor1 = new ThuNganAdapter(this, new ArrayList<>(), listener);
@@ -302,14 +314,39 @@ public class ThuNganActivity extends BaseMenuActivity {
     }
     private void restoreViewState(List<TableItem> tables) {
         for (TableItem table : tables) {
-            TableItem.ViewState savedState = tableViewStateMap.get(table.getId());
-            if (savedState != null) {
-                table.setViewState(savedState);
-            } else {
+
+            String tableId = table.getId();
+
+            // Hiện tại bàn có order hay không
+            boolean hasOrderNow = table.getStatus() != TableItem.Status.EMPTY;
+
+            // Trạng thái trước đó
+            boolean hadOrderBefore = tableHasOrderMap.getOrDefault(tableId, false);
+
+            // 🔥 CASE 1: VỪA CÓ ORDER MỚI (sau thanh toán)
+            if (!hadOrderBefore && hasOrderNow) {
+                table.setViewState(TableItem.ViewState.UNSEEN);
+                tableViewStateMap.remove(tableId);
+            }
+            // 🔥 CASE 2: BÀN VỪA THANH TOÁN XONG (trở về trống)
+            else if (hadOrderBefore && !hasOrderNow) {
+                table.setViewState(TableItem.ViewState.UNSEEN);
+                tableViewStateMap.remove(tableId);
+            }
+            // 🔴 CASE 3: ĐÃ CLICK → GIỮ ĐỎ
+            else if (tableViewStateMap.containsKey(tableId)) {
+                table.setViewState(tableViewStateMap.get(tableId));
+            }
+            // 🟢 CASE 4: MẶC ĐỊNH
+            else {
                 table.setViewState(TableItem.ViewState.UNSEEN);
             }
+
+            // 🔄 Cập nhật lại trạng thái
+            tableHasOrderMap.put(tableId, hasOrderNow);
         }
     }
+
 
 
     private void loadOrdersForServingStatus(List<TableItem> floor1Tables, List<TableItem> floor2Tables) {
@@ -822,7 +859,7 @@ public class ThuNganActivity extends BaseMenuActivity {
                 @Override
                 public void onOrderCreated(org.json.JSONObject payload) {
                     runOnUiThread(() -> {
-                        tableViewStateMap.clear(); // reset trạng thái xem
+                       // reset trạng thái xem
                         loadActiveTables();
                     });
                     Log.d(TAG, "Socket: onOrderCreated received");
@@ -1025,10 +1062,13 @@ public class ThuNganActivity extends BaseMenuActivity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(refreshTablesReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
         } else {
-            registerReceiver(refreshTablesReceiver, filter);
+            registerReceiver(refreshTablesReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
         }
     }
 
     private final Map<String, TableItem.ViewState> tableViewStateMap = new HashMap<>();
+    // Bàn -> orderId đã click
+
+
 
 }

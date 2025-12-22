@@ -170,15 +170,39 @@ public class ThanhToanActivity extends AppCompatActivity {
 
         // ====== QR ======
         cardQR.setOnClickListener(v -> {
-            Intent intent = new Intent(ThanhToanActivity.this, QRPaymentActivity.class);
-            intent.putExtra("amount", totalAmount);
-            if (currentOrder != null) {
-                intent.putExtra("orderId", currentOrder.getId());
-            } else if (orderIds != null && !orderIds.isEmpty()) {
-                intent.putExtra("orderId", orderIds.get(0));
+            if ((orderIds == null || orderIds.isEmpty()) &&
+                    (getIntent().getStringExtra("orderId") == null)) {
+                Toast.makeText(this, "Không xác định được hóa đơn", Toast.LENGTH_SHORT).show();
+                return;
             }
+
+            Intent intent = new Intent(ThanhToanActivity.this, QRPaymentActivity.class);
+
+            // Gửi tổng số tiền
+            intent.putExtra("amount", totalAmount);
+
+            // Gửi toàn bộ orderIds
+            if (orderIds != null && !orderIds.isEmpty()) {
+                intent.putStringArrayListExtra("orderIds", new ArrayList<>(orderIds));
+            } else {
+                ArrayList<String> singleOrder = new ArrayList<>();
+                singleOrder.add(getIntent().getStringExtra("orderId"));
+                intent.putStringArrayListExtra("orderIds", singleOrder);
+            }
+
+            // Voucher và discount
+            String voucherId = getIntent().getStringExtra("voucherId");
+            if (voucherId != null && !voucherId.isEmpty()) {
+                intent.putExtra("voucherId", voucherId);
+            }
+
+            double voucherDiscount = getIntent().getDoubleExtra("voucherDiscount", 0);
+            intent.putExtra("voucherDiscount", voucherDiscount);
+
             qrLauncher.launch(intent);
         });
+
+
 
         // ====== THẺ NGÂN HÀNG ======
 //        cardCard.setOnClickListener(v -> {
