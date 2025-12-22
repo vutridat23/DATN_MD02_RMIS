@@ -4,7 +4,7 @@
     <selectionStates>
       <SelectionState runConfigName="app">
         <option name="selectionMode" value="DROPDOWN" />
-        <DropdownSelection timestamp="2025-12-21T17:44:34.273554600Z">
+        <DropdownSelection timestamp="2025-12-22T14:33:49.477202600Z">
           <Target type="DEFAULT_BOOT">
             <handle>
               <DeviceId pluginId="LocalEmulator" identifier="path=C:\Users\Acer Nitro 5\.android\avd\Medium_Phone.avd" />
@@ -15,7 +15,17 @@
           <targets>
             <Target type="DEFAULT_BOOT">
               <handle>
-                <DeviceId pluginId="LocalEmulator" identifier="path=C:\Users\hieuk\.android\avd\Pixel_8a.avd" />
+                <DeviceId pluginId="Default" identifier="serial=emulator-5556;connection=1d9d8245" />
+              </handle>
+            </Target>
+            <Target type="DEFAULT_BOOT">
+              <handle>
+                <DeviceId pluginId="Default" identifier="serial=emulator-5560;connection=78427fdf" />
+              </handle>
+            </Target>
+            <Target type="DEFAULT_BOOT">
+              <handle>
+                <DeviceId pluginId="Default" identifier="serial=emulator-5558;connection=362f56c1" />
               </handle>
             </Target>
           </targets>

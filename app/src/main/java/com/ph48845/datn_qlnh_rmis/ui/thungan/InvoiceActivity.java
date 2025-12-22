@@ -455,17 +455,23 @@ public class InvoiceActivity extends AppCompatActivity {
      */
     private void updateVoucherButtonState() {
         Button btnSelectVoucher = findViewById(R.id.btn_select_voucher);
+
+        // 🔹 Kiểm tra có voucher riêng cho bất kỳ order nào không
+        boolean hasOrderVoucher = orderVoucherMap != null && !orderVoucherMap.isEmpty();
+
+        // ===== 1️⃣ NÚT CHỌN VOUCHER CHUNG =====
         if (btnSelectVoucher != null) {
-            // Nếu đã có voucher cho bất kỳ order nào, disable nút chọn voucher chung
-            boolean hasOrderVoucher = orderVoucherMap != null && !orderVoucherMap.isEmpty();
             btnSelectVoucher.setEnabled(!hasOrderVoucher);
-            if (hasOrderVoucher) {
-                btnSelectVoucher.setAlpha(0.5f); // Làm mờ nút
-            } else {
-                btnSelectVoucher.setAlpha(1.0f); // Bình thường
-            }
+            btnSelectVoucher.setAlpha(hasOrderVoucher ? 0.5f : 1.0f);
+        }
+
+        // ===== 2️⃣ NÚT THANH TOÁN CHUNG =====
+        if (btnProceedPayment != null) {
+            btnProceedPayment.setEnabled(!hasOrderVoucher);
+            btnProceedPayment.setAlpha(hasOrderVoucher ? 0.4f : 1.0f);
         }
     }
+
 
     /**
      * Cập nhật trạng thái nút chọn voucher cho tất cả các order (enable/disable)
