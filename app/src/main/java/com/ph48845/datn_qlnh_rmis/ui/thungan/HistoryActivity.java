@@ -102,7 +102,9 @@ public class HistoryActivity extends AppCompatActivity {
     }
 
     @Override
+    @Deprecated
     public void onBackPressed() {
+        super.onBackPressed();
         finish();
     }
 }

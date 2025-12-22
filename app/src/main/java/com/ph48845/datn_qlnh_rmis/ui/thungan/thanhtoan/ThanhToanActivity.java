@@ -36,6 +36,10 @@ public class ThanhToanActivity extends AppCompatActivity {
 
     private OrderRepository orderRepository;
     private TableRepository tableRepository;
+    private boolean excludeUnreadyItems = false;
+    private List<Order.OrderItem> payItems;
+
+
 
     // Launcher QR payment
     private final ActivityResultLauncher<Intent> qrLauncher =
@@ -51,6 +55,15 @@ public class ThanhToanActivity extends AppCompatActivity {
         setContentView(R.layout.activity_thanh_toan);
 
         initViews();
+
+        excludeUnreadyItems = getIntent().getBooleanExtra("excludeUnreadyItems", false);
+
+        if (excludeUnreadyItems) {
+            payItems = (ArrayList<Order.OrderItem>)
+                    getIntent().getSerializableExtra("pay_items");
+
+        }
+
 
         orderRepository = new OrderRepository();
         tableRepository = new TableRepository();
@@ -121,14 +134,25 @@ public class ThanhToanActivity extends AppCompatActivity {
 
                 runOnUiThread(() -> {
                     if (currentOrder != null) {
-                        totalAmount = currentOrder.getFinalAmount();
+
+                        if (excludeUnreadyItems && payItems != null && !payItems.isEmpty()) {
+                            totalAmount = 0;
+                            for (Order.OrderItem item : payItems) {
+                                totalAmount += item.getPrice() * item.getQuantity();
+                            }
+                        } else {
+                            totalAmount = currentOrder.getFinalAmount();
+                        }
+
                         tvTotalAmount.setText("Tổng: " + String.format("%,.0f₫", totalAmount));
                         setupPaymentButtons();
+
                     } else {
                         Toast.makeText(ThanhToanActivity.this, "Không tìm thấy đơn hàng", Toast.LENGTH_SHORT).show();
                         finish();
                     }
                 });
+
             }
 
             @Override
@@ -142,7 +166,8 @@ public class ThanhToanActivity extends AppCompatActivity {
     }
 
     private void setupPaymentButtons() {
-        // TIỀN MẶT
+
+        // ====== TIỀN MẶT ======
         cardCash.setOnClickListener(v -> new AlertDialog.Builder(this)
                 .setTitle("Xác nhận thanh toán")
                 .setMessage("Đã nhận tiền khách chưa?")
@@ -151,20 +176,50 @@ public class ThanhToanActivity extends AppCompatActivity {
                 .show()
         );
 
-        // QR
+        // ====== QR ======
         cardQR.setOnClickListener(v -> {
             Intent intent = new Intent(ThanhToanActivity.this, QRPaymentActivity.class);
             intent.putExtra("amount", totalAmount);
             if (currentOrder != null) {
                 intent.putExtra("orderId", currentOrder.getId());
             } else if (orderIds != null && !orderIds.isEmpty()) {
-                intent.putExtra("orderId", orderIds.get(0)); // Lấy order đầu tiên
+                intent.putExtra("orderId", orderIds.get(0));
             }
             qrLauncher.launch(intent);
         });
 
-        // THẺ NGÂN HÀNG
-        cardCard.setOnClickListener(v -> processPayment("Thẻ ngân hàng"));
+        // ====== THẺ NGÂN HÀNG ======
+        cardCard.setOnClickListener(v -> {
+            Intent intent = new Intent(ThanhToanActivity.this, PaymentCardActivity.class);
+
+            if (currentOrder != null) {
+                intent.putExtra("orderId", currentOrder.getId());
+            } else if (orderIds != null && !orderIds.isEmpty()) {
+                intent.putStringArrayListExtra("orderIds", new ArrayList<>(orderIds));
+            } else {
+                Toast.makeText(this, "Không có đơn hàng để thanh toán", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            intent.putExtra("amount", totalAmount);
+            startActivity(intent);
+        });
+
+        // ====== DISABLE CARD PAYMENT KHI CÓ VOUCHER ======
+        if (hasVoucherApplied()) {
+            cardCard.setEnabled(false);
+            cardCard.setAlpha(0.4f);
+        } else {
+            cardCard.setEnabled(true);
+            cardCard.setAlpha(1.0f);
+        }
+    }
+    private boolean hasVoucherApplied() {
+        String voucherId = getIntent().getStringExtra("voucherId");
+        double voucherDiscount = getIntent().getDoubleExtra("voucherDiscount", 0.0);
+
+        return (voucherId != null && !voucherId.trim().isEmpty())
+                || voucherDiscount > 0;
     }
 
     private void processPayment(String method) {
