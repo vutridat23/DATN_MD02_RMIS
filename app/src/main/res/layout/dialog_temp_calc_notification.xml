@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:padding="24dp"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_horizontal"
+    android:background="@android:color/white">
+
+    <!-- Icon hoặc emoji -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="🔔"
+        android:textSize="48sp"
+        android:layout_marginBottom="16dp"
+        android:gravity="center"/>
+
+    <!-- Tiêu đề -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Yêu cầu tạm tính mới"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:textColor="#AA0000"
+        android:gravity="center"
+        android:layout_marginBottom="8dp"/>
+
+    <!-- Nội dung thông báo -->
+    <TextView
+        android:id="@+id/tv_notification_message"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Có yêu cầu tạm tính mới"
+        android:textSize="16sp"
+        android:textColor="#333333"
+        android:gravity="center"
+        android:layout_marginBottom="16dp"/>
+
+    <!-- Progress bar nhỏ để hiển thị đang đếm ngược -->
+    <ProgressBar
+        android:id="@+id/progress_countdown"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="4dp"
+        android:max="100"
+        android:progress="100"
+        android:progressTint="#AA0000"
+        android:layout_marginTop="8dp"/>
+
+</LinearLayout>
+
