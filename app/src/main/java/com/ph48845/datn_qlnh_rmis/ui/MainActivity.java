@@ -7,18 +7,18 @@ import android.os.Build;
 import android.text.SpannableString;
 import android.text.style.RelativeSizeSpan;
 import android.util.Log;
-import android.view. LayoutInflater;
-import android. view.MenuItem;
+import android.view.LayoutInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.EditText;
-import android.widget. ImageView;
-import android.widget. ProgressBar;
+import android.widget.ImageView;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.appcompat. app.AlertDialog;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.widget.Toolbar;
-import androidx. core.view.GravityCompat;
+import androidx.core.view.GravityCompat;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
@@ -29,42 +29,43 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.navigation.NavigationView;
 import com.ph48845.datn_qlnh_rmis.R;
 import com.ph48845.datn_qlnh_rmis.core.base.BaseMenuActivity;
+import com.ph48845.datn_qlnh_rmis.data.model.InAppNotification;
 import com.ph48845.datn_qlnh_rmis.data.model.Order;
 import com.ph48845.datn_qlnh_rmis.ui.phucvu.adapter.TableAdapter;
 import com.ph48845.datn_qlnh_rmis.ui.phucvu.adapter.TempCalculationListAdapter;
 import com.ph48845.datn_qlnh_rmis.ui.phucvu.adapter.CheckItemsListAdapter;
 import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
 import com.ph48845.datn_qlnh_rmis.data.repository.OrderRepository;
-import com. ph48845.datn_qlnh_rmis.data. repository.TableRepository;
+import com.ph48845.datn_qlnh_rmis.data.repository.TableRepository;
 import com.ph48845.datn_qlnh_rmis.ui.phucvu.OrderActivity;
+import com.ph48845.datn_qlnh_rmis.ui.phucvu.notification.InAppNotificationView;
+import com.ph48845.datn_qlnh_rmis.ui.phucvu.notification.NotificationManager;
 import com.ph48845.datn_qlnh_rmis.ui.table.MergeManager;
 import com.ph48845.datn_qlnh_rmis.ui.table.ReservationHelper;
 import com.ph48845.datn_qlnh_rmis.ui.table.TableActionsHandler;
 import com.ph48845.datn_qlnh_rmis.ui.table.TransferManager;
-import com.ph48845.datn_qlnh_rmis.ui.table. TemporaryBillDialogFragment;
-import com.ph48845.datn_qlnh_rmis.ui.phucvu.socket. SocketManager;
+import com.ph48845.datn_qlnh_rmis.ui.table.TemporaryBillDialogFragment;
+import com.ph48845.datn_qlnh_rmis.ui.phucvu.socket.SocketManager;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.util. ArrayList;
-import java.util. Collections;
-import java.util. Comparator;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
-import java.util. Locale;
-import java.util. Map;
-import java.util. regex.Matcher;
-import java. util.regex.Pattern;
+import java.util.Locale;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
- * MainActivity (rút gọn): setup UI, load data and listen for socket table
- * events.
+ * MainActivity với tích hợp In-app Notification.
+ * Hiển thị thông báo trượt từ trên xuống khi có cập nhật realtime.
  *
- * IMPORTANT: This version delegates the popup menu handling to
- * TableActionsHandler.
- * - onTableLongClick ->
- * tableActionsHandler.showTableActionsMenuForLongPress(...)
- * Other features unchanged.
+ * NOTE: Updated to register/unregister a persistent listener with the global SocketManager
+ * so the socket connection remains app-wide and not overwritten by activity listeners.
  */
 public class MainActivity extends BaseMenuActivity {
 
@@ -88,14 +89,20 @@ public class MainActivity extends BaseMenuActivity {
     private SocketManager socketManager;
     private String defaultSocketUrl = "http://192.168.1.84:3000";
 
+    // main listener instance so we can register/unregister
+    private SocketManager.OnEventListener mainSocketListener;
+
+    // ✅ THÊM NOTIFICATION MANAGER
+    private NotificationManager notificationManager;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        progressBar = findViewById(R.id. progress_bar_loading);
-        rvFloor1 = findViewById(R.id. recycler_floor1);
-        rvFloor2 = findViewById(R.id. recycler_floor2);
+        progressBar = findViewById(R.id.progress_bar_loading);
+        rvFloor1 = findViewById(R.id.recycler_floor1);
+        rvFloor2 = findViewById(R.id.recycler_floor2);
 
         rvFloor1.setLayoutManager(new GridLayoutManager(this, 3));
         rvFloor2.setLayoutManager(new GridLayoutManager(this, 3));
@@ -104,7 +111,7 @@ public class MainActivity extends BaseMenuActivity {
 
         drawerLayout = findViewById(R.id.drawerLayout_order);
         Toolbar toolbar = findViewById(R.id.toolbar);
-        navigationView = findViewById(R.id. navigationView_order);
+        navigationView = findViewById(R.id.navigationView_order);
 
         ImageView navIcon = findViewById(R.id.nav_icon);
         if (navIcon != null && drawerLayout != null) {
@@ -117,7 +124,6 @@ public class MainActivity extends BaseMenuActivity {
 
         // navigation menu style
         if (navigationView != null) {
-            // Load menu based on user role
             loadMenuBasedOnRole();
 
             try {
@@ -152,30 +158,26 @@ public class MainActivity extends BaseMenuActivity {
         reservationHelper = new ReservationHelper(this, tableRepository, progressBar);
         tableActionsHandler = new TableActionsHandler(this, transferManager, mergeManager, reservationHelper);
 
-        // register temporary bill handler
         tableActionsHandler.setTemporaryBillRequester(table -> {
-            if (table == null)
-                return;
+            if (table == null) return;
             TemporaryBillDialogFragment f = TemporaryBillDialogFragment.newInstance(table,
                     updatedOrder -> fetchTablesFromServer());
             f.show(getSupportFragmentManager(), "tempBill");
         });
 
-        TableAdapter. OnTableClickListener listener = new TableAdapter.OnTableClickListener() {
+        TableAdapter.OnTableClickListener listener = new TableAdapter.OnTableClickListener() {
             @Override
             public void onTableClick(View v, TableItem table) {
-                if (table == null)
-                    return;
+                if (table == null) return;
                 Intent intent = new Intent(MainActivity.this, OrderActivity.class);
                 intent.putExtra("tableId", table.getId());
                 intent.putExtra("tableNumber", table.getTableNumber());
                 boolean isCustomerPresent = false;
                 try {
-                    TableItem. Status st = table.getStatus();
-                    if (st == TableItem. Status.OCCUPIED || st == TableItem.Status. PENDING_PAYMENT)
+                    TableItem.Status st = table.getStatus();
+                    if (st == TableItem.Status.OCCUPIED || st == TableItem.Status.PENDING_PAYMENT)
                         isCustomerPresent = true;
-                } catch (Exception ignored) {
-                }
+                } catch (Exception ignored) {}
                 intent.putExtra("forceShowOrders", isCustomerPresent);
                 startActivity(intent);
             }
@@ -192,6 +194,9 @@ public class MainActivity extends BaseMenuActivity {
         rvFloor1.setAdapter(adapterFloor1);
         rvFloor2.setAdapter(adapterFloor2);
 
+        // ✅✅✅ INITIALIZE NOTIFICATION MANAGER ✅✅✅
+        initNotificationManager();
+
         String socketUrl = getIntent().getStringExtra("socketUrl");
         if (socketUrl == null || socketUrl.trim().isEmpty())
             socketUrl = defaultSocketUrl;
@@ -206,13 +211,73 @@ public class MainActivity extends BaseMenuActivity {
             }
         }
 
+        initSocket(socketUrl);
+
+        applyNavigationViewInsets();
+        fetchTablesFromServer();
+        updateCheckItemsRequestBadge();
+
+
+        NotificationManager.getInstance().init(this, null);
+    }
+
+    // ✅✅✅ INITIALIZE NOTIFICATION MANAGER ✅✅✅
+    private void initNotificationManager() {
+        notificationManager = NotificationManager.getInstance();
+        notificationManager.init(this, new InAppNotificationView.OnNotificationClickListener() {
+            @Override
+            public void onNotificationClick(InAppNotification notification) {
+                handleNotificationClick(notification);
+            }
+
+            @Override
+            public void onNotificationDismissed(InAppNotification notification) {
+                Log.d(TAG, "Notification dismissed:  " + notification.getTitle());
+            }
+        });
+    }
+
+    // ✅✅✅ INIT SOCKET WITH NOTIFICATION ✅✅✅
+    private void initSocket(String socketUrl) {
         try {
             socketManager = SocketManager.getInstance();
             socketManager.init(socketUrl);
-            socketManager.setOnEventListener(new SocketManager.OnEventListener() {
+
+            // Build the main listener and keep reference so we can register/unregister without losing it
+            mainSocketListener = new SocketManager.OnEventListener() {
                 @Override
                 public void onOrderCreated(JSONObject payload) {
                     runOnUiThread(() -> {
+                        try {
+                            int tableNum = payload.optInt("tableNumber", -1);
+                            String orderId = payload.optString("_id", "");
+
+                            // Count items
+                            int itemCount = 0;
+                            if (payload.has("items")) {
+                                JSONArray items = payload.optJSONArray("items");
+                                if (items != null) {
+                                    itemCount = items.length();
+                                }
+                            }
+
+                            // ✅ SHOW NOTIFICATION
+                            InAppNotification notification = new InAppNotification.Builder(
+                                    InAppNotification.Type.ORDER_NEW,
+                                    "🍽️ Đơn hàng mới! ",
+                                    "Bàn " + tableNum + " vừa đặt " + itemCount + " món"
+                            )
+                                    .icon(android.R.drawable.ic_menu_add)
+                                    .actionData("table:" + tableNum + ":order:" + orderId)
+                                    .duration(6000)
+                                    .build();
+
+                            notificationManager.show(notification);
+
+                        } catch (Exception e) {
+                            Log.e(TAG, "Error showing order created notification", e);
+                        }
+
                         fetchTablesFromServer();
                         updateCheckItemsRequestBadge();
                     });
@@ -221,6 +286,46 @@ public class MainActivity extends BaseMenuActivity {
                 @Override
                 public void onOrderUpdated(JSONObject payload) {
                     runOnUiThread(() -> {
+                        try {
+                            int tableNum = payload.optInt("tableNumber", -1);
+                            String status = payload.optString("status", "");
+                            String orderId = payload.optString("_id", "");
+
+                            // Determine notification type and message
+                            InAppNotification.Type type;
+                            String title;
+                            String message;
+
+                            if ("completed".equalsIgnoreCase(status)) {
+                                type = InAppNotification.Type.SUCCESS;
+                                title = "✅ Hoàn thành! ";
+                                message = "Bàn " + tableNum + " đã hoàn thành đơn hàng";
+                            } else if ("cancelled".equalsIgnoreCase(status)) {
+                                type = InAppNotification.Type.ERROR;
+                                title = "❌ Đã hủy";
+                                message = "Bàn " + tableNum + " đã hủy đơn hàng";
+                            } else {
+                                type = InAppNotification.Type.INFO;
+                                title = "📝 Cập nhật đơn hàng";
+                                message = "Bàn " + tableNum + " - " + getStatusText(status);
+                            }
+
+                            // ✅ SHOW NOTIFICATION
+                            InAppNotification notification = new InAppNotification.Builder(
+                                    type,
+                                    title,
+                                    message
+                            )
+                                    .actionData("table:" + tableNum + ":order:" + orderId)
+                                    .duration(5000)
+                                    .build();
+
+                            notificationManager.show(notification);
+
+                        } catch (Exception e) {
+                            Log.e(TAG, "Error showing order updated notification", e);
+                        }
+
                         fetchTablesFromServer();
                         updateCheckItemsRequestBadge();
                     });
@@ -228,65 +333,193 @@ public class MainActivity extends BaseMenuActivity {
 
                 @Override
                 public void onConnect() {
-                    Log. d(TAG, "socket connected (main)");
+                    Log.d(TAG, "socket connected (main)");
                 }
 
                 @Override
                 public void onDisconnect() {
-                    Log. d(TAG, "socket disconnected (main)");
+                    Log.d(TAG, "socket disconnected (main)");
                 }
 
                 @Override
                 public void onError(Exception e) {
-                    Log. w(TAG, "socket error (main): " + (e != null ? e.getMessage() : "null"));
+                    Log.w(TAG, "socket error (main): " + (e != null ? e.getMessage() : "null"));
                 }
 
                 @Override
                 public void onTableUpdated(JSONObject payload) {
                     if (payload != null) {
                         String evt = payload.optString("eventName", "");
+
                         if ("table_auto_released".equals(evt)) {
                             int tblNum = -1;
                             if (payload.has("tableNumber"))
                                 tblNum = payload.optInt("tableNumber", -1);
                             else if (payload.has("table"))
                                 tblNum = payload.optInt("table", -1);
+
                             final int shownNum = tblNum;
                             runOnUiThread(() -> {
                                 try {
-                                    String msg = "Bàn " + (shownNum > 0 ? shownNum :  "") + " đã tự động hủy đặt trước. ";
+                                    // ✅ SHOW NOTIFICATION
+                                    InAppNotification notification = new InAppNotification.Builder(
+                                            InAppNotification.Type.WARNING,
+                                            "⏰ Hủy đặt bàn tự động",
+                                            "Bàn " + (shownNum > 0 ? shownNum : "") + " đã hết thời gian đặt trước"
+                                    )
+                                            .actionData("table:" + shownNum)
+                                            .duration(8000)
+                                            .build();
+
+                                    notificationManager.show(notification);
+
+                                    // Show alert dialog
+                                    String msg = "Bàn " + (shownNum > 0 ? shownNum : "") + " đã tự động hủy đặt trước. ";
                                     new AlertDialog.Builder(MainActivity.this)
                                             .setTitle("Thông báo")
                                             .setMessage(msg)
                                             .setCancelable(false)
                                             .setPositiveButton("OK", null)
                                             .show();
+
                                     fetchTablesFromServer();
                                 } catch (Exception ex) {
-                                    Log. w(TAG, "show auto-release dialog failed", ex);
+                                    Log.w(TAG, "show auto-release dialog failed", ex);
                                     fetchTablesFromServer();
                                 }
                             });
                             return;
                         }
+
+                        // Other table updates
+                        runOnUiThread(() -> {
+                            try {
+                                int tableNum = payload.optInt("tableNumber", -1);
+                                if (tableNum == -1) {
+                                    tableNum = payload.optInt("table", -1);
+                                }
+
+                                String status = payload.optString("status", "");
+
+                                if (tableNum > 0 && !status.isEmpty()) {
+                                    // ✅ SHOW NOTIFICATION
+                                    InAppNotification notification = new InAppNotification.Builder(
+                                            InAppNotification.Type.INFO,
+                                            "🪑 Cập nhật bàn",
+                                            "Bàn " + tableNum + " - " + getTableStatusText(status)
+                                    )
+                                            .actionData("table:" + tableNum)
+                                            .duration(4000)
+                                            .build();
+
+                                    notificationManager.show(notification);
+                                }
+
+                            } catch (Exception e) {
+                                Log.e(TAG, "Error showing table updated notification", e);
+                            }
+
+                            fetchTablesFromServer();
+                        });
+                    } else {
+                        runOnUiThread(() -> fetchTablesFromServer());
                     }
-                    runOnUiThread(() -> fetchTablesFromServer());
                 }
-            });
+
+                @Override
+                public void onCheckItemsRequest(JSONObject payload) {
+                    runOnUiThread(() -> {
+                        try {
+                            int tableNum = payload.optInt("tableNumber", -1);
+
+                            // ✅ SHOW NOTIFICATION
+                            InAppNotification notification = new InAppNotification.Builder(
+                                    InAppNotification.Type.WARNING,
+                                    "🔍 Yêu cầu kiểm tra bàn! ",
+                                    "Khách hàng bàn " + tableNum + " yêu cầu kiểm tra món"
+                            )
+                                    .icon(android.R.drawable.ic_menu_search)
+                                    .actionData("check:" + tableNum)
+                                    .duration(10000) // 10 giây vì quan trọng
+                                    .build();
+
+                            notificationManager.show(notification);
+
+                        } catch (Exception e) {
+                            Log.e(TAG, "Error showing check items notification", e);
+                        }
+
+                        updateCheckItemsRequestBadge();
+                    });
+                }
+            };
+            // Register main listener (do not disconnect from socket on pause)
+            socketManager.registerListener(mainSocketListener);
             socketManager.connect();
         } catch (Exception e) {
             Log.w(TAG, "Failed to init socket in MainActivity:  " + e.getMessage(), e);
         }
+    }
 
-        applyNavigationViewInsets();
-        fetchTablesFromServer();
+    // ✅✅✅ HANDLE NOTIFICATION CLICK ✅✅✅
+    private void handleNotificationClick(InAppNotification notification) {
+        String actionData = notification.getActionData();
+        if (actionData == null || actionData.isEmpty()) {
+            return;
+        }
 
-        // Load và cập nhật badge cho yêu cầu kiểm tra bàn
-        updateCheckItemsRequestBadge();
+        try {
+            // Parse action data:  "table:5:order:abc123" or "check:5"
+            String[] parts = actionData.split(":");
+
+            if (parts.length >= 2 && "table".equals(parts[0])) {
+                int tableNumber = Integer.parseInt(parts[1]);
+
+                // Navigate to OrderActivity
+                Intent intent = new Intent(this, OrderActivity.class);
+                intent.putExtra("tableNumber", tableNumber);
+
+                if (parts.length >= 4 && "order".equals(parts[2])) {
+                    intent.putExtra("orderId", parts[3]);
+                }
+
+                startActivity(intent);
+            } else if (parts.length >= 2 && "check".equals(parts[0])) {
+                // Open check items dialog
+                showCheckItemsRequests();
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error handling notification click", e);
+        }
+    }
+
+    // ✅ HELPER:  Get status text in Vietnamese
+    private String getStatusText(String status) {
+        if (status == null) return "";
+        switch (status.toLowerCase()) {
+            case "pending":  return "Đang chờ";
+            case "preparing": return "Đang nấu";
+            case "ready":  return "Sẵn sàng";
+            case "completed": return "Hoàn thành";
+            case "cancelled":  return "Đã hủy";
+            default: return status;
+        }
+    }
+
+    // ✅ HELPER: Get table status text in Vietnamese
+    private String getTableStatusText(String status) {
+        if (status == null) return "";
+        switch (status.toLowerCase()) {
+            case "available": return "Trống";
+            case "occupied":  return "Có khách";
+            case "reserved": return "Đã đặt";
+            case "pending_payment": return "Chờ thanh toán";
+            default: return status;
+        }
     }
 
     // ======================================================================
-    // ✅ YÊU CẦU TẠM TÍNH
+    // REST OF THE EXISTING CODE (UNCHANGED)
     // ======================================================================
 
     private void showTempCalculationRequests() {
@@ -305,12 +538,12 @@ public class MainActivity extends BaseMenuActivity {
             public void onSuccess(List<Order> tempBillOrders) {
                 runOnUiThread(() -> {
                     if (progressBar != null) {
-                        progressBar. setVisibility(View.GONE);
+                        progressBar.setVisibility(View.GONE);
                     }
 
-                    Log.d(TAG, "Found " + (tempBillOrders != null ?  tempBillOrders.size() : 0) + " temp calculation requests");
+                    Log.d(TAG, "Found " + (tempBillOrders != null ? tempBillOrders.size() : 0) + " temp calculation requests");
 
-                    if (tempBillOrders == null || tempBillOrders. isEmpty()) {
+                    if (tempBillOrders == null || tempBillOrders.isEmpty()) {
                         Toast.makeText(MainActivity.this, "Không có yêu cầu tạm tính nào", Toast.LENGTH_SHORT).show();
                         return;
                     }
@@ -343,15 +576,12 @@ public class MainActivity extends BaseMenuActivity {
     private void showTempCalculationDialog(List<Order> requests) {
         if (requests == null || requests.isEmpty()) return;
 
-        // ✅ LỌC BỎ các orders có orderStatus = "temp_bill_printed"
         List<Order> filteredRequests = new ArrayList<>();
         for (Order order : requests) {
             if (order != null) {
                 String orderStatus = order.getOrderStatus();
-                // Chỉ thêm vào danh sách nếu KHÔNG phải temp_bill_printed
-                if (orderStatus == null ||
-                        ! orderStatus.equalsIgnoreCase("temp_bill_printed")) {
-                    filteredRequests. add(order);
+                if (orderStatus == null || !orderStatus.equalsIgnoreCase("temp_bill_printed")) {
+                    filteredRequests.add(order);
                     Log.d(TAG, "✅ Including order:  " + order.getId() + " (status: " + orderStatus + ")");
                 } else {
                     Log.d(TAG, "❌ Filtering out order: " + order.getId() + " (status: temp_bill_printed)");
@@ -359,21 +589,17 @@ public class MainActivity extends BaseMenuActivity {
             }
         }
 
-        // ✅ Nếu sau khi lọc không còn gì, hiển thị thông báo
         if (filteredRequests.isEmpty()) {
-            Toast.makeText(MainActivity.this,
-                    "Không có yêu cầu tạm tính nào cần xử lý",
-                    Toast.LENGTH_SHORT).show();
+            Toast.makeText(MainActivity.this, "Không có yêu cầu tạm tính nào cần xử lý", Toast.LENGTH_SHORT).show();
             return;
         }
 
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        View dialogView = LayoutInflater. from(this).inflate(R.layout.dialog_temp_calculation_list, null);
+        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_temp_calculation_list, null);
 
         TextView tvTitle = dialogView.findViewById(R.id.tv_dialog_title);
         RecyclerView recyclerView = dialogView.findViewById(R.id.rv_temp_calculations);
 
-        // ✅ Hiển thị số lượng SAU KHI LỌC
         tvTitle.setText("Yêu cầu tạm tính (" + filteredRequests.size() + ")");
 
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
@@ -385,26 +611,18 @@ public class MainActivity extends BaseMenuActivity {
         builder.show();
     }
 
-    // ======================================================================
-    // ✅ YÊU CẦU KIỂM TRA BÀN
-    // ======================================================================
-
-// ======================================================================
-// ✅ YÊU CẦU KIỂM TRA BÀN (FIXED:  Đóng dialog sau khi xác nhận)
-// ======================================================================
-
     private void showCheckItemsRequests() {
         if (orderRepository == null) {
             orderRepository = new OrderRepository();
         }
 
         if (progressBar != null) {
-            progressBar.setVisibility(View. VISIBLE);
+            progressBar.setVisibility(View.VISIBLE);
         }
 
-        Log.d(TAG, "🔍 Loading check items requests...");
+        Log.d(TAG, "🔍 Loading check items requests.. .");
 
-        orderRepository.getCheckItemsOrders(new OrderRepository. RepositoryCallback<List<Order>>() {
+        orderRepository.getCheckItemsOrders(new OrderRepository.RepositoryCallback<List<Order>>() {
             @Override
             public void onSuccess(List<Order> checkItemsOrders) {
                 runOnUiThread(() -> {
@@ -412,10 +630,10 @@ public class MainActivity extends BaseMenuActivity {
                         progressBar.setVisibility(View.GONE);
                     }
 
-                    Log.d(TAG, "📦 Found " + (checkItemsOrders != null ?  checkItemsOrders.size() : 0) + " check items requests");
+                    Log.d(TAG, "📦 Found " + (checkItemsOrders != null ? checkItemsOrders.size() : 0) + " check items requests");
 
-                    if (checkItemsOrders == null || checkItemsOrders. isEmpty()) {
-                        Toast. makeText(MainActivity.this, "Không có yêu cầu kiểm tra bàn nào", Toast.LENGTH_SHORT).show();
+                    if (checkItemsOrders == null || checkItemsOrders.isEmpty()) {
+                        Toast.makeText(MainActivity.this, "Không có yêu cầu kiểm tra bàn nào", Toast.LENGTH_SHORT).show();
                         return;
                     }
 
@@ -435,19 +653,16 @@ public class MainActivity extends BaseMenuActivity {
             public void onError(String message) {
                 runOnUiThread(() -> {
                     if (progressBar != null) {
-                        progressBar.setVisibility(View. GONE);
+                        progressBar.setVisibility(View.GONE);
                     }
                     Log.e(TAG, "❌ Failed to load check items requests: " + message);
-                    Toast.makeText(MainActivity.this, "Không thể tải danh sách:  " + message, Toast.LENGTH_SHORT).show();
+                    Toast.makeText(MainActivity.this, "Không thể tải danh sách: " + message, Toast.LENGTH_SHORT).show();
                 });
             }
         });
     }
 
-    /**
-     * ✅ FIXED: Lưu dialog instance để đóng sau khi confirm
-     */
-    private AlertDialog checkItemsListDialog; // ✅ Thêm biến này
+    private AlertDialog checkItemsListDialog;
 
     private void showCheckItemsDialog(List<Order> requests) {
         if (requests == null || requests.isEmpty()) return;
@@ -456,13 +671,12 @@ public class MainActivity extends BaseMenuActivity {
         View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_check_items_list, null);
 
         TextView tvTitle = dialogView.findViewById(R.id.tv_dialog_title);
-        RecyclerView recyclerView = dialogView.findViewById(R.id. rv_check_items);
+        RecyclerView recyclerView = dialogView.findViewById(R.id.rv_check_items);
 
         tvTitle.setText("Yêu cầu kiểm tra bàn (" + requests.size() + ")");
 
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
 
-        // ✅ Pass dialog instance để adapter có thể đóng nó
         CheckItemsListAdapter adapter = new CheckItemsListAdapter(requests, order -> {
             showCheckItemsConfirmDialog(order);
         });
@@ -471,7 +685,6 @@ public class MainActivity extends BaseMenuActivity {
         builder.setView(dialogView);
         builder.setPositiveButton("Đóng", null);
 
-        // ✅ LƯU DIALOG INSTANCE
         checkItemsListDialog = builder.create();
         checkItemsListDialog.show();
     }
@@ -480,10 +693,10 @@ public class MainActivity extends BaseMenuActivity {
         if (order == null) return;
 
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        View dialogView = LayoutInflater. from(this).inflate(R.layout.dialog_check_items_confirm, null);
+        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_check_items_confirm, null);
 
-        TextView tvTableInfo = dialogView.findViewById(R. id.tv_table_info);
-        EditText etNote = dialogView.findViewById(R. id.tv_note);
+        TextView tvTableInfo = dialogView.findViewById(R.id.tv_table_info);
+        EditText etNote = dialogView.findViewById(R.id.tv_note);
 
         tvTableInfo.setText("Kiểm tra bàn " + order.getTableNumber());
 
@@ -497,9 +710,6 @@ public class MainActivity extends BaseMenuActivity {
         builder.show();
     }
 
-    /**
-     * ✅ FIXED: Đóng cả 2 dialog sau khi xác nhận thành công
-     */
     private void confirmCheckItems(Order order, String note) {
         if (order == null || order.getId() == null) {
             Toast.makeText(this, "Lỗi: Thông tin không hợp lệ", Toast.LENGTH_SHORT).show();
@@ -507,36 +717,36 @@ public class MainActivity extends BaseMenuActivity {
         }
 
         if (progressBar != null) {
-            progressBar.setVisibility(View. VISIBLE);
+            progressBar.setVisibility(View.VISIBLE);
         }
 
         SharedPreferences prefs = getSharedPreferences("RestaurantPrefs", MODE_PRIVATE);
         String userId = prefs.getString("userId", "");
         String fullName = prefs.getString("fullName", "Nhân viên");
 
-        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss. SSS'Z'", java. util.Locale.US);
+        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US);
         sdf.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
         String currentTime = sdf.format(new java.util.Date());
 
         Map<String, Object> updates = new HashMap<>();
         updates.put("checkItemsStatus", "completed");
-        updates.put("checkItemsCompletedBy", userId. isEmpty() ? fullName : userId);
+        updates.put("checkItemsCompletedBy", userId.isEmpty() ? fullName : userId);
         updates.put("checkItemsCompletedAt", currentTime);
 
         if (note != null && !note.trim().isEmpty()) {
-            updates.put("checkItemsNote", note. trim());
+            updates.put("checkItemsNote", note.trim());
         } else {
             updates.put("checkItemsNote", "");
         }
 
         Log.d(TAG, "=== CONFIRM CHECK ITEMS ===");
         Log.d(TAG, "Order ID: " + order.getId());
-        Log.d(TAG, "Table:  " + order.getTableNumber());
+        Log.d(TAG, "Table: " + order.getTableNumber());
         Log.d(TAG, "Status: completed");
         Log.d(TAG, "Completed By: " + (userId.isEmpty() ? fullName : userId));
         Log.d(TAG, "Completed At: " + currentTime);
-        Log.d(TAG, "Note: " + (note. trim().isEmpty() ? "(empty)" : note));
-        Log.d(TAG, "Payload: " + updates. toString());
+        Log.d(TAG, "Note: " + (note.trim().isEmpty() ? "(empty)" : note));
+        Log.d(TAG, "Payload: " + updates.toString());
 
         orderRepository.updateOrder(order.getId(), updates, new OrderRepository.RepositoryCallback<Order>() {
             @Override
@@ -550,20 +760,16 @@ public class MainActivity extends BaseMenuActivity {
 
                     String successMessage = "✅ Đã xác nhận kiểm tra bàn " + order.getTableNumber() +
                             "\n📤 Đang gửi thông báo cho thu ngân... ";
-                    if (note != null && !note. trim().isEmpty()) {
+                    if (note != null && !note.trim().isEmpty()) {
                         successMessage += "\n📝 Ghi chú:  " + note;
                     }
                     Toast.makeText(MainActivity.this, successMessage, Toast.LENGTH_LONG).show();
 
-                    // ✅✅✅ ĐÓNG CẢ 2 DIALOG ✅✅✅
-                    // 1. Dialog confirm sẽ tự đóng (do là AlertDialog. Builder với button positive)
-                    // 2. Đóng dialog danh sách
                     if (checkItemsListDialog != null && checkItemsListDialog.isShowing()) {
                         checkItemsListDialog.dismiss();
                         Log.d(TAG, "✅ Closed check items list dialog");
                     }
 
-                    // Refresh data
                     fetchTablesFromServer();
                 });
             }
@@ -572,7 +778,7 @@ public class MainActivity extends BaseMenuActivity {
             public void onError(String message) {
                 runOnUiThread(() -> {
                     if (progressBar != null) {
-                        progressBar. setVisibility(View.GONE);
+                        progressBar.setVisibility(View.GONE);
                     }
 
                     Log.e(TAG, "❌ Failed to confirm check items: " + message);
@@ -582,7 +788,7 @@ public class MainActivity extends BaseMenuActivity {
 
                     new AlertDialog.Builder(MainActivity.this)
                             .setTitle("Lỗi xác nhận")
-                            . setMessage(errorMessage)
+                            .setMessage(errorMessage)
                             .setPositiveButton("Thử lại", (dialog, which) -> confirmCheckItems(order, note))
                             .setNegativeButton("Đóng", null)
                             .show();
@@ -591,16 +797,11 @@ public class MainActivity extends BaseMenuActivity {
         });
     }
 
-    // ======================================================================
-    // HELPER METHODS
-    // ======================================================================
-
     private void applyNavigationViewInsets() {
-        if (navigationView == null)
-            return;
+        if (navigationView == null) return;
 
         ViewCompat.setOnApplyWindowInsetsListener(navigationView, (view, insets) -> {
-            int statusBar = insets.getInsets(WindowInsetsCompat. Type.statusBars()).top;
+            int statusBar = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top;
             View header = navigationView.getHeaderView(0);
             if (header != null) {
                 header.setPadding(
@@ -652,8 +853,8 @@ public class MainActivity extends BaseMenuActivity {
             View headerView = navigationView.getHeaderView(0);
             if (headerView == null) return;
 
-            TextView tvName = headerView.findViewById(R. id.textViewName);
-            TextView tvRole = headerView.findViewById(R. id.textViewRole);
+            TextView tvName = headerView.findViewById(R.id.textViewName);
+            TextView tvRole = headerView.findViewById(R.id.textViewRole);
 
             SharedPreferences prefs = getSharedPreferences("RestaurantPrefs", MODE_PRIVATE);
             String savedName = prefs.getString("fullName", "Người dùng");
@@ -662,27 +863,21 @@ public class MainActivity extends BaseMenuActivity {
             if (tvName != null)
                 tvName.setText(savedName);
             if (tvRole != null)
-                tvRole. setText(getVietnameseRole(savedRole));
+                tvRole.setText(getVietnameseRole(savedRole));
         } catch (Exception e) {
             Log.w(TAG, "updateNavHeaderInfo failed:  " + e.getMessage(), e);
         }
     }
 
     private String getVietnameseRole(String roleKey) {
-        if (roleKey == null)
-            return "";
-        switch (roleKey. toLowerCase()) {
-            case "cashier":
-                return "Thu ngân";
-            case "manager":
-                return "Quản lý";
+        if (roleKey == null) return "";
+        switch (roleKey.toLowerCase()) {
+            case "cashier":  return "Thu ngân";
+            case "manager": return "Quản lý";
             case "waiter":
-            case "order":
-                return "Phục vụ";
-            case "kitchen":
-                return "Bếp";
-            default:
-                return roleKey;
+            case "order":  return "Phục vụ";
+            case "kitchen": return "Bếp";
+            default: return roleKey;
         }
     }
 
@@ -690,13 +885,14 @@ public class MainActivity extends BaseMenuActivity {
     protected void onResume() {
         super.onResume();
         try {
-            if (socketManager != null)
+            if (socketManager != null && mainSocketListener != null) {
+                socketManager.registerListener(mainSocketListener);
                 socketManager.connect();
+            }
         } catch (Exception e) {
             Log.w(TAG, "socket connect onResume failed", e);
         }
         fetchTablesFromServer();
-        // Cập nhật badge khi resume
         updateCheckItemsRequestBadge();
     }
 
@@ -704,17 +900,27 @@ public class MainActivity extends BaseMenuActivity {
     protected void onPause() {
         super.onPause();
         try {
-            if (socketManager != null)
-                socketManager.disconnect();
+            if (socketManager != null && mainSocketListener != null)
+                socketManager.unregisterListener(mainSocketListener);
+            // DO NOT disconnect socket here - keep socket running app-wide
         } catch (Exception e) {
-            Log.w(TAG, "socket disconnect onPause failed", e);
+            Log.w(TAG, "socket pause handling failed", e);
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        // ✅ CLEANUP NOTIFICATION MANAGER
+        if (notificationManager != null) {
+            notificationManager.destroy();
         }
     }
 
     public void fetchTablesFromServer() {
         if (progressBar != null)
             progressBar.setVisibility(ProgressBar.VISIBLE);
-        tableRepository.getAllTables(new TableRepository. RepositoryCallback<List<TableItem>>() {
+        tableRepository.getAllTables(new TableRepository.RepositoryCallback<List<TableItem>>() {
             @Override
             public void onSuccess(List<TableItem> result) {
                 runOnUiThread(() -> {
@@ -741,16 +947,13 @@ public class MainActivity extends BaseMenuActivity {
                     }
 
                     Comparator<TableItem> byNumber = (a, b) -> {
-                        if (a == null && b == null)
-                            return 0;
-                        if (a == null)
-                            return 1;
-                        if (b == null)
-                            return -1;
+                        if (a == null && b == null) return 0;
+                        if (a == null) return 1;
+                        if (b == null) return -1;
                         try {
                             return Integer.compare(a.getTableNumber(), b.getTableNumber());
                         } catch (Exception e) {
-                            return String.valueOf(a.getTableNumber()).compareTo(String.valueOf(b. getTableNumber()));
+                            return String.valueOf(a.getTableNumber()).compareTo(String.valueOf(b.getTableNumber()));
                         }
                     };
                     Collections.sort(floor1, byNumber);
@@ -764,7 +967,6 @@ public class MainActivity extends BaseMenuActivity {
                     all.addAll(floor2);
                     syncTableStatusesWithOrders(all);
 
-                    // Cập nhật badge sau khi sync orders
                     updateCheckItemsRequestBadge();
                 });
             }
@@ -781,21 +983,18 @@ public class MainActivity extends BaseMenuActivity {
     }
 
     private int parseFloorFromLocation(String location) {
-        if (location == null)
-            return 1;
+        if (location == null) return 1;
         try {
             Pattern p = Pattern.compile("(\\d+)");
-            Matcher m = p.matcher(location. toLowerCase(Locale.getDefault()));
-            if (m. find())
+            Matcher m = p.matcher(location.toLowerCase(Locale.getDefault()));
+            if (m.find())
                 return Integer.parseInt(m.group(1));
-        } catch (Exception ignored) {
-        }
+        } catch (Exception ignored) {}
         return 1;
     }
 
     private void syncTableStatusesWithOrders(List<TableItem> tables) {
-        if (tables == null || tables.isEmpty())
-            return;
+        if (tables == null || tables.isEmpty()) return;
         orderRepository.getOrdersByTableNumber(null, null, new OrderRepository.RepositoryCallback<List<Order>>() {
             @Override
             public void onSuccess(List<Order> orders) {
@@ -803,35 +1002,31 @@ public class MainActivity extends BaseMenuActivity {
                 if (orders != null) {
                     for (Order o : orders)
                         if (o != null)
-                            occupiedTableNumbers. add(o.getTableNumber());
+                            occupiedTableNumbers.add(o.getTableNumber());
                 }
                 List<TableItem> toUpdate = new ArrayList<>();
                 final List<String> desired = new ArrayList<>();
                 for (TableItem t : tables) {
-                    if (t == null)
-                        continue;
+                    if (t == null) continue;
                     boolean isReserved = false;
                     try {
-                        isReserved = t.getStatus() == TableItem.Status. RESERVED;
-                    } catch (Exception ignored) {
-                    }
-                    if (isReserved)
-                        continue;
+                        isReserved = t.getStatus() == TableItem.Status.RESERVED;
+                    } catch (Exception ignored) {}
+                    if (isReserved) continue;
                     String cur = t.getStatus() != null ? t.getStatus().name().toLowerCase() : "";
-                    String want = occupiedTableNumbers.contains(t. getTableNumber()) ? "occupied" : "available";
+                    String want = occupiedTableNumbers.contains(t.getTableNumber()) ? "occupied" : "available";
                     if (!cur.equals(want)) {
                         toUpdate.add(t);
-                        desired. add(want);
+                        desired.add(want);
                     }
                 }
-                if (toUpdate.isEmpty())
-                    return;
+                if (toUpdate.isEmpty()) return;
                 final int total = toUpdate.size();
                 final int[] finished = {0};
                 for (int i = 0; i < toUpdate.size(); i++) {
                     TableItem ti = toUpdate.get(i);
                     String want = desired.get(i);
-                    tableRepository.updateTableStatus(ti. getId(), want, new TableRepository. RepositoryCallback<TableItem>() {
+                    tableRepository.updateTableStatus(ti.getId(), want, new TableRepository.RepositoryCallback<TableItem>() {
                         @Override
                         public void onSuccess(TableItem updated) {
                             finished[0]++;
@@ -856,23 +1051,17 @@ public class MainActivity extends BaseMenuActivity {
         });
     }
 
-    /**
-     * Load menu dựa trên role của user
-     */
     private void loadMenuBasedOnRole() {
-        if (navigationView == null)
-            return;
+        if (navigationView == null) return;
 
         SharedPreferences prefs = getSharedPreferences("RestaurantPrefs", MODE_PRIVATE);
         String userRole = prefs.getString("userRole", "waiter");
 
         Log.d(TAG, "Loading menu for role: " + userRole);
 
-        // Clear existing menu
         navigationView.getMenu().clear();
 
-        // Load menu based on role
-        switch (userRole. toLowerCase()) {
+        switch (userRole.toLowerCase()) {
             case "admin":
                 navigationView.inflateMenu(R.menu.menu_drawer_admin);
                 break;
@@ -889,9 +1078,6 @@ public class MainActivity extends BaseMenuActivity {
         }
     }
 
-    /**
-     * Xử lý click vào navigation menu items
-     */
     private void handleNavigationItemClick(int itemId) {
         if (itemId == R.id.nav_mood) {
             showMoodDialog();
@@ -899,41 +1085,37 @@ public class MainActivity extends BaseMenuActivity {
             showContactDialog();
         } else if (itemId == R.id.nav_logout) {
             logout();
-        } else if (itemId == R. id.nav_reports) {
+        } else if (itemId == R.id.nav_reports) {
             Intent intent = new Intent(this, com.ph48845.datn_qlnh_rmis.ui.revenue.ReportActivity.class);
             startActivity(intent);
-        } else if (itemId == R.id. nav_revenue) {
-            Intent intent = new Intent(this, com.ph48845.datn_qlnh_rmis.ui.revenue. ReportActivity.class);
+        } else if (itemId == R.id.nav_revenue) {
+            Intent intent = new Intent(this, com.ph48845.datn_qlnh_rmis.ui.revenue.ReportActivity.class);
             startActivity(intent);
-        } else if (itemId == R.id. nav_warnings) {
+        } else if (itemId == R.id.nav_warnings) {
             Intent intent = new Intent(this, com.ph48845.datn_qlnh_rmis.ui.warehouse.WarningActivity.class);
             startActivity(intent);
-        } else if (itemId == R.id. nav_shifts) {
-            Intent intent = new Intent(this, com.ph48845.datn_qlnh_rmis.ui.shift. ShiftActivity.class);
+        } else if (itemId == R.id.nav_shifts) {
+            Intent intent = new Intent(this, com.ph48845.datn_qlnh_rmis.ui.shift.ShiftActivity.class);
             startActivity(intent);
-        } else if (itemId == R. id.nav_employees) {
-            Intent intent = new Intent(this, com.ph48845.datn_qlnh_rmis.ui.employee. EmployeeActivity.class);
+        } else if (itemId == R.id.nav_employees) {
+            Intent intent = new Intent(this, com.ph48845.datn_qlnh_rmis.ui.employee.EmployeeActivity.class);
             startActivity(intent);
         } else if (itemId == R.id.nav_payment_history) {
-            Intent intent = new Intent(this, com.ph48845.datn_qlnh_rmis.ui.thungan. HistoryActivity.class);
+            Intent intent = new Intent(this, com.ph48845.datn_qlnh_rmis.ui.thungan.HistoryActivity.class);
             startActivity(intent);
-        } else if (itemId == R. id.nav_temp_calculation_requests || itemId == R.id.nav_pre_bill) {
+        } else if (itemId == R.id.nav_temp_calculation_requests || itemId == R.id.nav_pre_bill) {
             showTempCalculationRequests();
         } else if (itemId == R.id.nav_check_items_requests) {
             showCheckItemsRequests();
         }
     }
 
-    /**
-     * Cập nhật badge hiển thị số lượng yêu cầu kiểm tra bàn trên menu item
-     */
     private void updateCheckItemsRequestBadge() {
         if (orderRepository == null) {
             orderRepository = new OrderRepository();
         }
 
-        // Lấy tất cả orders và đếm số lượng có checkItemsRequestedAt
-        orderRepository.getAllOrders(new OrderRepository. RepositoryCallback<List<Order>>() {
+        orderRepository.getAllOrders(new OrderRepository.RepositoryCallback<List<Order>>() {
             @Override
             public void onSuccess(List<Order> allOrders) {
                 runOnUiThread(() -> {
@@ -949,7 +1131,6 @@ public class MainActivity extends BaseMenuActivity {
                         }
                     }
 
-                    // Cập nhật badge trên menu item
                     updateBadgeOnMenuItem(count);
                 });
             }
@@ -957,16 +1138,11 @@ public class MainActivity extends BaseMenuActivity {
             @Override
             public void onError(String message) {
                 Log.w(TAG, "Failed to update check items request badge: " + message);
-                // Nếu lỗi, vẫn cập nhật badge với số 0
                 runOnUiThread(() -> updateBadgeOnMenuItem(0));
             }
         });
     }
 
-    /**
-     * Cập nhật badge trên menu item "Yêu cầu kiểm tra bàn"
-     * Hiển thị số lượng bằng cách thêm vào title
-     */
     private void updateBadgeOnMenuItem(int count) {
         if (navigationView == null) {
             return;
@@ -975,7 +1151,7 @@ public class MainActivity extends BaseMenuActivity {
         try {
             MenuItem menuItem = navigationView.getMenu().findItem(R.id.nav_check_items_requests);
             if (menuItem == null) {
-                Log. d(TAG, "Menu item nav_check_items_requests not found");
+                Log.d(TAG, "Menu item nav_check_items_requests not found");
                 return;
             }
 
@@ -990,13 +1166,12 @@ public class MainActivity extends BaseMenuActivity {
                 Log.d(TAG, "✅ Updated badge: 0 check items requests (no badge)");
             }
 
-            // Cập nhật title với SpannableString để giữ style
             SpannableString spanString = new SpannableString(displayTitle);
             spanString.setSpan(new RelativeSizeSpan(1.1f), 0, spanString.length(), 0);
             menuItem.setTitle(spanString);
 
         } catch (Exception e) {
-            Log.w(TAG, "Failed to update badge on menu item: " + e. getMessage(), e);
+            Log.w(TAG, "Failed to update badge on menu item:  " + e.getMessage(), e);
         }
     }
 }
