@@ -64,8 +64,10 @@ import java.util.regex.Pattern;
  * MainActivity với tích hợp In-app Notification.
  * Hiển thị thông báo trượt từ trên xuống khi có cập nhật realtime.
  *
- * NOTE: Updated to register/unregister a persistent listener with the global SocketManager
- * so the socket connection remains app-wide and not overwritten by activity listeners.
+ * NOTE: Updated to register/unregister a persistent listener with the global
+ * SocketManager
+ * so the socket connection remains app-wide and not overwritten by activity
+ * listeners.
  */
 public class MainActivity extends BaseMenuActivity {
 
@@ -95,6 +97,24 @@ public class MainActivity extends BaseMenuActivity {
     // ✅ THÊM NOTIFICATION MANAGER
     private NotificationManager notificationManager;
 
+<<<<<<< Updated upstream
+=======
+    // Track whether activity is visible (foreground)
+    boolean activityVisible = false;
+    // If an auto-release event arrives when activity is not visible or window not
+    // focused, keep pending table number
+    Integer pendingAutoReleasedTable = null;
+
+    // Thêm vào class MainActivity (chỉ phần method — chèn vào trong class)
+    public synchronized boolean isActivityVisible() {
+        return this.activityVisible;
+    }
+
+    public synchronized void setPendingAutoReleasedTable(int tableNumber) {
+        this.pendingAutoReleasedTable = tableNumber;
+    }
+
+>>>>>>> Stashed changes
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -116,6 +136,17 @@ public class MainActivity extends BaseMenuActivity {
         ImageView navIcon = findViewById(R.id.nav_icon);
         if (navIcon != null && drawerLayout != null) {
             navIcon.setOnClickListener(v -> drawerLayout.openDrawer(GravityCompat.START));
+<<<<<<< Updated upstream
+=======
+            // debug helper: long-press to simulate auto-release (useful to confirm dialog
+            // display)
+            navIcon.setOnLongClickListener(v -> {
+                Log.d(TAG, "DEBUG: simulate auto-release (table 5)");
+                pendingAutoReleasedTable = null;
+                showAutoReleaseDialogIfPossible(5);
+                return true;
+            });
+>>>>>>> Stashed changes
         }
 
         if (toolbar != null && drawerLayout != null) {
@@ -159,7 +190,8 @@ public class MainActivity extends BaseMenuActivity {
         tableActionsHandler = new TableActionsHandler(this, transferManager, mergeManager, reservationHelper);
 
         tableActionsHandler.setTemporaryBillRequester(table -> {
-            if (table == null) return;
+            if (table == null)
+                return;
             TemporaryBillDialogFragment f = TemporaryBillDialogFragment.newInstance(table,
                     updatedOrder -> fetchTablesFromServer());
             f.show(getSupportFragmentManager(), "tempBill");
@@ -168,7 +200,8 @@ public class MainActivity extends BaseMenuActivity {
         TableAdapter.OnTableClickListener listener = new TableAdapter.OnTableClickListener() {
             @Override
             public void onTableClick(View v, TableItem table) {
-                if (table == null) return;
+                if (table == null)
+                    return;
                 Intent intent = new Intent(MainActivity.this, OrderActivity.class);
                 intent.putExtra("tableId", table.getId());
                 intent.putExtra("tableNumber", table.getTableNumber());
@@ -177,14 +210,16 @@ public class MainActivity extends BaseMenuActivity {
                     TableItem.Status st = table.getStatus();
                     if (st == TableItem.Status.OCCUPIED || st == TableItem.Status.PENDING_PAYMENT)
                         isCustomerPresent = true;
-                } catch (Exception ignored) {}
+                } catch (Exception ignored) {
+                }
                 intent.putExtra("forceShowOrders", isCustomerPresent);
                 startActivity(intent);
             }
 
             @Override
             public void onTableLongClick(View v, TableItem table) {
-                if (table == null) return;
+                if (table == null)
+                    return;
                 tableActionsHandler.showTableActionsMenuForLongPress(v, table);
             }
         };
@@ -219,6 +254,19 @@ public class MainActivity extends BaseMenuActivity {
 
 
         NotificationManager.getInstance().init(this, null);
+
+        // ✅ AUTO-LOAD DASHBOARD FOR ADMIN
+        loadDashboardIfAdmin();
+    }
+
+    private void loadDashboardIfAdmin() {
+        SharedPreferences prefs = getSharedPreferences("RestaurantPrefs", MODE_PRIVATE);
+        String userRole = prefs.getString("userRole", "");
+
+        if ("admin".equalsIgnoreCase(userRole.trim())) {
+            // Admin user - load dashboard automatically
+            loadDashboardFragment();
+        }
     }
 
     // ✅✅✅ INITIALIZE NOTIFICATION MANAGER ✅✅✅
@@ -243,7 +291,8 @@ public class MainActivity extends BaseMenuActivity {
             socketManager = SocketManager.getInstance();
             socketManager.init(socketUrl);
 
-            // Build the main listener and keep reference so we can register/unregister without losing it
+            // Build the main listener and keep reference so we can register/unregister
+            // without losing it
             mainSocketListener = new SocketManager.OnEventListener() {
                 @Override
                 public void onOrderCreated(JSONObject payload) {
@@ -265,8 +314,7 @@ public class MainActivity extends BaseMenuActivity {
                             InAppNotification notification = new InAppNotification.Builder(
                                     InAppNotification.Type.ORDER_NEW,
                                     "🍽️ Đơn hàng mới! ",
-                                    "Bàn " + tableNum + " vừa đặt " + itemCount + " món"
-                            )
+                                    "Bàn " + tableNum + " vừa đặt " + itemCount + " món")
                                     .icon(android.R.drawable.ic_menu_add)
                                     .actionData("table:" + tableNum + ":order:" + orderId)
                                     .duration(6000)
@@ -314,8 +362,7 @@ public class MainActivity extends BaseMenuActivity {
                             InAppNotification notification = new InAppNotification.Builder(
                                     type,
                                     title,
-                                    message
-                            )
+                                    message)
                                     .actionData("table:" + tableNum + ":order:" + orderId)
                                     .duration(5000)
                                     .build();
@@ -348,6 +395,15 @@ public class MainActivity extends BaseMenuActivity {
 
                 @Override
                 public void onTableUpdated(JSONObject payload) {
+<<<<<<< Updated upstream
+=======
+                    Log.d(TAG, "onTableUpdated called, payload=" + (payload != null ? payload.toString() : "null")
+                            + " | eventName="
+                            + (payload != null ? payload.optString("eventName", "(none)") : "(no payload)")
+                            + " | activityVisible=" + activityVisible
+                            + " | pendingAutoReleasedTable=" + pendingAutoReleasedTable);
+
+>>>>>>> Stashed changes
                     if (payload != null) {
                         String evt = payload.optString("eventName", "");
 
@@ -359,6 +415,7 @@ public class MainActivity extends BaseMenuActivity {
                                 tblNum = payload.optInt("table", -1);
 
                             final int shownNum = tblNum;
+<<<<<<< Updated upstream
                             runOnUiThread(() -> {
                                 try {
                                     // ✅ SHOW NOTIFICATION
@@ -385,6 +442,124 @@ public class MainActivity extends BaseMenuActivity {
                                     fetchTablesFromServer();
                                 } catch (Exception ex) {
                                     Log.w(TAG, "show auto-release dialog failed", ex);
+=======
+                            Log.d(TAG, "table_auto_released received for tableNumber=" + shownNum);
+
+                            // Always show an in-app notification so user sees it even if dialog cannot be
+                            // shown
+                            try {
+                                InAppNotification notification = new InAppNotification.Builder(
+                                        InAppNotification.Type.WARNING,
+                                        "⏰ Hủy đặt bàn tự động",
+                                        "Bàn " + (shownNum > 0 ? shownNum : "") + " đã hết thời gian đặt trước")
+                                        .actionData("table:" + shownNum)
+                                        .duration(8000)
+                                        .build();
+                                // show notification without caring about activity state
+                                notificationManager.show(notification);
+                            } catch (Exception e) {
+                                Log.w(TAG, "Failed to show in-app notification for auto-release", e);
+                            }
+
+                            // Determine whether it's safe to show AlertDialog now:
+                            boolean canShowDialog = true;
+                            if (isFinishing())
+                                canShowDialog = false;
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1 && isDestroyed())
+                                canShowDialog = false;
+
+                            // hasWindowFocus is a better indicator that Activity is in foreground
+                            boolean hasFocus = false;
+                            try {
+                                hasFocus = MainActivity.this.hasWindowFocus();
+                            } catch (Exception ignored) {
+                            }
+
+                            Log.d(TAG, "canShowDialog=" + canShowDialog + ", activityVisible=" + activityVisible
+                                    + ", hasWindowFocus=" + hasFocus);
+
+                            if (canShowDialog && (activityVisible || hasFocus)) {
+                                // show dialog now on UI thread
+                                runOnUiThread(() -> {
+                                    try {
+                                        Toast.makeText(MainActivity.this,
+                                                "DEBUG: show auto-release dialog for table " + shownNum,
+                                                Toast.LENGTH_SHORT).show();
+
+                                        // show DialogFragment
+                                        AutoReleaseDialogFragment.newInstance(shownNum)
+                                                .show(getSupportFragmentManager(), "autoRelease");
+                                    } catch (Exception ex) {
+                                        Log.w(TAG, "show auto-release dialog failed", ex);
+                                    } finally {
+                                        runOnUiThread(() -> fetchTablesFromServer());
+                                    }
+                                });
+                            } else {
+                                // Activity not in a state to show dialog now — save pending and show onResume
+                                pendingAutoReleasedTable = shownNum;
+                                Log.d(TAG, "Saved pendingAutoReleasedTable=" + pendingAutoReleasedTable
+                                        + " to show on resume");
+                                runOnUiThread(() -> fetchTablesFromServer());
+                            }
+
+                            return;
+                        }
+
+                        // 2) HANDLE RESERVATION / RESERVED UPDATES
+                        // Accept several possible event names used by server/client and also inspect
+                        // status field.
+                        boolean looksLikeReservationEvent = false;
+                        if ("table_reserved".equalsIgnoreCase(evt)
+                                || "table_reservation_created".equalsIgnoreCase(evt)
+                                || "table_reservation".equalsIgnoreCase(evt)
+                                || "reservation_created".equalsIgnoreCase(evt)
+                                || "table_updated".equalsIgnoreCase(evt) // server might emit generic update for
+                                                                         // reservation
+                        ) {
+                            looksLikeReservationEvent = true;
+                        }
+
+                        if (!looksLikeReservationEvent) {
+                            // If eventName absent but status indicates reserved, treat it as reservation
+                            if ("reserved".equalsIgnoreCase(statusInPayload)) {
+                                looksLikeReservationEvent = true;
+                            }
+                        }
+
+                        if (looksLikeReservationEvent) {
+                            int tableNum = payload.optInt("tableNumber", -1);
+                            if (tableNum == -1)
+                                tableNum = payload.optInt("table", -1);
+
+                            final int shownNum = tableNum;
+                            Log.d(TAG, "Reservation-like event received (eventName=" + evt + ", status="
+                                    + statusInPayload + ") for table=" + shownNum);
+
+                            // Show notification and refresh lists
+                            runOnUiThread(() -> {
+                                try {
+                                    if (shownNum > 0) {
+                                        InAppNotification notification = new InAppNotification.Builder(
+                                                InAppNotification.Type.INFO,
+                                                "📅 Đặt trước",
+                                                "Bàn " + shownNum + " vừa được đặt trước")
+                                                .actionData("table:" + shownNum)
+                                                .duration(5000)
+                                                .build();
+                                        notificationManager.show(notification);
+                                    } else {
+                                        // generic notification
+                                        InAppNotification notification = new InAppNotification.Builder(
+                                                InAppNotification.Type.INFO,
+                                                "📅 Đặt trước",
+                                                "Có cập nhật đặt trước").duration(4000).build();
+                                        notificationManager.show(notification);
+                                    }
+                                } catch (Exception e) {
+                                    Log.w(TAG, "Failed to show reservation notification", e);
+                                } finally {
+>>>>>>> Stashed changes
                                     fetchTablesFromServer();
                                 }
                             });
@@ -406,8 +581,7 @@ public class MainActivity extends BaseMenuActivity {
                                     InAppNotification notification = new InAppNotification.Builder(
                                             InAppNotification.Type.INFO,
                                             "🪑 Cập nhật bàn",
-                                            "Bàn " + tableNum + " - " + getTableStatusText(status)
-                                    )
+                                            "Bàn " + tableNum + " - " + getTableStatusText(status))
                                             .actionData("table:" + tableNum)
                                             .duration(4000)
                                             .build();
@@ -436,8 +610,7 @@ public class MainActivity extends BaseMenuActivity {
                             InAppNotification notification = new InAppNotification.Builder(
                                     InAppNotification.Type.WARNING,
                                     "🔍 Yêu cầu kiểm tra bàn! ",
-                                    "Khách hàng bàn " + tableNum + " yêu cầu kiểm tra món"
-                            )
+                                    "Khách hàng bàn " + tableNum + " yêu cầu kiểm tra món")
                                     .icon(android.R.drawable.ic_menu_search)
                                     .actionData("check:" + tableNum)
                                     .duration(10000) // 10 giây vì quan trọng
@@ -469,7 +642,7 @@ public class MainActivity extends BaseMenuActivity {
         }
 
         try {
-            // Parse action data:  "table:5:order:abc123" or "check:5"
+            // Parse action data: "table:5:order:abc123" or "check:5"
             String[] parts = actionData.split(":");
 
             if (parts.length >= 2 && "table".equals(parts[0])) {
@@ -493,28 +666,41 @@ public class MainActivity extends BaseMenuActivity {
         }
     }
 
-    // ✅ HELPER:  Get status text in Vietnamese
+    // ✅ HELPER: Get status text in Vietnamese
     private String getStatusText(String status) {
-        if (status == null) return "";
+        if (status == null)
+            return "";
         switch (status.toLowerCase()) {
-            case "pending":  return "Đang chờ";
-            case "preparing": return "Đang nấu";
-            case "ready":  return "Sẵn sàng";
-            case "completed": return "Hoàn thành";
-            case "cancelled":  return "Đã hủy";
-            default: return status;
+            case "pending":
+                return "Đang chờ";
+            case "preparing":
+                return "Đang nấu";
+            case "ready":
+                return "Sẵn sàng";
+            case "completed":
+                return "Hoàn thành";
+            case "cancelled":
+                return "Đã hủy";
+            default:
+                return status;
         }
     }
 
     // ✅ HELPER: Get table status text in Vietnamese
     private String getTableStatusText(String status) {
-        if (status == null) return "";
+        if (status == null)
+            return "";
         switch (status.toLowerCase()) {
-            case "available": return "Trống";
-            case "occupied":  return "Có khách";
-            case "reserved": return "Đã đặt";
-            case "pending_payment": return "Chờ thanh toán";
-            default: return status;
+            case "available":
+                return "Trống";
+            case "occupied":
+                return "Có khách";
+            case "reserved":
+                return "Đã đặt";
+            case "pending_payment":
+                return "Chờ thanh toán";
+            default:
+                return status;
         }
     }
 
@@ -541,7 +727,8 @@ public class MainActivity extends BaseMenuActivity {
                         progressBar.setVisibility(View.GONE);
                     }
 
-                    Log.d(TAG, "Found " + (tempBillOrders != null ? tempBillOrders.size() : 0) + " temp calculation requests");
+                    Log.d(TAG, "Found " + (tempBillOrders != null ? tempBillOrders.size() : 0)
+                            + " temp calculation requests");
 
                     if (tempBillOrders == null || tempBillOrders.isEmpty()) {
                         Toast.makeText(MainActivity.this, "Không có yêu cầu tạm tính nào", Toast.LENGTH_SHORT).show();
@@ -551,8 +738,10 @@ public class MainActivity extends BaseMenuActivity {
                     Collections.sort(tempBillOrders, (o1, o2) -> {
                         String time1 = o1.getTempCalculationRequestedAt();
                         String time2 = o2.getTempCalculationRequestedAt();
-                        if (time1 == null) return 1;
-                        if (time2 == null) return -1;
+                        if (time1 == null)
+                            return 1;
+                        if (time2 == null)
+                            return -1;
                         return time2.compareTo(time1);
                     });
 
@@ -567,14 +756,16 @@ public class MainActivity extends BaseMenuActivity {
                         progressBar.setVisibility(View.GONE);
                     }
                     Log.e(TAG, "Failed to load temp calculation requests: " + message);
-                    Toast.makeText(MainActivity.this, "Không thể tải danh sách:  " + message, Toast.LENGTH_SHORT).show();
+                    Toast.makeText(MainActivity.this, "Không thể tải danh sách:  " + message, Toast.LENGTH_SHORT)
+                            .show();
                 });
             }
         });
     }
 
     private void showTempCalculationDialog(List<Order> requests) {
-        if (requests == null || requests.isEmpty()) return;
+        if (requests == null || requests.isEmpty())
+            return;
 
         List<Order> filteredRequests = new ArrayList<>();
         for (Order order : requests) {
@@ -630,18 +821,22 @@ public class MainActivity extends BaseMenuActivity {
                         progressBar.setVisibility(View.GONE);
                     }
 
-                    Log.d(TAG, "📦 Found " + (checkItemsOrders != null ? checkItemsOrders.size() : 0) + " check items requests");
+                    Log.d(TAG, "📦 Found " + (checkItemsOrders != null ? checkItemsOrders.size() : 0)
+                            + " check items requests");
 
                     if (checkItemsOrders == null || checkItemsOrders.isEmpty()) {
-                        Toast.makeText(MainActivity.this, "Không có yêu cầu kiểm tra bàn nào", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(MainActivity.this, "Không có yêu cầu kiểm tra bàn nào", Toast.LENGTH_SHORT)
+                                .show();
                         return;
                     }
 
                     Collections.sort(checkItemsOrders, (o1, o2) -> {
                         String time1 = o1.getCheckItemsRequestedAt();
                         String time2 = o2.getCheckItemsRequestedAt();
-                        if (time1 == null) return 1;
-                        if (time2 == null) return -1;
+                        if (time1 == null)
+                            return 1;
+                        if (time2 == null)
+                            return -1;
                         return time2.compareTo(time1);
                     });
 
@@ -665,7 +860,8 @@ public class MainActivity extends BaseMenuActivity {
     private AlertDialog checkItemsListDialog;
 
     private void showCheckItemsDialog(List<Order> requests) {
-        if (requests == null || requests.isEmpty()) return;
+        if (requests == null || requests.isEmpty())
+            return;
 
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_check_items_list, null);
@@ -690,7 +886,8 @@ public class MainActivity extends BaseMenuActivity {
     }
 
     private void showCheckItemsConfirmDialog(Order order) {
-        if (order == null) return;
+        if (order == null)
+            return;
 
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_check_items_confirm, null);
@@ -724,7 +921,8 @@ public class MainActivity extends BaseMenuActivity {
         String userId = prefs.getString("userId", "");
         String fullName = prefs.getString("fullName", "Nhân viên");
 
-        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US);
+        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+                java.util.Locale.US);
         sdf.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
         String currentTime = sdf.format(new java.util.Date());
 
@@ -798,18 +996,38 @@ public class MainActivity extends BaseMenuActivity {
     }
 
     private void applyNavigationViewInsets() {
+<<<<<<< Updated upstream
         if (navigationView == null) return;
+=======
+        // Kiểm tra null để tránh crash
+        if (navigationView == null)
+            return;
+>>>>>>> Stashed changes
 
         ViewCompat.setOnApplyWindowInsetsListener(navigationView, (view, insets) -> {
             int statusBar = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top;
             View header = navigationView.getHeaderView(0);
             if (header != null) {
+<<<<<<< Updated upstream
                 header.setPadding(
                         header.getPaddingLeft(),
                         statusBar,
                         header.getPaddingRight(),
                         header.getPaddingBottom()
                 );
+=======
+                int paddingLeft = header.getPaddingLeft();
+                int paddingRight = header.getPaddingRight();
+                int paddingBottom = header.getPaddingBottom();
+
+                int originalPaddingTop = header.getPaddingTop();
+
+                header.setPadding(
+                        paddingLeft,
+                        statusBarHeight + 10, // Cộng thêm 20px - 30px cho thoáng
+                        paddingRight,
+                        paddingBottom);
+>>>>>>> Stashed changes
             }
             return insets;
         });
@@ -848,10 +1066,12 @@ public class MainActivity extends BaseMenuActivity {
     }
 
     private void updateNavHeaderInfo() {
-        if (navigationView == null) return;
+        if (navigationView == null)
+            return;
         try {
             View headerView = navigationView.getHeaderView(0);
-            if (headerView == null) return;
+            if (headerView == null)
+                return;
 
             TextView tvName = headerView.findViewById(R.id.textViewName);
             TextView tvRole = headerView.findViewById(R.id.textViewRole);
@@ -870,14 +1090,25 @@ public class MainActivity extends BaseMenuActivity {
     }
 
     private String getVietnameseRole(String roleKey) {
-        if (roleKey == null) return "";
+        if (roleKey == null)
+            return "";
         switch (roleKey.toLowerCase()) {
+<<<<<<< Updated upstream
             case "cashier":  return "Thu ngân";
             case "manager": return "Quản lý";
+=======
+            case "cashier":
+                return "Thu ngân";
+            case "admin":
+                return "Quản lý";
+>>>>>>> Stashed changes
             case "waiter":
-            case "order":  return "Phục vụ";
-            case "kitchen": return "Bếp";
-            default: return roleKey;
+            case "order":
+                return "Phục vụ";
+            case "kitchen":
+                return "Bếp";
+            default:
+                return roleKey;
         }
     }
 
@@ -885,9 +1116,22 @@ public class MainActivity extends BaseMenuActivity {
     protected void onResume() {
         super.onResume();
         try {
+<<<<<<< Updated upstream
             if (socketManager != null && mainSocketListener != null) {
                 socketManager.registerListener(mainSocketListener);
                 socketManager.connect();
+=======
+            // Mark activity visible
+            activityVisible = true;
+            Log.d(TAG, "onResume: activityVisible=true, pendingAutoReleasedTable=" + pendingAutoReleasedTable);
+
+            // If we had a pending auto-release while activity was backgrounded, show dialog
+            // now
+            if (pendingAutoReleasedTable != null) {
+                final int tnum = pendingAutoReleasedTable;
+                pendingAutoReleasedTable = null;
+                showAutoReleaseDialogIfPossible(tnum);
+>>>>>>> Stashed changes
             }
         } catch (Exception e) {
             Log.w(TAG, "socket connect onResume failed", e);
@@ -915,6 +1159,80 @@ public class MainActivity extends BaseMenuActivity {
         if (notificationManager != null) {
             notificationManager.destroy();
         }
+<<<<<<< Updated upstream
+=======
+
+        // Stop reservation helper listener
+        try {
+            if (reservationHelper != null) {
+                reservationHelper.stopListening();
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to stop reservation helper listener: " + e.getMessage(), e);
+        }
+    }
+
+    private void showAutoReleaseDialogIfPossible(int shownNum) {
+        try {
+            // If activity is finishing/destroyed, skip showing dialog
+            boolean canShow = true;
+            if (isFinishing())
+                canShow = false;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+                if (isDestroyed())
+                    canShow = false;
+            }
+            if (!canShow) {
+                Log.d(TAG, "Cannot show auto-release dialog because activity is not in valid state");
+                return;
+            }
+
+            // if the activity has window focus or is marked visible, it's safe to show
+            // dialog
+            boolean hasFocus = false;
+            try {
+                hasFocus = this.hasWindowFocus();
+            } catch (Exception ignored) {
+            }
+
+            if (!(activityVisible || hasFocus)) {
+                // still save as pending so it will be shown later
+                pendingAutoReleasedTable = shownNum;
+                Log.d(TAG,
+                        "Deferring showing auto-release dialog until activity foreground (pending=" + shownNum + ")");
+                return;
+            }
+
+            runOnUiThread(() -> {
+                try {
+                    InAppNotification notification = new InAppNotification.Builder(
+                            InAppNotification.Type.WARNING,
+                            "⏰ Hủy đặt bàn tự động",
+                            "Bàn " + (shownNum > 0 ? shownNum : "") + " đã hết thời gian đặt trước")
+                            .actionData("table:" + shownNum)
+                            .duration(8000)
+                            .build();
+
+                    notificationManager.show(notification);
+
+                    String msg = "Bàn " + (shownNum > 0 ? shownNum : "") + " đã tự động hủy đặt trước.";
+                    new AlertDialog.Builder(MainActivity.this)
+                            .setTitle("Thông báo")
+                            .setMessage(msg)
+                            .setCancelable(false)
+                            .setPositiveButton("OK", null)
+                            .show();
+
+                    fetchTablesFromServer();
+                } catch (Exception ex) {
+                    Log.w(TAG, "show auto-release dialog failed", ex);
+                    fetchTablesFromServer();
+                }
+            });
+        } catch (Exception e) {
+            Log.w(TAG, "showAutoReleaseDialogIfPossible failed", e);
+        }
+>>>>>>> Stashed changes
     }
 
     public void fetchTablesFromServer() {
@@ -947,9 +1265,12 @@ public class MainActivity extends BaseMenuActivity {
                     }
 
                     Comparator<TableItem> byNumber = (a, b) -> {
-                        if (a == null && b == null) return 0;
-                        if (a == null) return 1;
-                        if (b == null) return -1;
+                        if (a == null && b == null)
+                            return 0;
+                        if (a == null)
+                            return 1;
+                        if (b == null)
+                            return -1;
                         try {
                             return Integer.compare(a.getTableNumber(), b.getTableNumber());
                         } catch (Exception e) {
@@ -983,18 +1304,21 @@ public class MainActivity extends BaseMenuActivity {
     }
 
     private int parseFloorFromLocation(String location) {
-        if (location == null) return 1;
+        if (location == null)
+            return 1;
         try {
             Pattern p = Pattern.compile("(\\d+)");
             Matcher m = p.matcher(location.toLowerCase(Locale.getDefault()));
             if (m.find())
                 return Integer.parseInt(m.group(1));
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
         return 1;
     }
 
     private void syncTableStatusesWithOrders(List<TableItem> tables) {
-        if (tables == null || tables.isEmpty()) return;
+        if (tables == null || tables.isEmpty())
+            return;
         orderRepository.getOrdersByTableNumber(null, null, new OrderRepository.RepositoryCallback<List<Order>>() {
             @Override
             public void onSuccess(List<Order> orders) {
@@ -1007,12 +1331,15 @@ public class MainActivity extends BaseMenuActivity {
                 List<TableItem> toUpdate = new ArrayList<>();
                 final List<String> desired = new ArrayList<>();
                 for (TableItem t : tables) {
-                    if (t == null) continue;
+                    if (t == null)
+                        continue;
                     boolean isReserved = false;
                     try {
                         isReserved = t.getStatus() == TableItem.Status.RESERVED;
-                    } catch (Exception ignored) {}
-                    if (isReserved) continue;
+                    } catch (Exception ignored) {
+                    }
+                    if (isReserved)
+                        continue;
                     String cur = t.getStatus() != null ? t.getStatus().name().toLowerCase() : "";
                     String want = occupiedTableNumbers.contains(t.getTableNumber()) ? "occupied" : "available";
                     if (!cur.equals(want)) {
@@ -1020,27 +1347,29 @@ public class MainActivity extends BaseMenuActivity {
                         desired.add(want);
                     }
                 }
-                if (toUpdate.isEmpty()) return;
+                if (toUpdate.isEmpty())
+                    return;
                 final int total = toUpdate.size();
-                final int[] finished = {0};
+                final int[] finished = { 0 };
                 for (int i = 0; i < toUpdate.size(); i++) {
                     TableItem ti = toUpdate.get(i);
                     String want = desired.get(i);
-                    tableRepository.updateTableStatus(ti.getId(), want, new TableRepository.RepositoryCallback<TableItem>() {
-                        @Override
-                        public void onSuccess(TableItem updated) {
-                            finished[0]++;
-                            if (finished[0] >= total)
-                                runOnUiThread(() -> fetchTablesFromServer());
-                        }
+                    tableRepository.updateTableStatus(ti.getId(), want,
+                            new TableRepository.RepositoryCallback<TableItem>() {
+                                @Override
+                                public void onSuccess(TableItem updated) {
+                                    finished[0]++;
+                                    if (finished[0] >= total)
+                                        runOnUiThread(() -> fetchTablesFromServer());
+                                }
 
-                        @Override
-                        public void onError(String message) {
-                            finished[0]++;
-                            if (finished[0] >= total)
-                                runOnUiThread(() -> fetchTablesFromServer());
-                        }
-                    });
+                                @Override
+                                public void onError(String message) {
+                                    finished[0]++;
+                                    if (finished[0] >= total)
+                                        runOnUiThread(() -> fetchTablesFromServer());
+                                }
+                            });
                 }
             }
 
@@ -1052,7 +1381,8 @@ public class MainActivity extends BaseMenuActivity {
     }
 
     private void loadMenuBasedOnRole() {
-        if (navigationView == null) return;
+        if (navigationView == null)
+            return;
 
         SharedPreferences prefs = getSharedPreferences("RestaurantPrefs", MODE_PRIVATE);
         String userRole = prefs.getString("userRole", "waiter");
@@ -1079,34 +1409,103 @@ public class MainActivity extends BaseMenuActivity {
     }
 
     private void handleNavigationItemClick(int itemId) {
-        if (itemId == R.id.nav_mood) {
+        if (itemId == R.id.nav_dashboard) {
+            // Load Dashboard Fragment
+            loadDashboardFragment();
+        } else if (itemId == R.id.nav_tables) {
+            // Show tables view
+            showTablesView();
+        } else if (itemId == R.id.nav_mood) {
+            showTablesView();
             showMoodDialog();
         } else if (itemId == R.id.nav_contact) {
+            showTablesView();
             showContactDialog();
         } else if (itemId == R.id.nav_logout) {
             logout();
         } else if (itemId == R.id.nav_reports) {
+            showTablesView();
             Intent intent = new Intent(this, com.ph48845.datn_qlnh_rmis.ui.revenue.ReportActivity.class);
             startActivity(intent);
         } else if (itemId == R.id.nav_revenue) {
+            showTablesView();
             Intent intent = new Intent(this, com.ph48845.datn_qlnh_rmis.ui.revenue.ReportActivity.class);
             startActivity(intent);
         } else if (itemId == R.id.nav_warnings) {
+            showTablesView();
             Intent intent = new Intent(this, com.ph48845.datn_qlnh_rmis.ui.warehouse.WarningActivity.class);
             startActivity(intent);
         } else if (itemId == R.id.nav_shifts) {
+            showTablesView();
             Intent intent = new Intent(this, com.ph48845.datn_qlnh_rmis.ui.shift.ShiftActivity.class);
             startActivity(intent);
         } else if (itemId == R.id.nav_employees) {
+            showTablesView();
             Intent intent = new Intent(this, com.ph48845.datn_qlnh_rmis.ui.employee.EmployeeActivity.class);
             startActivity(intent);
         } else if (itemId == R.id.nav_payment_history) {
+            showTablesView();
             Intent intent = new Intent(this, com.ph48845.datn_qlnh_rmis.ui.thungan.HistoryActivity.class);
             startActivity(intent);
         } else if (itemId == R.id.nav_temp_calculation_requests || itemId == R.id.nav_pre_bill) {
+            showTablesView();
             showTempCalculationRequests();
         } else if (itemId == R.id.nav_check_items_requests) {
+            showTablesView();
             showCheckItemsRequests();
+        }
+    }
+
+    private void loadDashboardFragment() {
+        // ✅ SECURITY: Only admin can access Dashboard
+        SharedPreferences prefs = getSharedPreferences("RestaurantPrefs", MODE_PRIVATE);
+        String userRole = prefs.getString("userRole", "");
+
+        if (!"admin".equalsIgnoreCase(userRole.trim())) {
+            Log.w(TAG, "Unauthorized access to Dashboard - User role: " + userRole);
+            Toast.makeText(this, "Bạn không có quyền truy cập Dashboard", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // Hide tables view
+        View tablesContainer = findViewById(R.id.tables_container);
+        View fragmentContainer = findViewById(R.id.fragment_container);
+
+        if (tablesContainer != null) {
+            tablesContainer.setVisibility(View.GONE);
+        }
+        if (fragmentContainer != null) {
+            fragmentContainer.setVisibility(View.VISIBLE);
+        }
+
+        // Update title
+        TextView toolbarTitle = findViewById(R.id.toolbar_title);
+        if (toolbarTitle != null) {
+            toolbarTitle.setText("DASHBOARD");
+        }
+
+        // Load Dashboard Fragment
+        getSupportFragmentManager().beginTransaction()
+                .replace(R.id.fragment_container, new com.ph48845.datn_qlnh_rmis.ui.dashboard.DashboardFragment())
+                .commit();
+    }
+
+    private void showTablesView() {
+        // Show tables view, hide fragment
+        View tablesContainer = findViewById(R.id.tables_container);
+        View fragmentContainer = findViewById(R.id.fragment_container);
+
+        if (tablesContainer != null) {
+            tablesContainer.setVisibility(View.VISIBLE);
+        }
+        if (fragmentContainer != null) {
+            fragmentContainer.setVisibility(View.GONE);
+        }
+
+        // Update title back to tables
+        TextView toolbarTitle = findViewById(R.id.toolbar_title);
+        if (toolbarTitle != null) {
+            toolbarTitle.setText("SƠ ĐỒ BÀN");
         }
     }
 
