@@ -145,6 +145,33 @@ public class PrintBillActivity extends AppCompatActivity {
         }
     }
 
+    /**
+     * Kiểm tra xem món ăn đã bị hủy
+     */
+    private boolean isItemCancelled(Order.OrderItem item) {
+        if (item == null) return false;
+        String status = item.getStatus();
+        if (status == null || status.trim().isEmpty()) return false;
+        
+        String statusLower = status.toLowerCase().trim();
+        
+        // Kiểm tra đã hủy
+        return statusLower.contains("cancelled") ||
+               statusLower.contains("canceled") ||
+               statusLower.contains("hủy") ||
+               statusLower.contains("huy") ||
+               statusLower.contains("đã hủy");
+    }
+    
+    /**
+     * Lấy giá của món (0 nếu đã hủy)
+     */
+    private double getItemPrice(Order.OrderItem item) {
+        if (item == null) return 0.0;
+        if (isItemCancelled(item)) return 0.0;
+        return item.getPrice();
+    }
+
     private void addItemRow(Order.OrderItem item) {
         View itemView = getLayoutInflater().inflate(R.layout.item_bill_row, llItemsContainer, false);
         
@@ -155,9 +182,12 @@ public class PrintBillActivity extends AppCompatActivity {
 
         tvItemName.setText(item.getName() != null ? item.getName() : "Món");
         tvItemQuantity.setText(String.valueOf(item.getQuantity()));
-        tvItemPrice.setText(formatCurrency(item.getPrice()));
         
-        double itemTotal = item.getPrice() * item.getQuantity();
+        // Món đã hủy sẽ có giá 0 đồng
+        double itemPrice = getItemPrice(item);
+        tvItemPrice.setText(formatCurrency(itemPrice));
+        
+        double itemTotal = itemPrice * item.getQuantity();
         tvItemTotal.setText(formatCurrency(itemTotal));
 
         llItemsContainer.addView(itemView);
@@ -196,11 +226,13 @@ public class PrintBillActivity extends AppCompatActivity {
         if (order.getItems() != null) {
             for (Order.OrderItem item : order.getItems()) {
                 if (item == null) continue;
-                double itemTotal = item.getPrice() * item.getQuantity();
+                // Món đã hủy sẽ có giá 0 đồng
+                double itemPrice = getItemPrice(item);
+                double itemTotal = itemPrice * item.getQuantity();
                 itemsRows.append("<tr>");
                 itemsRows.append("<td>").append(item.getName() != null ? item.getName() : "Món").append("</td>");
                 itemsRows.append("<td>").append(item.getQuantity()).append("</td>");
-                itemsRows.append("<td>").append(formatCurrency(item.getPrice())).append("</td>");
+                itemsRows.append("<td>").append(formatCurrency(itemPrice)).append("</td>");
                 itemsRows.append("<td>").append(formatCurrency(itemTotal)).append("</td>");
                 itemsRows.append("</tr>");
             }

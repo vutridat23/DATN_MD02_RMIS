@@ -359,6 +359,14 @@ public class OrderRepository {
             body.put("voucherId", voucherId);
         }
 
+        Log.d(TAG, "=== PAY ORDER REQUEST ===");
+        Log.d(TAG, "orderId: " + orderId);
+        Log.d(TAG, "paymentMethod: " + (paymentMethod != null ? paymentMethod : "Tiền mặt"));
+        Log.d(TAG, "paidAmount: " + amountCustomerGiven);
+        Log.d(TAG, "amountCustomerGiven: " + amountCustomerGiven);
+        Log.d(TAG, "voucherId: " + (voucherId != null ? voucherId : "null"));
+        Log.d(TAG, "Body: " + body.toString());
+
         api.payOrder(body).enqueue(new Callback<ApiResponse<Order>>() {
             @Override
             public void onResponse(Call<ApiResponse<Order>> call, Response<ApiResponse<Order>> response) {
