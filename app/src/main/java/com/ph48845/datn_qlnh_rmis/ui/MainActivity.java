@@ -88,7 +88,7 @@ public class MainActivity extends BaseMenuActivity {
     NavigationView navigationView;
 
     private SocketManager socketManager;
-    private String defaultSocketUrl = "http://192.168.1.84:3000";
+    private String defaultSocketUrl = "http://192.168.1.229:3000";
 
     // main listener instance so we can register/unregister without losing it
     private SocketManager.OnEventListener mainSocketListener;
@@ -1310,6 +1310,9 @@ public class MainActivity extends BaseMenuActivity {
             logout();
         } else if (itemId == R.id.nav_reports) {
             Intent intent = new Intent(this, com.ph48845.datn_qlnh_rmis.ui.revenue.ReportActivity.class);
+            startActivity(intent);
+        } else if (itemId == R.id.nav_dashboard) {
+            Intent intent = new Intent(this, com.ph48845.datn_qlnh_rmis.ui.dashboard.DashboardActivity.class);
             startActivity(intent);
         } else if (itemId == R.id.nav_revenue) {
             Intent intent = new Intent(this, com.ph48845.datn_qlnh_rmis.ui.revenue.ReportActivity.class);

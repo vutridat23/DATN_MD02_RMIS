@@ -36,18 +36,21 @@
         </androidx.appcompat.widget.Toolbar>
     </com.google.android.material.appbar.AppBarLayout>
 
-    <!-- Scrollable content -->
-    <androidx.core.widget.NestedScrollView
+    <!-- Main content container -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        app:layout_behavior="@string/appbar_scrolling_view_behavior"
-        android:fillViewport="true">
+        android:orientation="vertical"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
+        <!-- Fixed header section (search + summary) -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="16dp">
+            android:padding="16dp"
+            android:background="#FFFFFF"
+            android:elevation="4dp">
 
             <!-- Chọn ngày -->
             <LinearLayout
@@ -55,7 +58,7 @@
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
-                android:layout_marginBottom="16dp">
+                android:layout_marginBottom="8dp">
 
                 <EditText
                     android:id="@+id/etFromDate"
@@ -78,17 +81,36 @@
                     android:hint="Đến ngày"
                     android:focusable="false"
                     android:padding="8dp"/>
+            </LinearLayout>
+
+            <!-- Buttons row -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="16dp">
+
+                <Button
+                    android:id="@+id/btnSearch"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Tìm kiếm"
+                    android:backgroundTint="#B71C1C"
+                    android:textColor="#FFFFFF"/>
 
                 <View
                     android:layout_width="8dp"
                     android:layout_height="match_parent"/>
 
                 <Button
-                    android:id="@+id/btnSearch"
-                    android:layout_width="wrap_content"
+                    android:id="@+id/btnClearFilter"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:text="Tìm"
-                    android:backgroundTint="#B71C1C"
+                    android:layout_weight="1"
+                    android:text="Bỏ lọc"
+                    android:backgroundTint="#757575"
                     android:textColor="#FFFFFF"/>
             </LinearLayout>
 
@@ -98,14 +120,12 @@
                 android:layout_height="wrap_content"
                 app:cardCornerRadius="8dp"
                 app:cardElevation="2dp"
-                app:cardUseCompatPadding="true"
-                android:layout_marginBottom="16dp">
+                app:cardUseCompatPadding="true">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:background="@color/white"
-
                     android:orientation="vertical"
                     android:padding="16dp">
 
@@ -129,6 +149,18 @@
                         android:textStyle="bold"/>
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
+        </LinearLayout>
+
+        <!-- Scrollable list section -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="8dp"
+            android:background="#F5F5F5">
 
             <!-- Danh sách chi tiết báo cáo -->
             <TextView
@@ -143,7 +175,7 @@
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/rvRevenueDetails"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"/>
+                android:layout_height="match_parent"/>
         </LinearLayout>
-    </androidx.core.widget.NestedScrollView>
+    </LinearLayout>
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
