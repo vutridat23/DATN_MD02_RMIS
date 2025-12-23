@@ -68,13 +68,14 @@ public class ThuNganAdapter extends RecyclerView.Adapter<ThuNganAdapter.TableVie
         holder.cardView.setCardBackgroundColor(Color.WHITE);
 
         ServingStatus servingStatus = getServingStatus(table);
-        Boolean isFullServing = tableFullServingMap.getOrDefault(table.getTableNumber(), false);
-
+        boolean isFullServing = tableFullServingMap.getOrDefault(table.getTableNumber(), false);
 
         int newColor;
         float newElevation;
 
-// Hủy hiệu ứng cũ nếu không còn xanh lá
+        // ===============================
+        // RESET animator cũ (QUAN TRỌNG)
+        // ===============================
         if (holder.isBlinking) {
             if (holder.fadeAnimator != null) {
                 holder.fadeAnimator.cancel();
@@ -83,22 +84,26 @@ public class ThuNganAdapter extends RecyclerView.Adapter<ThuNganAdapter.TableVie
             holder.isBlinking = false;
         }
 
-// Full món → xanh dương cố định
+        // ===============================
+        // 1️⃣ FULL MÓN → XANH DƯƠNG
+        // ===============================
         if (isFullServing) {
             newColor = Color.parseColor("#2196F3"); // xanh dương
             newElevation = table.getViewState() == TableItem.ViewState.UNSEEN ? 8f : 4f;
             holder.viewStatusStrip.setBackgroundColor(newColor);
         }
-// Chưa xem + chưa full → xanh lá fade
-        else if (table.getViewState() == TableItem.ViewState.UNSEEN) {
+
+        // ===============================
+        // 2️⃣ ORDER MỚI hoặc CHƯA XEM → XANH LÁ NHÁY
+        // ===============================
+        else if (table.isNewOccupied() || table.getViewState() == TableItem.ViewState.UNSEEN) {
             newColor = Color.parseColor("#2e7d32"); // xanh lá
             newElevation = 8f;
 
             holder.isBlinking = true;
 
-            // Tạo animator từ alpha 0.3 → 1.0
             holder.fadeAnimator = ValueAnimator.ofFloat(0.3f, 1f);
-            holder.fadeAnimator.setDuration(1000); // 1 giây
+            holder.fadeAnimator.setDuration(1000);
             holder.fadeAnimator.setRepeatMode(ValueAnimator.REVERSE);
             holder.fadeAnimator.setRepeatCount(ValueAnimator.INFINITE);
             holder.fadeAnimator.addUpdateListener(animation -> {
@@ -106,20 +111,26 @@ public class ThuNganAdapter extends RecyclerView.Adapter<ThuNganAdapter.TableVie
                 int r = Color.red(newColor);
                 int g = Color.green(newColor);
                 int b = Color.blue(newColor);
-                holder.viewStatusStrip.setBackgroundColor(Color.argb((int)(alpha * 255), r, g, b));
+                holder.viewStatusStrip.setBackgroundColor(
+                        Color.argb((int) (alpha * 255), r, g, b)
+                );
             });
             holder.fadeAnimator.start();
         }
-// Đã xem → đỏ cố định
+
+        // ===============================
+        // 3️⃣ ĐÃ BẤM → ĐỎ
+        // ===============================
         else {
             newColor = Color.parseColor("#AA0000"); // đỏ
             newElevation = 4f;
             holder.viewStatusStrip.setBackgroundColor(newColor);
         }
 
-// Cập nhật elevation
+        // Elevation
         holder.cardView.setCardElevation(newElevation);
 
+        // Serving status text
         if (showServingStatus) {
             holder.tvServingStatus.setText(servingStatus.text);
             holder.tvServingStatus.setVisibility(View.VISIBLE);
@@ -128,13 +139,17 @@ public class ThuNganAdapter extends RecyclerView.Adapter<ThuNganAdapter.TableVie
             holder.tvServingStatus.setVisibility(View.GONE);
         }
 
-        // Click → đánh dấu đã xem
+        // ===============================
+        // CLICK → ĐỎ + TẮT ORDER MỚI
+        // ===============================
         holder.itemView.setOnClickListener(v -> {
             table.setViewState(TableItem.ViewState.SEEN);
+            table.setNewOccupied(false); // 🔥 QUAN TRỌNG
             notifyItemChanged(holder.getAdapterPosition());
             if (listener != null) listener.onTableClick(table);
         });
     }
+
 
     private final Map<Integer, Boolean> tableFullServingMap = new HashMap<>();
 

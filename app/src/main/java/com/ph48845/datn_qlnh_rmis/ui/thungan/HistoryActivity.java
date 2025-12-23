@@ -114,7 +114,7 @@ public class HistoryActivity extends AppCompatActivity {
         call.enqueue(new Callback<ApiResponse<List<HistoryItem>>>() {
             @Override
             public void onResponse(Call<ApiResponse<List<HistoryItem>>> call,
-                    Response<ApiResponse<List<HistoryItem>>> response) {
+                                   Response<ApiResponse<List<HistoryItem>>> response) {
                 if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
                     List<HistoryItem> data = response.body().getData();
                     if (data != null && !data.isEmpty()) {
@@ -157,7 +157,7 @@ public class HistoryActivity extends AppCompatActivity {
         call.enqueue(new Callback<ApiResponse<List<HistoryItem>>>() {
             @Override
             public void onResponse(Call<ApiResponse<List<HistoryItem>>> call,
-                    Response<ApiResponse<List<HistoryItem>>> response) {
+                                   Response<ApiResponse<List<HistoryItem>>> response) {
                 if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
                     List<HistoryItem> data = response.body().getData();
                     if (data != null && !data.isEmpty()) {

@@ -374,6 +374,24 @@ public class InvoiceActivity extends AppCompatActivity {
     }
 
     /**
+     * Kiểm tra xem món ăn đã bị hủy
+     */
+    private boolean isItemCancelled(Order.OrderItem item) {
+        if (item == null) return false;
+        String status = item.getStatus();
+        if (status == null || status.trim().isEmpty()) return false;
+        
+        String statusLower = status.toLowerCase().trim();
+        
+        // Kiểm tra đã hủy
+        return statusLower.contains("cancelled") ||
+               statusLower.contains("canceled") ||
+               statusLower.contains("hủy") ||
+               statusLower.contains("huy") ||
+               statusLower.contains("đã hủy");
+    }
+
+    /**
      * Kiểm tra xem món ăn đã xong hoặc đang làm
      * Đã xong: done, xong, served, ready, completed, hoàn thành
      * Đang làm: preparing, in_progress, processing, đang làm, đang nấu
@@ -384,6 +402,9 @@ public class InvoiceActivity extends AppCompatActivity {
         if (status == null || status.trim().isEmpty()) return false;
         
         String statusLower = status.toLowerCase().trim();
+        
+        // Nếu đã hủy thì không tính là done/preparing
+        if (isItemCancelled(item)) return false;
         
         // Kiểm tra đã xong
         boolean isDone = statusLower.contains("done") || 
@@ -405,6 +426,7 @@ public class InvoiceActivity extends AppCompatActivity {
 
     /**
      * Tính tổng tiền chỉ từ những món đã xong hoặc đang làm
+     * Món đã hủy sẽ có giá 0 đồng
      */
     private double calculateTotalFromDoneOrPreparingItems(List<Order.OrderItem> items) {
         if (items == null || items.isEmpty()) return 0.0;
@@ -412,10 +434,21 @@ public class InvoiceActivity extends AppCompatActivity {
         double total = 0.0;
         for (Order.OrderItem item : items) {
             if (item != null && isItemDoneOrPreparing(item)) {
-                total += item.getPrice() * item.getQuantity();
+                // Nếu món đã hủy, giá sẽ là 0
+                double itemPrice = isItemCancelled(item) ? 0.0 : item.getPrice();
+                total += itemPrice * item.getQuantity();
             }
         }
         return total;
+    }
+    
+    /**
+     * Lấy giá của món (0 nếu đã hủy)
+     */
+    private double getItemPrice(Order.OrderItem item) {
+        if (item == null) return 0.0;
+        if (isItemCancelled(item)) return 0.0;
+        return item.getPrice();
     }
 
     /**
@@ -667,11 +700,16 @@ public class InvoiceActivity extends AppCompatActivity {
      * Hiển thị dialog chọn voucher cho order với danh sách vouchers đã có
      */
     private void showVoucherDialogForOrderWithList(Order order, List<Voucher> vouchers) {
-        // Tính tổng tiền của order này (phải là final để dùng trong lambda)
+        // Tính tổng tiền của order này chỉ từ những món đã xong hoặc đang làm (phải là final để dùng trong lambda)
+        order.normalizeItems();
         final double orderTotal;
-        double tempTotal = order.getTotalAmount();
+        double tempTotal = calculateTotalFromDoneOrPreparingItems(order.getItems());
         if (tempTotal <= 0) {
-            tempTotal = order.getFinalAmount() + order.getDiscount();
+            // Nếu không có món nào đã xong hoặc đang làm, thử lấy từ totalAmount
+            tempTotal = order.getTotalAmount();
+            if (tempTotal <= 0) {
+                tempTotal = order.getFinalAmount() + order.getDiscount();
+            }
         }
         orderTotal = tempTotal;
 
@@ -851,13 +889,19 @@ public class InvoiceActivity extends AppCompatActivity {
      * Hiển thị dialog chọn voucher với danh sách đã có
      */
     private void showVoucherDialog(List<Voucher> vouchers) {
-        // Tính tổng tiền trước voucher (phải là final để dùng trong lambda)
+        // Tính tổng tiền trước voucher chỉ từ những món đã xong hoặc đang làm (phải là final để dùng trong lambda)
         double tempTotal = 0.0;
         for (Order order : orders) {
             if (order != null) {
-                double orderTotal = order.getTotalAmount();
+                // Tính tổng tiền chỉ từ những món đã xong hoặc đang làm
+                order.normalizeItems();
+                double orderTotal = calculateTotalFromDoneOrPreparingItems(order.getItems());
                 if (orderTotal <= 0) {
-                    orderTotal = order.getFinalAmount() + order.getDiscount();
+                    // Nếu không có món nào đã xong hoặc đang làm, thử lấy từ totalAmount
+                    orderTotal = order.getTotalAmount();
+                    if (orderTotal <= 0) {
+                        orderTotal = order.getFinalAmount() + order.getDiscount();
+                    }
                 }
                 tempTotal += orderTotal;
             }
@@ -1161,15 +1205,18 @@ public class InvoiceActivity extends AppCompatActivity {
 
         llItemsContainer.removeAllViews();
         if (orderItems != null && !orderItems.isEmpty()) {
-            // Lọc chỉ lấy những món đã xong hoặc đang làm
+            // Hiển thị TẤT CẢ món (done, preparing, pending) - chỉ tính tổng tiền từ done/preparing
+            // Lọc bỏ món đã hủy (nếu muốn ẩn món đã hủy) hoặc hiển thị tất cả
             List<Order.OrderItem> filteredItems = new ArrayList<>();
             for (Order.OrderItem item : orderItems) {
-                if (item != null && isItemDoneOrPreparing(item)) {
+                if (item != null) {
+                    // Hiển thị tất cả món trừ món đã hủy (hoặc có thể hiển thị cả món đã hủy)
+                    // Để hiển thị tất cả, chỉ cần kiểm tra null
                     filteredItems.add(item);
                 }
             }
             
-            Log.d(TAG, "createInvoiceCard: Processing " + filteredItems.size() + " items (done/preparing) out of " + orderItems.size() + " total items for order " + order.getId());
+            Log.d(TAG, "createInvoiceCard: Processing " + filteredItems.size() + " items (all statuses) out of " + orderItems.size() + " total items for order " + order.getId());
             
             for (int i = 0; i < filteredItems.size(); i++) {
                 final int itemIndex = i;
@@ -1249,7 +1296,9 @@ public class InvoiceActivity extends AppCompatActivity {
                     }
 
                     tvItemName.setText(item.getName() != null ? item.getName() : "(Không tên)");
-                    double itemTotal = item.getPrice() * item.getQuantity();
+                    // Món đã hủy sẽ có giá 0 đồng
+                    double itemPrice = getItemPrice(item);
+                    double itemTotal = itemPrice * item.getQuantity();
                     tvItemPrice.setText(formatCurrency(itemTotal));
 
                     llItemsContainer.addView(itemRow);
@@ -1428,11 +1477,16 @@ public class InvoiceActivity extends AppCompatActivity {
             return;
         }
 
-        // Tính tổng tiền với voucher của order này (nếu có) - giống như trong card
-        double orderTotal = order.getTotalAmount();
+        // Tính tổng tiền chỉ từ những món đã xong hoặc đang làm - giống như trong card
+        order.normalizeItems();
+        double orderTotal = calculateTotalFromDoneOrPreparingItems(order.getItems());
         if (orderTotal <= 0) {
-            double defaultDiscount = order.getDiscount();
-            orderTotal = order.getFinalAmount() + defaultDiscount;
+            // Nếu không có món nào đã xong hoặc đang làm, thử lấy từ totalAmount
+            orderTotal = order.getTotalAmount();
+            if (orderTotal <= 0) {
+                double defaultDiscount = order.getDiscount();
+                orderTotal = order.getFinalAmount() + defaultDiscount;
+            }
         }
 
         // Lấy voucher đã chọn cho order này
@@ -1450,6 +1504,13 @@ public class InvoiceActivity extends AppCompatActivity {
               ", orderTotal = " + formatCurrency(orderTotal) +
               ", discount = " + formatCurrency(discount) +
               ", finalAmount = " + formatCurrency(finalAmount));
+        
+        // Kiểm tra số tiền hợp lệ
+        if (finalAmount <= 0) {
+            Toast.makeText(this, "Không thể thanh toán: Số tiền không hợp lệ (" + formatCurrency(finalAmount) + "). Vui lòng kiểm tra lại các món đã xong/đang làm.", Toast.LENGTH_LONG).show();
+            Log.e(TAG, "processPaymentForOrder: Invalid finalAmount = " + finalAmount);
+            return;
+        }
 
         // Chuyển sang màn hình thanh toán với tổng tiền đã tính voucher
         Intent intent = new Intent(InvoiceActivity.this, ThanhToanActivity.class);
@@ -1485,9 +1546,15 @@ public class InvoiceActivity extends AppCompatActivity {
         for (Order order : orders) {
             if (order == null || order.getId() == null) continue;
 
-            double orderTotal = order.getTotalAmount();
+            // Tính tổng tiền chỉ từ những món đã xong hoặc đang làm
+            order.normalizeItems();
+            double orderTotal = calculateTotalFromDoneOrPreparingItems(order.getItems());
             if (orderTotal <= 0) {
-                orderTotal = order.getFinalAmount() + order.getDiscount();
+                // Nếu không có món nào đã xong hoặc đang làm, thử lấy từ totalAmount
+                orderTotal = order.getTotalAmount();
+                if (orderTotal <= 0) {
+                    orderTotal = order.getFinalAmount() + order.getDiscount();
+                }
             }
 
             totalBeforeVoucher += orderTotal;
@@ -1555,11 +1622,17 @@ public class InvoiceActivity extends AppCompatActivity {
 
         progressBar.setVisibility(View.VISIBLE);
 
-        // Tính tổng tiền và discount
+        // Tính tổng tiền chỉ từ những món đã xong hoặc đang làm và discount
         double totalAmount = 0.0;
         for (Order order : orders) {
             if (order != null) {
-                totalAmount += order.getFinalAmount();
+                order.normalizeItems();
+                double orderTotal = calculateTotalFromDoneOrPreparingItems(order.getItems());
+                if (orderTotal <= 0) {
+                    // Nếu không có món nào đã xong hoặc đang làm, thử lấy từ finalAmount
+                    orderTotal = order.getFinalAmount();
+                }
+                totalAmount += orderTotal;
             }
         }
 
@@ -1581,8 +1654,39 @@ public class InvoiceActivity extends AppCompatActivity {
                 continue;
             }
 
-            double orderAmount = order.getFinalAmount() - discountPerOrder;
+            // Tính tổng tiền chỉ từ những món đã xong hoặc đang làm
+            order.normalizeItems();
+            double orderTotal = calculateTotalFromDoneOrPreparingItems(order.getItems());
+            if (orderTotal <= 0) {
+                // Nếu không có món nào đã xong hoặc đang làm, thử lấy từ finalAmount
+                orderTotal = order.getFinalAmount();
+                if (orderTotal <= 0) {
+                    orderTotal = order.getTotalAmount();
+                }
+            }
+            
+            double orderAmount = orderTotal - discountPerOrder;
             if (orderAmount < 0) orderAmount = 0;
+            
+            Log.d(TAG, "payAllOrdersSequentially: orderId = " + order.getId() + 
+                  ", orderTotal (from done/preparing) = " + formatCurrency(orderTotal) +
+                  ", discountPerOrder = " + formatCurrency(discountPerOrder) +
+                  ", orderAmount = " + formatCurrency(orderAmount));
+
+            // Kiểm tra số tiền hợp lệ trước khi thanh toán
+            if (orderAmount <= 0) {
+                Log.w(TAG, "payAllOrdersSequentially: Skipping order " + order.getId() + " - invalid amount: " + orderAmount);
+                int current = successCount.incrementAndGet();
+                allSuccess.set(false);
+                if (current >= totalCount.get()) {
+                    runOnUiThread(() -> {
+                        progressBar.setVisibility(View.GONE);
+                        Toast.makeText(InvoiceActivity.this, "Một số hóa đơn có số tiền không hợp lệ (≤ 0)", Toast.LENGTH_LONG).show();
+                        loadInvoiceData();
+                    });
+                }
+                continue;
+            }
 
             // Thanh toán từng hóa đơn
             String voucherId = selectedVoucher != null ? selectedVoucher.getId() : null;
@@ -2031,7 +2135,7 @@ public class InvoiceActivity extends AppCompatActivity {
                 if (!remainingItems.isEmpty()) {
                     double remainingTotal = 0;
                     for (Order.OrderItem item : remainingItems) {
-                        remainingTotal += item.getPrice() * item.getQuantity();
+                        remainingTotal += getItemPrice(item) * item.getQuantity();
                     }
 
                     Map<String, Object> updates = new HashMap<>();
@@ -2761,15 +2865,20 @@ public class InvoiceActivity extends AppCompatActivity {
     }
 
     /**
-     * Tính lại tổng tiền cho order
+     * Tính lại tổng tiền cho order chỉ từ những món đã xong hoặc đang làm
      */
     private void recalculateOrderTotal(Order order) {
         if (order == null || order.getItems() == null) {
             return;
         }
-        double total = 0;
-        for (Order.OrderItem item : order.getItems()) {
-            total += item.getPrice() * item.getQuantity();
+        order.normalizeItems();
+        double total = calculateTotalFromDoneOrPreparingItems(order.getItems());
+        // Nếu không có món nào đã xong hoặc đang làm, tính từ tất cả items (fallback)
+        if (total <= 0) {
+            total = 0;
+            for (Order.OrderItem item : order.getItems()) {
+                total += getItemPrice(item) * item.getQuantity();
+            }
         }
         order.setTotalAmount(total);
         order.setFinalAmount(total - order.getDiscount());
@@ -2930,11 +3039,11 @@ public class InvoiceActivity extends AppCompatActivity {
             return;
         }
         progressBar.setVisibility(View.VISIBLE);
-        // Tính lại tổng tiền
+        // Tính lại tổng tiền (món đã hủy sẽ có giá 0)
         double newTotal = 0;
         if (order.getItems() != null) {
             for (Order.OrderItem item : order.getItems()) {
-                newTotal += item.getPrice() * item.getQuantity();
+                newTotal += getItemPrice(item) * item.getQuantity();
             }
         }
         order.setTotalAmount(newTotal);

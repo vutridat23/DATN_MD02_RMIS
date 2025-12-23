@@ -60,13 +60,14 @@ public class HistoryAdapter extends RecyclerView.Adapter<HistoryAdapter.HistoryV
         holder.tvItemCount.setText(String.format(Locale.getDefault(), "%02d món", count));
 
         // 5. Tổng tiền (Chỉ hiện số tiền, layout đã có chữ "TỔNG THANH TOÁN")
-        if (item.getTotalAmount() != null) {
+        if (item.getFinalAmount() != null) {
             NumberFormat vnFormat = NumberFormat.getInstance(new Locale("vi", "VN"));
-            String money = vnFormat.format(item.getTotalAmount()) + " đ";
+            String money = vnFormat.format(item.getFinalAmount()) + " đ";
             holder.tvTotal.setText(money);
         } else {
             holder.tvTotal.setText("0 đ");
         }
+
 
         // 6. Click để xem chi tiết món ăn
         holder.itemView.setOnClickListener(v -> {
@@ -130,8 +131,9 @@ public class HistoryAdapter extends RecyclerView.Adapter<HistoryAdapter.HistoryV
         }
 
         details.append("─────────────────────\n");
-        details.append(String.format("TỔNG CỘNG: %s đ",
-                vnFormat.format(item.getTotalAmount() != null ? item.getTotalAmount() : 0)));
+        details.append(String.format("THANH TOÁN: %s đ",
+                vnFormat.format(item.getFinalAmount() != null ? item.getFinalAmount() : 0)));
+
 
         builder.setMessage(details.toString());
         builder.setPositiveButton("Đóng", (dialog, which) -> dialog.dismiss());

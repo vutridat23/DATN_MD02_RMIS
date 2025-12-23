@@ -54,6 +54,9 @@ public class HistoryItem {
     public Double getTotalAmount() {
         return details != null ? details.totalAmount : 0;
     }
+    public Double getFinalAmount() {
+        return details != null ? details.finalAmount : 0;
+    }
 
     // Helper method để lấy danh sách items
     public List<OrderItemDetail> getItems() {
@@ -66,6 +69,7 @@ public class HistoryItem {
             orderItem.setDishName(item.getMenuItemName());
             orderItem.setQuantity(item.getQuantity());
             orderItem.setPrice(item.getPrice());
+            orderItem.setStatus(item.getStatus());
             orderItems.add(orderItem);
         }
         return orderItems;
@@ -76,6 +80,7 @@ public class HistoryItem {
         private String dishName;
         private int quantity;
         private double price;
+        private String status;
 
         public String getDishName() {
             return dishName;
@@ -99,6 +104,14 @@ public class HistoryItem {
 
         public void setPrice(double price) {
             this.price = price;
+        }
+
+        public String getStatus() {
+            return status;
+        }
+
+        public void setStatus(String status) {
+            this.status = status;
         }
     }
 
@@ -197,6 +210,9 @@ public class HistoryItem {
             @SerializedName("price")
             private double price;
 
+            @SerializedName("status")
+            private String status;
+
             // GETTER
             public String getMenuItemName() {
                 return menuItemName;
@@ -210,6 +226,10 @@ public class HistoryItem {
                 return price;
             }
 
+            public String getStatus() {
+                return status;
+            }
+
             // SETTER
             public void setMenuItemName(String menuItemName) {
                 this.menuItemName = menuItemName;
@@ -221,6 +241,10 @@ public class HistoryItem {
 
             public void setPrice(double price) {
                 this.price = price;
+            }
+
+            public void setStatus(String status) {
+                this.status = status;
             }
         }
     }
