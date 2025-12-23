@@ -10,7 +10,6 @@ import android.os.Bundle;
 import android.text.SpannableString;
 import android.text.style.RelativeSizeSpan;
 import android.util.Log;
-import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.ImageView;
@@ -24,15 +23,12 @@ import android.os.Looper;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.widget.Toolbar;
-import androidx.appcompat.app.AlertDialog;
 import androidx.core.view.GravityCompat;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
-
-import androidx.fragment.app.FragmentManager;
 
 import com.google.android.material.navigation.NavigationView;
 import com.ph48845.datn_qlnh_rmis.R;
@@ -41,7 +37,6 @@ import com.ph48845.datn_qlnh_rmis.data.model.Order;
 import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
 import com.ph48845.datn_qlnh_rmis.data.model.User;
 import com.ph48845.datn_qlnh_rmis.data.repository.OrderRepository;
-import com.ph48845.datn_qlnh_rmis.data.repository.TableRepository;
 import com.ph48845.datn_qlnh_rmis.data.remote.ApiResponse;
 import com.ph48845.datn_qlnh_rmis.data.remote.ApiService;
 import com.ph48845.datn_qlnh_rmis.data.remote.RetrofitClient;
@@ -49,13 +44,12 @@ import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 import com.ph48845.datn_qlnh_rmis.ui.revenue.ReportActivity;
+import com.ph48845.datn_qlnh_rmis.ui.bep.SocketManager;
 // Thay thế bằng Activity xem lịch sử thanh toán thực tế của bạn
 // import com.ph48845.datn_qlnh_rmis.ui.history.HistoryActivity;
 // Thay thế bằng Activity xem chi tiết hóa đơn thực tế của bạn
 // import com.ph48845.datn_qlnh_rmis.ui.invoice.InvoiceActivity;
-import com.ph48845.datn_qlnh_rmis.ui.table.ReservationHelper;
 import com.ph48845.datn_qlnh_rmis.ui.thungan.adapter.ThuNganAdapter;
-import com.ph48845.datn_qlnh_rmis.ui.thungan.fragment.ReserveTableDialogFragment;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -63,35 +57,20 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.text.Normalizer;
 
 import org.json.JSONObject;
+import android.app.AlertDialog;
 import android.view.LayoutInflater;
 import android.animation.ObjectAnimator;
-import com.ph48845.datn_qlnh_rmis.ui.phucvu.notification.NotificationManager;
-import com.ph48845.datn_qlnh_rmis.ui.phucvu.notification.InAppNotificationView;
-import com.ph48845.datn_qlnh_rmis.data.model.InAppNotification;
-import com.ph48845.datn_qlnh_rmis.ui.phucvu.socket.SocketManager;
-
-import java.net.URI;
 
 /**
  * Activity Thu Ngân: Quản lý danh sách bàn đang hoạt động/chờ thanh toán.
- * - Đã tích hợp in-app realtime notifications giống bên phục vụ.
- * - Khi ấn bàn trống sẽ mở dialog đặt trước (giống bên phục vụ).
- *
- * Lưu ý: một số Activity (HistoryActivity, InvoiceActivity) cần tồn tại trong project.
  */
 public class ThuNganActivity extends BaseMenuActivity {
 
     private static final String TAG = "ThuNganActivity";
 
-    // --- NEW: ID cho menu item "Đặt Bàn Trước" thêm động ---
-    private static final int MENU_ID_RESERVE_TABLE = 1000001;
-
     // Views
-    private NotificationManager notificationManager;
-    private ReservationHelper reservationHelper;
     private DrawerLayout drawerLayout;
     private NavigationView navigationView;
     private Toolbar toolbar;
@@ -99,20 +78,13 @@ public class ThuNganActivity extends BaseMenuActivity {
     private RecyclerView rvFloor1, rvFloor2;
     private LinearLayout headerFloor1, headerFloor2;
 
+
     // Data & Adapters
     private ThuNganAdapter adapterFloor1;
     private ThuNganAdapter adapterFloor2;
     private ThuNganViewModel viewModel;
     private OrderRepository orderRepository;
-    private TableRepository tableRepository; // <-- for loading tables when reserving
-
-    // Use the app-wide SocketManager implementation (phucvu socket)
     private final SocketManager socketManager = SocketManager.getInstance();
-    private SocketManager.OnEventListener socketListener;
-
-    // Default socket URL (used if Intent doesn't provide socketUrl)
-    private String defaultSocketUrl = "http://192.168.1.84:3000";
-
     private Handler refreshHandler;
     private static final long SOCKET_REFRESH_DELAY_MS = 5000;
     private BroadcastReceiver refreshTablesReceiver;
@@ -120,14 +92,8 @@ public class ThuNganActivity extends BaseMenuActivity {
     private Map<String, String> userIdToNameMap = new HashMap<>(); // Map user ID -> user name
     private ActivityResultLauncher<Intent> invoiceLauncher; // Launcher để mở InvoiceActivity và nhận kết quả
     private Set<String> knownTempCalcRequestOrderIds = new HashSet<>(); // Lưu các order IDs đã có yêu cầu tạm tính để phát hiện yêu cầu mới
-    private final Map<Integer, Long> knownTempCalcRequestTableTimestamps = new HashMap<>(); // dedupe by table
-    private static final long TEMP_REQUEST_DEDUPE_MS = 30_000; // 30s avoid duplicate notifications for same table
     private AlertDialog currentNotificationDialog; // Dialog thông báo hiện tại (để tránh hiển thị nhiều dialog cùng lúc)
-    // Bàn -> orderId đã click
-    private final Map<String, String> tableClickedOrderMap = new HashMap<>();
-    // Lưu trạng thái bàn có order hay không (lần load trước)
-    private final Map<String, Boolean> tableHasOrderMap = new HashMap<>();
-    private final Map<String, TableItem.ViewState> tableViewStateMap = new HashMap<>();
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -137,7 +103,6 @@ public class ThuNganActivity extends BaseMenuActivity {
         // 1. Khởi tạo ViewModel & Repository
         viewModel = new ThuNganViewModel();
         orderRepository = new OrderRepository();
-        tableRepository = new TableRepository(); // initialize repository for reserve dialog
         refreshHandler = new Handler(Looper.getMainLooper());
 
         // 2. Ánh xạ View & Setup giao diện
@@ -146,261 +111,43 @@ public class ThuNganActivity extends BaseMenuActivity {
         setupToolbar();
         setupNavigationDrawer();
         setupRecyclerViews();
-
-        // Khởi tạo ReservationHelper (needs progressBar)
-        reservationHelper = new ReservationHelper(this, tableRepository, progressBar);
-
-        // Khởi tạo in-app NotificationManager (same as phục vụ)
-        initNotificationManager();
-
-        // Prepare socket URL (Intent override or default)
-        String socketUrl = null;
-        try {
-            if (getIntent() != null) {
-                socketUrl = getIntent().getStringExtra("socketUrl");
-            }
-            if (socketUrl == null || socketUrl.trim().isEmpty()) {
-                socketUrl = defaultSocketUrl;
-            }
-
-            if (isProbablyEmulator()) {
-                try {
-                    String replaced = replaceHostForEmulator(socketUrl);
-                    Log.i(TAG, "Emulator detected - using socket URL: " + replaced);
-                    socketUrl = replaced;
-                } catch (Exception e) {
-                    Log.w(TAG, "Failed to adapt socketUrl for emulator: " + e.getMessage(), e);
-                }
-            }
-
-            // Init socketManager with computed URL (safe: SocketManager.init is idempotent)
-            socketManager.init(socketUrl);
-        } catch (Exception e) {
-            Log.w(TAG, "SocketManager.init failed in onCreate", e);
-        }
-
-        // Setup socket listener object (but don't register yet, register in onStart)
-        socketListener = new SocketManager.OnEventListener() {
-            @Override
-            public void onOrderCreated(JSONObject payload) {
-                Log.d(TAG, "socket:onOrderCreated: " + payload);
-                try {
-                    runOnUiThread(() -> {
-                        checkForNewTempCalculationRequest(payload);
-                        scheduleRefresh();
+        
+        // Khởi tạo ActivityResultLauncher để mở InvoiceActivity và nhận kết quả
+        invoiceLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                // Khi quay lại từ InvoiceActivity, reload lại danh sách yêu cầu tạm tính
+                Log.d(TAG, "invoiceLauncher: Returned from InvoiceActivity, resultCode=" + result.getResultCode());
+                if (result.getResultCode() == RESULT_OK) {
+                    Intent data = result.getData();
+                    boolean invoicePrinted = data != null && data.getBooleanExtra("invoicePrinted", false);
+                    if (invoicePrinted) {
+                        Log.d(TAG, "invoiceLauncher: Invoice was printed, will reload temp calculation requests after delay");
+                        // Reload lại số lượng yêu cầu tạm tính
                         loadTempCalculationRequestsCount();
-
-                        // Show lightweight in-app banner for new order (optional)
-                        try {
-                            int tableNum = payload != null ? payload.optInt("tableNumber", -1) : -1;
-                            int itemCount = 0;
-                            if (payload != null && payload.has("items")) {
-                                org.json.JSONArray items = payload.optJSONArray("items");
-                                if (items != null) itemCount = items.length();
-                            }
-                            InAppNotification notif = new InAppNotification.Builder(
-                                    InAppNotification.Type.ORDER_NEW,
-                                    "🍽️ Đơn hàng mới",
-                                    "Bàn " + (tableNum > 0 ? tableNum : "") + " đặt " + itemCount + " món"
-                            )
-                                    .actionData("table:" + tableNum + (payload != null ? ":order:" + payload.optString("_id", "") : ""))
-                                    .duration(5000)
-                                    .build();
-                            if (notificationManager != null) NotificationManager.getInstance().show(notif);
-                        } catch (Throwable t) {
-                            Log.w(TAG, "orderCreated: fail to show banner", t);
-                        }
-                    });
-                } catch (Exception e) {
-                    Log.w(TAG, "onOrderCreated handler error", e);
-                }
-            }
-
-            @Override
-            public void onOrderUpdated(JSONObject payload) {
-                Log.d(TAG, "socket:onOrderUpdated: " + payload);
-                try {
-                    runOnUiThread(() -> {
-                        checkForNewTempCalculationRequest(payload);
-                        scheduleRefresh();
+                        // Đợi lâu hơn để đảm bảo database đã được cập nhật hoàn toàn, sau đó mới reload dialog
+                        refreshHandler.postDelayed(() -> {
+                            Log.d(TAG, "invoiceLauncher: Reloading temp calculation requests dialog after delay (1.5s)");
+                            showTempCalculationRequests();
+                        }, 1500); // Delay 1.5s để đảm bảo DB đã được cập nhật hoàn toàn
+                    } else {
+                        // Chỉ reload số lượng, không mở lại dialog
                         loadTempCalculationRequestsCount();
-
-                        // Optional banner for order updated
-                        try {
-                            int tableNum = payload != null ? payload.optInt("tableNumber", -1) : -1;
-                            String status = payload != null ? payload.optString("status", "") : "";
-                            String title = "📝 Cập nhật đơn";
-                            String message = "Bàn " + (tableNum > 0 ? tableNum : "") + " - " + getStatusText(status);
-                            InAppNotification notif = new InAppNotification.Builder(
-                                    InAppNotification.Type.ORDER_UPDATED,
-                                    title,
-                                    message
-                            ).actionData("table:" + tableNum + (payload != null ? ":order:" + payload.optString("_id", "") : ""))
-                                    .duration(4000)
-                                    .build();
-                            if (notificationManager != null) NotificationManager.getInstance().show(notif);
-                        } catch (Throwable t) {
-                            Log.w(TAG, "orderUpdated: fail to show banner", t);
-                        }
-                    });
-                } catch (Exception e) {
-                    Log.w(TAG, "onOrderUpdated handler error", e);
-                }
-            }
-
-            @Override
-            public void onTableUpdated(JSONObject payload) {
-                Log.d(TAG, "socket:onTableUpdated: " + payload);
-                try {
-                    runOnUiThread(() -> {
-                        // Optional: show table updated banner
-                        try {
-                            int tableNum = payload != null ? (payload.has("tableNumber") ? payload.optInt("tableNumber", -1) : payload.optInt("table", -1)) : -1;
-                            String status = payload != null ? payload.optString("status", "") : "";
-                            if (tableNum > 0 && status != null && !status.isEmpty()) {
-                                InAppNotification notif = new InAppNotification.Builder(
-                                        InAppNotification.Type.TABLE_UPDATED,
-                                        "🪑 Cập nhật bàn",
-                                        "Bàn " + tableNum + " - " + getTableStatusText(status)
-                                )
-                                        .actionData("table:" + tableNum)
-                                        .duration(3500)
-                                        .build();
-                                if (notificationManager != null) NotificationManager.getInstance().show(notif);
-                            }
-                        } catch (Throwable t) {
-                            Log.w(TAG, "tableUpdated: fail to show banner", t);
-                        }
-
-                        // Refresh UI to reflect table state change
-                        scheduleRefresh();
-                    });
-                } catch (Exception e) {
-                    Log.w(TAG, "onTableUpdated handler error", e);
-                }
-            }
-
-            @Override
-            public void onCheckItemsRequest(JSONObject payload) {
-                Log.d(TAG, "socket:onCheckItemsRequest: " + payload);
-                try {
-                    runOnUiThread(() -> {
-                        // Show both banner and dialog flow: the check detection will be handled by checkForNewTempCalculationRequest()
-                        checkForNewTempCalculationRequest(payload);
-                        scheduleRefresh();
-                        loadTempCalculationRequestsCount();
-
-                        // Banner
-                        try {
-                            int tableNum = payload != null ? payload.optInt("tableNumber", -1) : -1;
-                            InAppNotification notif = new InAppNotification.Builder(
-                                    InAppNotification.Type.CHECK_ITEMS,
-                                    "🔍 Yêu cầu kiểm đồ",
-                                    "Bàn " + (tableNum > 0 ? tableNum : "") + " yêu cầu kiểm đồ"
-                            )
-                                    .actionData("check:" + tableNum)
-                                    .duration(8000)
-                                    .build();
-                            if (notificationManager != null) NotificationManager.getInstance().show(notif);
-                        } catch (Throwable t) {
-                            Log.w(TAG, "checkItemsRequest: fail to show banner", t);
-                        }
-                    });
-                } catch (Exception e) {
-                    Log.w(TAG, "onCheckItemsRequest handler error", e);
-                }
-            }
-
-            @Override
-            public void onConnect() {
-                Log.d(TAG, "Socket connected (ThuNganActivity listener)");
-                // Sync state on connect: call REST to refresh lists
-                runOnUiThread(() -> {
-                    loadActiveTables();
+                    }
+                } else {
+                    // Chỉ reload số lượng
                     loadTempCalculationRequestsCount();
-                });
+                }
             }
-
-            @Override
-            public void onDisconnect() {
-                Log.d(TAG, "Socket disconnected (ThuNganActivity listener)");
-            }
-
-            @Override
-            public void onError(Exception e) {
-                Log.w(TAG, "Socket error (ThuNganActivity listener): " + (e != null ? e.getMessage() : "null"), e);
-            }
-        };
+        );
 
         // 3. Load dữ liệu ban đầu
         updateNavHeaderInfo();
         loadActiveTables();
         loadUsersForNameMapping(); // Load danh sách users để map ID -> name
         loadTempCalculationRequestsCount();
-
+        startSocketRealtime();
         registerRefreshTablesReceiver();
-
-        // Prepare invoice launcher (moved here to keep onCreate tidy)
-        invoiceLauncher = registerForActivityResult(
-                new ActivityResultContracts.StartActivityForResult(),
-                result -> {
-                    // Khi quay lại từ InvoiceActivity, reload lại danh sách yêu cầu tạm tính
-                    Log.d(TAG, "invoiceLauncher: Returned from InvoiceActivity, resultCode=" + result.getResultCode());
-                    if (result.getResultCode() == RESULT_OK) {
-                        Intent data = result.getData();
-                        boolean invoicePrinted = data != null && data.getBooleanExtra("invoicePrinted", false);
-                        if (invoicePrinted) {
-                            Log.d(TAG, "invoiceLauncher: Invoice was printed, will reload temp calculation requests after delay");
-                            loadTempCalculationRequestsCount();
-                            refreshHandler.postDelayed(() -> {
-                                showTempCalculationRequests();
-                            }, 1500);
-                        } else {
-                            loadTempCalculationRequestsCount();
-                        }
-                    } else {
-                        loadTempCalculationRequestsCount();
-                    }
-                }
-        );
-    }
-
-    private void initNotificationManager() {
-        try {
-            notificationManager = NotificationManager.getInstance();
-            notificationManager.init(this, new InAppNotificationView.OnNotificationClickListener() {
-                @Override
-                public void onNotificationClick(InAppNotification notification) {
-                    if (notification == null) return;
-                    String actionData = notification.getActionData();
-                    if (actionData == null || actionData.isEmpty()) return;
-                    try {
-                        String[] parts = actionData.split(":");
-                        if (parts.length >= 2 && "table".equals(parts[0])) {
-                            int tableNumber = Integer.parseInt(parts[1]);
-                            Intent intent = new Intent(ThuNganActivity.this, com.ph48845.datn_qlnh_rmis.ui.phucvu.OrderActivity.class);
-                            intent.putExtra("tableNumber", tableNumber);
-                            if (parts.length >= 4 && "order".equals(parts[2])) {
-                                intent.putExtra("orderId", parts[3]);
-                            }
-                            startActivity(intent);
-                        } else if (parts.length >= 1 && "check".equals(parts[0])) {
-                            showTempCalculationRequests();
-                        }
-                    } catch (Exception e) {
-                        Log.w(TAG, "onNotificationClick: failed to handle actionData", e);
-                    }
-                }
-
-                @Override
-                public void onNotificationDismissed(InAppNotification notification) {
-                    Log.d(TAG, "Notification dismissed: " + (notification != null ? notification.getTitle() : "null"));
-                }
-            });
-        } catch (Exception e) {
-            Log.w(TAG, "initNotificationManager failed", e);
-            notificationManager = null;
-        }
     }
 
     private void applyNavigationViewInsets() {
@@ -466,81 +213,6 @@ public class ThuNganActivity extends BaseMenuActivity {
                 menuItem.setTitle(spanString);
             }
 
-            // --- NEW: thêm nút "Đặt Bàn Trước" cho role Thu ngân nếu cần ---
-            // Thay thế phần thêm menu động trong setupNavigationDrawer() bằng đoạn này
-// --- Đặt logout luôn ở cuối và chèn "Đặt Bàn Trước" bên trên nó ---
-            try {
-                SharedPreferences prefs = getSharedPreferences("RestaurantPrefs", MODE_PRIVATE);
-                String rawRole = prefs.getString("userRole", "");
-                String normalizedRole = normalizeRoleString(rawRole);
-
-                // Fallback: lấy role hiển thị trong header nếu có
-                String headerRole = "";
-                try {
-                    View header = navigationView.getHeaderView(0);
-                    if (header != null) {
-                        TextView tvRole = header.findViewById(R.id.textViewRole);
-                        if (tvRole != null && tvRole.getText() != null) {
-                            headerRole = tvRole.getText().toString();
-                        }
-                    }
-                } catch (Exception ignored) {}
-
-                String normalizedHeaderRole = normalizeRoleString(headerRole);
-
-                boolean isCashier = false;
-                if (!normalizedRole.isEmpty()) {
-                    isCashier = normalizedRole.equals("cashier")
-                            || normalizedRole.equals("thungan")
-                            || normalizedRole.equals("thu ngan")
-                            || normalizedRole.equals("thu_ngan")
-                            || (normalizedRole.contains("thu") && normalizedRole.contains("ngan"));
-                }
-                if (!isCashier && !normalizedHeaderRole.isEmpty()) {
-                    isCashier = normalizedHeaderRole.equals("cashier")
-                            || normalizedHeaderRole.equals("thungan")
-                            || normalizedHeaderRole.equals("thu ngan")
-                            || normalizedHeaderRole.equals("thu_ngan")
-                            || (normalizedHeaderRole.contains("thu") && normalizedHeaderRole.contains("ngan"));
-                }
-
-                Log.d(TAG, "setupNavigationDrawer: roleRaw='" + rawRole + "' normalized='" + normalizedRole +
-                        "', headerRaw='" + headerRole + "' normalizedHeader='" + normalizedHeaderRole +
-                        "', isCashier=" + isCashier);
-
-                Menu navMenu = navigationView.getMenu();
-
-                // 1) Lưu title + icon của logout (nếu tồn tại), rồi remove item
-                MenuItem logoutItem = navMenu.findItem(R.id.nav_logout);
-                CharSequence logoutTitle = "Đăng xuất";
-                android.graphics.drawable.Drawable logoutIcon = null;
-                if (logoutItem != null) {
-                    try {
-                        logoutTitle = logoutItem.getTitle();
-                        logoutIcon = logoutItem.getIcon();
-                    } catch (Exception ignored) {}
-                    navMenu.removeItem(R.id.nav_logout);
-                }
-
-                // 2) Re-add logout với order cao để luôn ở cuối
-                final int LOGOUT_ORDER = 9999;
-                MenuItem newLogout = navMenu.add(Menu.NONE, R.id.nav_logout, LOGOUT_ORDER, logoutTitle);
-                if (logoutIcon != null) {
-                    newLogout.setIcon(logoutIcon);
-                }
-
-                // 3) Nếu là Thu ngân thì thêm Đặt Bàn Trước với order = LOGOUT_ORDER - 1, tránh duplicate
-                if (isCashier) {
-                    if (navMenu.findItem(MENU_ID_RESERVE_TABLE) == null) {
-                        int reserveOrder = Math.max(0, LOGOUT_ORDER - 1);
-                        MenuItem reserveItem = navMenu.add(Menu.NONE, MENU_ID_RESERVE_TABLE, reserveOrder, "Đặt Bàn Trước");
-                        reserveItem.setIcon(android.R.drawable.ic_menu_my_calendar);
-                        reserveItem.setCheckable(false);
-                    }
-                }
-            } catch (Exception e) {
-                Log.w(TAG, "setupNavigationDrawer: failed to add Đặt Bàn Trước menu item: " + e.getMessage(), e);
-            }
             // Xử lý sự kiện chọn menu
             navigationView.setNavigationItemSelectedListener(item -> {
                 int id = item.getItemId();
@@ -554,13 +226,10 @@ public class ThuNganActivity extends BaseMenuActivity {
                     logout();
                 } else if (id == R.id.nav_payment_history) {
                     // Cần Activity xem lịch sử thanh toán
-                    startActivity(new Intent(ThuNganActivity.this, HistoryActivity.class));
+                     startActivity(new Intent(ThuNganActivity.this, HistoryActivity.class));
                     Toast.makeText(ThuNganActivity.this, "Chức năng Lịch sử thanh toán", Toast.LENGTH_SHORT).show();
                 } else if (id == R.id.nav_revenue) {
                     startActivity(new Intent(ThuNganActivity.this, ReportActivity.class));
-                } else if (id == MENU_ID_RESERVE_TABLE) {
-                    // Xử lý khi bấm "Đặt Bàn Trước" -> dùng DialogFragment
-                    showReserveDialog();
                 }
 
                 if (drawerLayout != null) {
@@ -579,38 +248,13 @@ public class ThuNganActivity extends BaseMenuActivity {
         rvFloor1.setNestedScrollingEnabled(false);
         rvFloor2.setNestedScrollingEnabled(false);
 
-        // Sự kiện click vào bàn -> Mở màn hình hóa đơn (với logic đặt trước khi bàn trống)
+        // Sự kiện click vào bàn -> Mở màn hình hóa đơn
         ThuNganAdapter.OnTableClickListener listener = table -> {
-            if (table == null) return;
-
-            // If table is AVAILABLE, show confirmation then reservation form
-            boolean isAvailable = false;
-            try {
-                isAvailable = table.getStatus() == TableItem.Status.AVAILABLE;
-            } catch (Exception ignored) { }
-
-            if (isAvailable) {
-                new AlertDialog.Builder(ThuNganActivity.this)
-                        .setTitle("Xác nhận đặt bàn")
-                        .setMessage("Bạn có muốn đặt trước Bàn " + table.getTableNumber() + " ?")
-                        .setPositiveButton("Đặt", (d, w) -> {
-                            if (reservationHelper == null) reservationHelper = new ReservationHelper(ThuNganActivity.this, tableRepository, progressBar);
-                            reservationHelper.showReservationDialogWithPickers(table);
-                        })
-                        .setNegativeButton("Hủy", null)
-                        .show();
-                return;
-            }
-
-            table.setViewState(TableItem.ViewState.SEEN);
-            tableViewStateMap.put(table.getId(), TableItem.ViewState.SEEN);
-
-            adapterFloor1.notifyDataSetChanged();
-            adapterFloor2.notifyDataSetChanged();
-
-            Intent intent = new Intent(ThuNganActivity.this, InvoiceActivity.class);
-            intent.putExtra("tableNumber", table.getTableNumber());
-            startActivity(intent);
+            // Cần Activity hóa đơn
+             Intent intent = new Intent(ThuNganActivity.this, InvoiceActivity.class);
+             intent.putExtra("tableNumber", table.getTableNumber());
+             startActivity(intent);
+            Toast.makeText(ThuNganActivity.this, "Mở hóa đơn Bàn " + table.getTableNumber(), Toast.LENGTH_SHORT).show();
         };
 
         // Khởi tạo Adapter
@@ -630,17 +274,13 @@ public class ThuNganActivity extends BaseMenuActivity {
                 runOnUiThread(() -> {
                     progressBar.setVisibility(View.GONE);
 
-                    // 🔥 RESTORE VIEW STATE
-                    restoreViewState(floor1Tables);
-                    restoreViewState(floor2Tables);
-
+                    // Cập nhật dữ liệu lên UI
                     adapterFloor1.updateList(floor1Tables);
                     adapterFloor2.updateList(floor2Tables);
 
-                    if (headerFloor1 != null)
-                        headerFloor1.setVisibility(floor1Tables.isEmpty() ? View.GONE : View.VISIBLE);
-                    if (headerFloor2 != null)
-                        headerFloor2.setVisibility(floor2Tables.isEmpty() ? View.GONE : View.VISIBLE);
+                    // Ẩn hiện tiêu đề tầng
+                    if (headerFloor1 != null) headerFloor1.setVisibility(floor1Tables.isEmpty() ? View.GONE : View.VISIBLE);
+                    if (headerFloor2 != null) headerFloor2.setVisibility(floor2Tables.isEmpty() ? View.GONE : View.VISIBLE);
 
                     // Check trạng thái món ăn để đổi màu thẻ (Đỏ -> Cam)
                     loadOrdersForServingStatus(floor1Tables, floor2Tables);
@@ -655,42 +295,6 @@ public class ThuNganActivity extends BaseMenuActivity {
                 });
             }
         });
-    }
-
-    private void restoreViewState(List<TableItem> tables) {
-        if (tables == null) return;
-        for (TableItem table : tables) {
-
-            String tableId = table.getId();
-
-            // Hiện tại bàn có order hay không
-            boolean hasOrderNow = table.getStatus() != TableItem.Status.EMPTY;
-
-            // Trạng thái trước đó
-            boolean hadOrderBefore = tableHasOrderMap.getOrDefault(tableId, false);
-
-            // 🔥 CASE 1: VỪA CÓ ORDER MỚI (sau thanh toán)
-            if (!hadOrderBefore && hasOrderNow) {
-                table.setViewState(TableItem.ViewState.UNSEEN);
-                tableViewStateMap.remove(tableId);
-            }
-            // 🔥 CASE 2: BÀN VỪA THANH TOÁN XONG (trở về trống)
-            else if (hadOrderBefore && !hasOrderNow) {
-                table.setViewState(TableItem.ViewState.UNSEEN);
-                tableViewStateMap.remove(tableId);
-            }
-            // 🔴 CASE 3: ĐÃ CLICK → GIỮ ĐỎ
-            else if (tableViewStateMap.containsKey(tableId)) {
-                table.setViewState(tableViewStateMap.get(tableId));
-            }
-            // 🟢 CASE 4: MẶC ĐỊNH
-            else {
-                table.setViewState(TableItem.ViewState.UNSEEN);
-            }
-
-            // 🔄 Cập nhật lại trạng thái
-            tableHasOrderMap.put(tableId, hasOrderNow);
-        }
     }
 
     private void loadOrdersForServingStatus(List<TableItem> floor1Tables, List<TableItem> floor2Tables) {
@@ -717,20 +321,15 @@ public class ThuNganActivity extends BaseMenuActivity {
                 }
 
                 List<TableItem> allTables = new ArrayList<>();
-                if (floor1Tables != null) allTables.addAll(floor1Tables);
-                if (floor2Tables != null) allTables.addAll(floor2Tables);
+                allTables.addAll(floor1Tables);
+                allTables.addAll(floor2Tables);
 
                 boolean needUpdate = false;
 
-                // Giả sử bạn có adapter tên adapterFloor1 / adapterFloor2
                 for (TableItem table : allTables) {
                     List<Order> tableOrders = ordersByTable.get(table.getTableNumber());
 
                     boolean allServed = determineIfAllServed(tableOrders);
-
-                    // Lưu trạng thái món đã lên hết vào adapter map
-                    adapterFloor1.updateFullServingStatus(table.getTableNumber(), allServed);
-                    adapterFloor2.updateFullServingStatus(table.getTableNumber(), allServed);
 
                     // Nếu đã đủ món -> Đổi trạng thái sang FINISH_SERVE
                     if (allServed && table.getStatus() != TableItem.Status.FINISH_SERVE) {
@@ -775,6 +374,7 @@ public class ThuNganActivity extends BaseMenuActivity {
         return true; // ✅ tất cả món đều ready
     }
 
+
     // =========================================================================
     // KHÔI PHỤC HÀM BỊ MẤT (FIX LỖI)
     // =========================================================================
@@ -806,34 +406,34 @@ public class ThuNganActivity extends BaseMenuActivity {
                                 String orderStatus = order.getOrderStatus();
                                 String orderId = order.getId();
                                 int tableNumber = order.getTableNumber();
-
+                                
                                 // CHỈ thêm vào danh sách nếu:
                                 // 1. tempCalculationRequestedAt không null và không rỗng
                                 // 2. orderStatus KHÔNG phải "temp_bill_printed" (đã in hóa đơn rồi)
                                 // (Khi in hóa đơn, tempCalculationRequestedAt sẽ được set null và orderStatus = "temp_bill_printed")
                                 boolean hasTempCalcRequest = tempCalcRequestedAt != null && !tempCalcRequestedAt.trim().isEmpty();
                                 boolean isNotPrinted = orderStatus == null || !orderStatus.equals("temp_bill_printed");
-
+                                
                                 if (hasTempCalcRequest && isNotPrinted) {
                                     tempCalculationOrders.add(order);
-                                    Log.d(TAG, "showTempCalculationRequests: ✅ Found temp calc request for order " + orderId +
-                                            " (table " + tableNumber + "), tempCalculationRequestedAt=" + tempCalcRequestedAt +
-                                            ", orderStatus=" + orderStatus);
+                                    Log.d(TAG, "showTempCalculationRequests: ✅ Found temp calc request for order " + orderId + 
+                                          " (table " + tableNumber + "), tempCalculationRequestedAt=" + tempCalcRequestedAt + 
+                                          ", orderStatus=" + orderStatus);
                                 } else {
                                     if (!hasTempCalcRequest) {
-                                        Log.d(TAG, "showTempCalculationRequests: Order " + orderId + " (table " + tableNumber +
-                                                ") has no temp calc request (tempCalculationRequestedAt=" + tempCalcRequestedAt +
-                                                ", orderStatus=" + orderStatus + ")");
+                                        Log.d(TAG, "showTempCalculationRequests: Order " + orderId + " (table " + tableNumber + 
+                                              ") has no temp calc request (tempCalculationRequestedAt=" + tempCalcRequestedAt + 
+                                              ", orderStatus=" + orderStatus + ")");
                                     } else if (!isNotPrinted) {
-                                        Log.d(TAG, "showTempCalculationRequests: Order " + orderId + " (table " + tableNumber +
-                                                ") already printed (orderStatus=" + orderStatus + "), skipping");
+                                        Log.d(TAG, "showTempCalculationRequests: Order " + orderId + " (table " + tableNumber + 
+                                              ") already printed (orderStatus=" + orderStatus + "), skipping");
                                     }
                                 }
                             }
                         }
 
-                        Log.d(TAG, "showTempCalculationRequests: 📊 Summary - Found " + tempCalculationOrders.size() +
-                                " temp calculation requests out of " + (allOrders != null ? allOrders.size() : 0) + " total orders");
+                        Log.d(TAG, "showTempCalculationRequests: 📊 Summary - Found " + tempCalculationOrders.size() + 
+                              " temp calculation requests out of " + (allOrders != null ? allOrders.size() : 0) + " total orders");
 
                         if (tempCalculationOrders.isEmpty()) {
                             Toast.makeText(ThuNganActivity.this, "Không có yêu cầu tạm tính nào", Toast.LENGTH_SHORT).show();
@@ -868,19 +468,19 @@ public class ThuNganActivity extends BaseMenuActivity {
                 if (response.isSuccessful() && response.body() != null) {
                     ApiResponse<List<User>> apiResponse = response.body();
                     List<User> users = apiResponse.getData();
-
+                    
                     if (users != null && !users.isEmpty()) {
                         userIdToNameMap.clear();
                         for (User user : users) {
                             if (user != null && user.getId() != null) {
                                 String userId = user.getId().trim();
-
+                                
                                 // Ưu tiên fullName (từ field "name" trong JSON), nếu không có thì dùng username
                                 String name = user.getFullName();
                                 if (name == null || name.trim().isEmpty()) {
                                     name = user.getUsername();
                                 }
-
+                                
                                 if (name != null && !name.trim().isEmpty()) {
                                     // Normalize: trim cả key và value
                                     userIdToNameMap.put(userId, name.trim());
@@ -939,53 +539,53 @@ public class ThuNganActivity extends BaseMenuActivity {
             Log.w(TAG, "getEmployeeNameFromOrder: order is null");
             return "Nhân viên";
         }
-
+        
         // Bước 1: Thử lấy ID từ getTempCalculationRequestedById() (ưu tiên)
         String userId = order.getTempCalculationRequestedById();
         Log.d(TAG, "getEmployeeNameFromOrder: getTempCalculationRequestedById() returned: '" + userId + "'");
-
+        
         if (userId != null && !userId.trim().isEmpty()) {
             userId = userId.trim();
-
+            
             // Tra cứu trong map (đã được normalize khi load)
             String name = userIdToNameMap.get(userId);
             Log.d(TAG, "getEmployeeNameFromOrder: Looking up userId '" + userId + "' in map");
             Log.d(TAG, "getEmployeeNameFromOrder: Map size: " + userIdToNameMap.size());
-
+            
             if (name != null && !name.trim().isEmpty()) {
                 Log.d(TAG, "getEmployeeNameFromOrder: ✓ Found name: '" + name + "' for userId: '" + userId + "'");
                 return name.trim();
             } else {
                 // Thử tìm với các biến thể của ID (nếu có)
                 Log.w(TAG, "getEmployeeNameFromOrder: ✗ UserId '" + userId + "' not found in map");
-                Log.d(TAG, "getEmployeeNameFromOrder: Available keys in map (first 10): " +
-                        userIdToNameMap.keySet().stream().limit(10).collect(java.util.stream.Collectors.toList()));
+                Log.d(TAG, "getEmployeeNameFromOrder: Available keys in map (first 10): " + 
+                      userIdToNameMap.keySet().stream().limit(10).collect(java.util.stream.Collectors.toList()));
             }
         }
-
+        
         // Bước 2: Fallback - thử lấy từ getTempCalculationRequestedBy()
         String requester = order.getTempCalculationRequestedBy();
         Log.d(TAG, "getEmployeeNameFromOrder: getTempCalculationRequestedBy() returned: '" + requester + "'");
-
+        
         if (requester != null && !requester.trim().isEmpty()) {
             requester = requester.trim();
-
+            
             // Nếu có khoảng trắng, có vẻ đã là tên rồi (full name như "Nhân viên 2")
             if (requester.contains(" ")) {
                 Log.d(TAG, "getEmployeeNameFromOrder: ✓ Requester contains space, assuming it's a name: '" + requester + "'");
                 return requester;
             }
-
+            
             // Thử check xem có trong map không (có thể là ID)
             String name = userIdToNameMap.get(requester);
             if (name != null && !name.trim().isEmpty()) {
                 Log.d(TAG, "getEmployeeNameFromOrder: ✓ Found name from requester in map: '" + name + "'");
                 return name.trim();
             }
-
+            
             Log.w(TAG, "getEmployeeNameFromOrder: ✗ Requester '" + requester + "' not found in map");
         }
-
+        
         Log.w(TAG, "getEmployeeNameFromOrder: ✗ Could not find employee name, returning default 'Nhân viên'");
         return "Nhân viên";
     }
@@ -997,13 +597,13 @@ public class ThuNganActivity extends BaseMenuActivity {
         if (userId == null || userId.trim().isEmpty()) {
             return "Nhân viên";
         }
-
+        
         // Kiểm tra trong map
         String name = userIdToNameMap.get(userId.trim());
         if (name != null && !name.trim().isEmpty()) {
             return name;
         }
-
+        
         // Nếu không tìm thấy, trả về "Nhân viên" thay vì ID
         return "Nhân viên";
     }
@@ -1016,10 +616,10 @@ public class ThuNganActivity extends BaseMenuActivity {
         String[] items = new String[orders.size()];
         for (int i = 0; i < orders.size(); i++) {
             Order order = orders.get(i);
-
+            
             // Thông tin bàn
             String tableInfo = "Bàn " + order.getTableNumber();
-
+            
             // Thông tin thời gian
             String timeInfo = "";
             if (order.getTempCalculationRequestedAt() != null) {
@@ -1032,25 +632,25 @@ public class ThuNganActivity extends BaseMenuActivity {
                     timeInfo = order.getTempCalculationRequestedAt();
                 }
             }
-
+            
             // Lấy tên nhân viên yêu cầu (luôn có giá trị, ít nhất là "Nhân viên")
             String requesterName = getEmployeeNameFromOrder(order);
             if (requesterName == null || requesterName.trim().isEmpty()) {
                 requesterName = "Nhân viên";
             }
-
+            
             // Format hiển thị: "Bàn X - DD/MM/YYYY HH:mm • NV: Tên nhân viên"
             // Luôn hiển thị tên nhân viên để người dùng biết ai yêu cầu
             StringBuilder displayText = new StringBuilder();
             displayText.append(tableInfo);
-
+            
             if (!timeInfo.isEmpty()) {
                 displayText.append(" - ").append(timeInfo);
             }
-
+            
             // Luôn thêm thông tin nhân viên
             displayText.append(" • NV: ").append(requesterName);
-
+            
             items[i] = displayText.toString();
         }
 
@@ -1068,8 +668,8 @@ public class ThuNganActivity extends BaseMenuActivity {
                     intent.putExtra("orderId", selectedOrder.getId()); // focus đúng hóa đơn
                     // Sử dụng launcher để có thể nhận kết quả khi quay lại
                     invoiceLauncher.launch(intent);
-                    Log.d(TAG, "showTempCalculationRequestsDialog: Opening InvoiceActivity for table " +
-                            selectedOrder.getTableNumber() + ", orderId: " + selectedOrder.getId());
+                    Log.d(TAG, "showTempCalculationRequestsDialog: Opening InvoiceActivity for table " + 
+                          selectedOrder.getTableNumber() + ", orderId: " + selectedOrder.getId());
                 })
                 .setNegativeButton("Đóng", null)
                 .show();
@@ -1095,91 +695,10 @@ public class ThuNganActivity extends BaseMenuActivity {
         if (roleKey == null) return "";
         switch (roleKey.toLowerCase()) {
             case "cashier": return "Thu ngân";
-            case "admin": return "Quản lý";
-            case "waiter": return "Phục vụ";
+            case "manager": return "Quản lý";
+            case "order": return "Phục vụ";
             case "kitchen": return "Bếp";
             default: return roleKey;
-        }
-    }
-
-    // --- NEW: helper chuẩn hóa chuỗi role (loại bỏ dấu, lowercase) ---
-    private String normalizeRoleString(String s) {
-        if (s == null) return "";
-        String normalized = Normalizer.normalize(s, Normalizer.Form.NFD);
-        normalized = normalized.replaceAll("\\p{InCombiningDiacriticalMarks}+", "");
-        return normalized.trim().toLowerCase();
-    }
-
-    // --- Emulator helpers (same approach as MainActivity) ---
-    private boolean isProbablyEmulator() {
-        String fingerprint = Build.FINGERPRINT;
-        String model = Build.MODEL;
-        String product = Build.PRODUCT;
-        return (fingerprint != null && (fingerprint.contains("generic") || fingerprint.contains("emulator")))
-                || (model != null && model.contains("Emulator"))
-                || (product != null && product.contains("sdk"));
-    }
-
-    private String replaceHostForEmulator(String url) {
-        try {
-            if (url == null) return url;
-            java.net.URI uri = new URI(url);
-            String scheme = uri.getScheme() != null ? uri.getScheme() : "http";
-            int port = uri.getPort();
-            String path = uri.getRawPath() != null ? uri.getRawPath() : "";
-            String query = uri.getRawQuery() != null ? "?" + uri.getRawQuery() : "";
-            String newHost = "10.0.2.2";
-            String newUrl;
-            if (port > 0)
-                newUrl = scheme + "://" + newHost + ":" + port + path + query;
-            else
-                newUrl = scheme + "://" + newHost + path + query;
-            return newUrl;
-        } catch (Exception e) {
-            if (url.startsWith("http://localhost"))
-                return url.replace("localhost", "10.0.2.2");
-            if (url.startsWith("http://127.0.0.1"))
-                return url.replace("127.0.0.1", "10.0.2.2");
-            return url;
-        }
-    }
-
-    // --- UPDATED: showReserveDialog now uses ReserveTableDialogFragment ---
-    // Thay thế method showReserveDialog() trong ThuNganActivity.java bằng nội dung này
-    private void showReserveDialog() {
-        try {
-            FragmentManager fm = getSupportFragmentManager();
-            ReserveTableDialogFragment f = ReserveTableDialogFragment.newInstance();
-            // Khi chọn bàn từ fragment, hiển thị dialog xác nhận trước, sau đó mở form đặt trước
-            f.setOnTablePickedListener(table -> {
-                if (table == null) return;
-
-                // Hiển thị dialog xác nhận: "Xác nhận đặt bàn"
-                new AlertDialog.Builder(ThuNganActivity.this)
-                        .setTitle("Xác nhận đặt bàn")
-                        .setMessage("Bạn có muốn đặt trước Bàn " + table.getTableNumber() + " ?")
-                        .setPositiveButton("Đặt", (dialogInterface, i) -> {
-                            try {
-                                if (reservationHelper == null) {
-                                    reservationHelper = new ReservationHelper(ThuNganActivity.this, tableRepository, progressBar);
-                                }
-                                // Mở form nhập thông tin đặt trước giống bên phục vụ
-                                reservationHelper.showReservationDialogWithPickers(table);
-                            } catch (Exception e) {
-                                Log.e(TAG, "showReserveDialog: failed to open reservation helper", e);
-                                Toast.makeText(ThuNganActivity.this, "Lỗi mở form đặt trước: " + e.getMessage(), Toast.LENGTH_LONG).show();
-                            }
-                        })
-                        .setNegativeButton("Hủy", (dialogInterface, i) -> {
-                            // Do nothing - chỉ đóng xác nhận
-                        })
-                        .setCancelable(true)
-                        .show();
-            });
-            f.show(fm, "reserveTableDialog");
-        } catch (Exception e) {
-            Log.e(TAG, "showReserveDialog: error showing fragment", e);
-            Toast.makeText(this, "Lỗi khi mở dialog đặt bàn: " + e.getMessage(), Toast.LENGTH_LONG).show();
         }
     }
 
@@ -1233,41 +752,17 @@ public class ThuNganActivity extends BaseMenuActivity {
     }
 
     @Override
-    protected void onStart() {
-        super.onStart();
-        // Register listener to the global socket manager so this activity receives realtime events
-        try {
-            if (socketListener != null) socketManager.registerListener(socketListener);
-            socketManager.connect(); // ensure connected (MyApplication may have already connected)
-        } catch (Exception e) {
-            Log.w(TAG, "onStart: failed to register/connect socket listener", e);
-        }
-    }
-
-    @Override
     protected void onResume() {
         super.onResume();
         loadActiveTables();
         loadTempCalculationRequestsCount();
-
-        // Ensure socket connected (safe no-op if already connected)
-        try {
-            if (socketManager != null) {
-                socketManager.connect();
-            }
-        } catch (Exception e) {
-            Log.w(TAG, "onResume: Socket reconnect failed", e);
-        }
-    }
-
-    @Override
-    protected void onStop() {
-        super.onStop();
-        // Unregister listener to avoid leaks / duplicate handling
-        try {
-            if (socketListener != null) socketManager.unregisterListener(socketListener);
-        } catch (Exception e) {
-            Log.w(TAG, "onStop: failed to unregister socket listener", e);
+        
+        // Đảm bảo socket được kết nối khi activity resume
+        if (socketManager != null && !socketManager.isConnected()) {
+            Log.d(TAG, "onResume: Socket not connected, reconnecting...");
+            startSocketRealtime();
+        } else if (socketManager != null) {
+            Log.d(TAG, "onResume: Socket is connected");
         }
     }
 
@@ -1276,14 +771,95 @@ public class ThuNganActivity extends BaseMenuActivity {
         super.onDestroy();
         if (refreshHandler != null) refreshHandler.removeCallbacksAndMessages(null);
         try {
+            socketManager.setOnEventListener(null);
+            socketManager.disconnect();
+        } catch (Exception ignored) {}
+        try {
             if (refreshTablesReceiver != null) unregisterReceiver(refreshTablesReceiver);
         } catch (Exception ignored) {}
-        // Do NOT disconnect the global socket here (socket is app-lifetime in MyApplication).
-        // Just unregister listener (already done in onStop).
-        // cleanup notification manager overlay
-        if (notificationManager != null) {
-            try { notificationManager.destroy(); } catch (Throwable ignored) {}
-            notificationManager = null;
+    }
+
+    private void startSocketRealtime() {
+        try {
+            // Lấy socket URL từ Intent hoặc SharedPreferences, fallback về BASE_URL từ RetrofitClient
+            String socketUrl = getIntent().getStringExtra("socketUrl");
+            if (socketUrl == null || socketUrl.trim().isEmpty()) {
+                SharedPreferences prefs = getSharedPreferences("RestaurantPrefs", MODE_PRIVATE);
+                socketUrl = prefs.getString("socketUrl", null);
+            }
+            if (socketUrl == null || socketUrl.trim().isEmpty()) {
+                // Dùng cùng URL với API để đảm bảo consistency
+                socketUrl = RetrofitClient.getBaseUrl();
+                Log.d(TAG, "Using API BASE_URL for socket: " + socketUrl);
+            }
+            
+            Log.d(TAG, "startSocketRealtime: Initializing socket with URL: " + socketUrl);
+            
+            // Setup event listener TRƯỚC khi init và connect
+            socketManager.setOnEventListener(new SocketManager.OnEventListener() {
+                @Override
+                public void onOrderCreated(org.json.JSONObject payload) {
+                    Log.d(TAG, "Socket: onOrderCreated received");
+                    // Kiểm tra xem có yêu cầu tạm tính mới không
+                    checkForNewTempCalculationRequest(payload);
+                    scheduleRefresh();
+                }
+
+                @Override
+                public void onOrderUpdated(org.json.JSONObject payload) {
+                    Log.d(TAG, "Socket: onOrderUpdated received");
+                    // Kiểm tra xem có yêu cầu tạm tính mới không
+                    checkForNewTempCalculationRequest(payload);
+                    scheduleRefresh();
+                }
+
+                @Override
+                public void onConnect() {
+                    Log.d(TAG, "Socket: ✅ Connected successfully");
+                    runOnUiThread(() -> {
+                        // Có thể hiển thị thông báo hoặc reload data ngay khi connect
+                        loadActiveTables();
+                        loadTempCalculationRequestsCount();
+                    });
+                }
+
+                @Override
+                public void onDisconnect() {
+                    Log.w(TAG, "Socket: ⚠️ Disconnected");
+                }
+
+                @Override
+                public void onError(Exception e) {
+                    Log.e(TAG, "Socket: ❌ Error occurred: " + (e != null ? e.getMessage() : "unknown"), e);
+                }
+            });
+            
+            // Kiểm tra xem socket đã được init và connected chưa
+            if (socketManager.isConnected()) {
+                Log.d(TAG, "startSocketRealtime: Socket already connected, skipping init");
+            } else {
+                // Init socket nếu chưa được init hoặc chưa connected
+                Log.d(TAG, "startSocketRealtime: Initializing socket...");
+                socketManager.init(socketUrl);
+            }
+            
+            // Connect socket
+            socketManager.connect();
+            Log.d(TAG, "startSocketRealtime: Socket connect() called, isConnected=" + socketManager.isConnected());
+            
+            // Nếu socket chưa connect ngay, đợi một chút rồi check lại
+            if (!socketManager.isConnected()) {
+                refreshHandler.postDelayed(() -> {
+                    boolean connected = socketManager.isConnected();
+                    Log.d(TAG, "startSocketRealtime: After delay, isConnected=" + connected);
+                    if (!connected) {
+                        Log.w(TAG, "startSocketRealtime: Socket still not connected, retrying...");
+                        socketManager.connect();
+                    }
+                }, 1000);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "startSocketRealtime: Failed to initialize socket: " + e.getMessage(), e);
         }
     }
 
@@ -1293,107 +869,61 @@ public class ThuNganActivity extends BaseMenuActivity {
         refreshHandler.postDelayed(() -> {
             loadActiveTables();
             loadTempCalculationRequestsCount();
-        }, SOCKET_REFRESH_DELAY_MS); // 5 giây
+        }, SOCKET_REFRESH_DELAY_MS);
     }
 
     /**
      * Kiểm tra xem có yêu cầu tạm tính mới từ socket payload không
-     * Đã mở rộng: chấp nhận nhiều dạng payload (orderId, orderIds array, tableNumber),
-     * log raw payload để debug, dedupe theo orderId / table (30s).
      */
     private void checkForNewTempCalculationRequest(org.json.JSONObject payload) {
         if (payload == null) return;
-
+        
         try {
-            // Debug log raw payload for server mapping
-            Log.d(TAG, "checkForNewTempCalculationRequest: raw payload: " + payload.toString());
-
-            // 1) Try find orderId in multiple fields
-            String orderId = null;
-            if (payload.has("_id")) orderId = payload.optString("_id", null);
-            if ((orderId == null || orderId.trim().isEmpty()) && payload.has("id")) orderId = payload.optString("id", null);
-            if ((orderId == null || orderId.trim().isEmpty()) && payload.has("orderId")) orderId = payload.optString("orderId", null);
-            if ((orderId == null || orderId.trim().isEmpty()) && payload.has("order_id")) orderId = payload.optString("order_id", null);
-            if (orderId != null) orderId = orderId.trim();
-
-            // 2) If payload contains orderIds array -> treat each as new request if not known
-            org.json.JSONArray arr = null;
-            if (payload.has("orderIds")) arr = payload.optJSONArray("orderIds");
-            if ((arr == null || arr.length() == 0) && payload.has("orders")) arr = payload.optJSONArray("orders");
-            if ((arr == null || arr.length() == 0) && payload.has("orderIds[]")) arr = payload.optJSONArray("orderIds[]");
-
-            if (arr != null && arr.length() > 0) {
-                for (int i = 0; i < arr.length(); i++) {
-                    String id = null;
-                    try { id = String.valueOf(arr.get(i)); } catch (Exception ignored) {}
-                    if (id == null) continue;
-                    id = id.trim();
-                    if (id.isEmpty()) continue;
-                    if (!knownTempCalcRequestOrderIds.contains(id)) {
-                        knownTempCalcRequestOrderIds.add(id);
-                        int tableNumber = payload.optInt("tableNumber", -1);
-                        final int finalTableNumber = tableNumber;
-                        final String finalOrderId = id;
-                        runOnUiThread(() -> showTempCalculationNotification(finalTableNumber, finalOrderId));
-                    } else {
-                        Log.d(TAG, "checkForNewTempCalculationRequest: orderId in array already known: " + id);
-                    }
-                }
+            String orderIdRaw = payload.optString("_id", null);
+            if (orderIdRaw == null || orderIdRaw.trim().isEmpty()) {
+                orderIdRaw = payload.optString("id", null);
+            }
+            
+            if (orderIdRaw == null || orderIdRaw.trim().isEmpty()) {
+                Log.d(TAG, "checkForNewTempCalculationRequest: No order ID in payload");
                 return;
             }
-
-            // 3) Get tableNumber if present
-            int tableNumber = payload.optInt("tableNumber", -1);
-
-            // 4) Heuristic: decide if payload indicates temp calc request
-            boolean looksLikeTempRequest = false;
-            if (payload.has("tempCalculationRequestedAt") && !payload.optString("tempCalculationRequestedAt", "").trim().isEmpty()) {
-                looksLikeTempRequest = true;
-            }
-            if (!looksLikeTempRequest) {
-                if (payload.has("isTempCalculation") && payload.optBoolean("isTempCalculation", false)) looksLikeTempRequest = true;
-                if (payload.has("type") && "temp_calc".equalsIgnoreCase(payload.optString("type", ""))) looksLikeTempRequest = true;
-            }
-
-            // 5) If we have orderId -> check fields + dedupe
-            if (orderId != null && !orderId.isEmpty()) {
-                String tempCalcRequestedAt = payload.optString("tempCalculationRequestedAt", null);
-                String orderStatus = payload.optString("orderStatus", null);
-
-                boolean hasTempCalcRequest = tempCalcRequestedAt != null && !tempCalcRequestedAt.trim().isEmpty();
-                boolean isNotPrinted = orderStatus == null || !orderStatus.equals("temp_bill_printed");
-
-                if ((hasTempCalcRequest || looksLikeTempRequest) && isNotPrinted) {
-                    if (!knownTempCalcRequestOrderIds.contains(orderId)) {
-                        knownTempCalcRequestOrderIds.add(orderId);
-                        final String finalOrderId = orderId;
-                        final int finalTableNumber = tableNumber;
-                        runOnUiThread(() -> showTempCalculationNotification(finalTableNumber, finalOrderId));
-                    } else {
-                        Log.d(TAG, "checkForNewTempCalculationRequest: orderId already known: " + orderId);
-                    }
-                } else {
-                    Log.d(TAG, "checkForNewTempCalculationRequest: payload for orderId " + orderId + " not indicating temp request (tempCalc=" + tempCalcRequestedAt + ", status=" + orderStatus + ", looksLike=" + looksLikeTempRequest + ")");
-                }
+            
+            // Tạo biến final để sử dụng trong lambda
+            final String orderId = orderIdRaw.trim();
+            
+            // Kiểm tra xem order này đã có yêu cầu tạm tính chưa
+            if (knownTempCalcRequestOrderIds.contains(orderId)) {
+                // Đã biết rồi, không phải yêu cầu mới
                 return;
             }
-
-            // 6) If no orderId but tableNumber + looksLikeTempRequest -> dedupe by table
-            if (tableNumber > 0 && looksLikeTempRequest) {
-                long now = System.currentTimeMillis();
-                Long lastTs = knownTempCalcRequestTableTimestamps.get(tableNumber);
-                if (lastTs == null || now - lastTs > TEMP_REQUEST_DEDUPE_MS) {
-                    knownTempCalcRequestTableTimestamps.put(tableNumber, now);
-                    final int finalTableNumber = tableNumber;
-                    runOnUiThread(() -> showTempCalculationNotification(finalTableNumber, null));
-                } else {
-                    Log.d(TAG, "checkForNewTempCalculationRequest: duplicate table temp request ignored for table " + tableNumber);
-                }
-                return;
+            
+            // Kiểm tra xem có tempCalculationRequestedAt không
+            String tempCalcRequestedAt = payload.optString("tempCalculationRequestedAt", null);
+            String orderStatus = payload.optString("orderStatus", null);
+            
+            // Chỉ hiển thị thông báo nếu:
+            // 1. Có tempCalculationRequestedAt (không null, không rỗng)
+            // 2. orderStatus không phải "temp_bill_printed" (chưa in)
+            boolean hasTempCalcRequest = tempCalcRequestedAt != null && !tempCalcRequestedAt.trim().isEmpty();
+            boolean isNotPrinted = orderStatus == null || !orderStatus.equals("temp_bill_printed");
+            
+            if (hasTempCalcRequest && isNotPrinted) {
+                // Đây là yêu cầu mới!
+                int tableNumber = payload.optInt("tableNumber", -1);
+                Log.d(TAG, "checkForNewTempCalculationRequest: ✅ New temp calculation request detected! Order: " + orderId + ", Table: " + tableNumber);
+                
+                // Thêm vào danh sách đã biết
+                knownTempCalcRequestOrderIds.add(orderId);
+                
+                // Tạo biến final cho tableNumber để sử dụng trong lambda
+                final int finalTableNumber = tableNumber;
+                
+                // Hiển thị thông báo
+                runOnUiThread(() -> {
+                    showTempCalculationNotification(finalTableNumber, orderId);
+                });
             }
-
-            // None matched -> log for debug
-            Log.d(TAG, "checkForNewTempCalculationRequest: payload did not match temp-calc pattern. orderId=" + orderId + ", tableNumber=" + tableNumber + ", looksLike=" + looksLikeTempRequest);
         } catch (Exception e) {
             Log.e(TAG, "checkForNewTempCalculationRequest: Error parsing payload", e);
         }
@@ -1407,12 +937,12 @@ public class ThuNganActivity extends BaseMenuActivity {
         if (currentNotificationDialog != null && currentNotificationDialog.isShowing()) {
             currentNotificationDialog.dismiss();
         }
-
+        
         // Tạo dialog thông báo
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_temp_calc_notification, null);
         builder.setView(dialogView);
-
+        
         // Set nội dung
         TextView tvMessage = dialogView.findViewById(R.id.tv_notification_message);
         if (tvMessage != null) {
@@ -1420,30 +950,27 @@ public class ThuNganActivity extends BaseMenuActivity {
             if (tableNumber > 0) {
                 message += "\nBàn " + tableNumber;
             }
-            if (orderId != null && !orderId.trim().isEmpty()) {
-                message += "\nMã đơn: " + orderId;
-            }
             tvMessage.setText(message);
         }
-
+        
         // Tạo dialog
         currentNotificationDialog = builder.create();
         currentNotificationDialog.setCancelable(true);
         currentNotificationDialog.setCanceledOnTouchOutside(true);
-
+        
         // Lấy progress bar để animate đếm ngược
         ProgressBar progressBar = dialogView.findViewById(R.id.progress_countdown);
-
+        
         // Hiển thị dialog
         currentNotificationDialog.show();
-
+        
         // Animate progress bar từ 100 xuống 0 trong 3 giây
         if (progressBar != null) {
             ObjectAnimator progressAnimator = ObjectAnimator.ofInt(progressBar, "progress", 100, 0);
             progressAnimator.setDuration(3000); // 3 giây
             progressAnimator.start();
         }
-
+        
         // Tự động đóng sau 3 giây
         refreshHandler.postDelayed(() -> {
             if (currentNotificationDialog != null && currentNotificationDialog.isShowing()) {
@@ -1471,34 +998,8 @@ public class ThuNganActivity extends BaseMenuActivity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(refreshTablesReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
         } else {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                registerReceiver(refreshTablesReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
-            }
+            registerReceiver(refreshTablesReceiver, filter);
         }
     }
 
-    // HELPER: translate order status to friendly Vietnamese
-    private String getStatusText(String status) {
-        if (status == null) return "";
-        switch (status.toLowerCase()) {
-            case "pending":  return "Đang chờ";
-            case "preparing": return "Đang nấu";
-            case "ready":  return "Sẵn sàng";
-            case "completed": return "Hoàn thành";
-            case "cancelled":  return "Đã hủy";
-            default: return status;
-        }
-    }
-
-    // HELPER: translate table status
-    private String getTableStatusText(String status) {
-        if (status == null) return "";
-        switch (status.toLowerCase()) {
-            case "available": return "Trống";
-            case "occupied":  return "Có khách";
-            case "reserved": return "Đã đặt";
-            case "pending_payment": return "Chờ thanh toán";
-            default: return status;
-        }
-    }
 }

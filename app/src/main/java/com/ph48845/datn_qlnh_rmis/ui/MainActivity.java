@@ -574,7 +574,7 @@ public class MainActivity extends BaseMenuActivity {
             // Register main listener (do not disconnect from socket on pause)
             try {
                 if (!socketListenerRegistered) {
-                    socketManager.registerListener(mainSocketListener);
+                    socketManager.setOnEventListener(mainSocketListener);
                     socketListenerRegistered = true;
                 } else {
                     Log.d(TAG, "Socket listener already registered");
@@ -1061,7 +1061,7 @@ public class MainActivity extends BaseMenuActivity {
         // cleanup socket listener registration flag if needed
         try {
             if (socketManager != null && mainSocketListener != null && socketListenerRegistered) {
-                socketManager.unregisterListener(mainSocketListener);
+                socketManager.setOnEventListener(null); // Unregister bằng cách set null
                 socketListenerRegistered = false;
             }
         } catch (Exception e) {
@@ -1206,14 +1206,24 @@ public class MainActivity extends BaseMenuActivity {
     }
 
     private int parseFloorFromLocation(String location) {
-        if (location == null) return 1;
+        if (location == null || location.trim().isEmpty()) return 1;
         try {
-            Pattern p = Pattern.compile("(\\d+)");
-            Matcher m = p.matcher(location.toLowerCase(Locale.getDefault()));
-            if (m.find())
-                return Integer.parseInt(m.group(1));
+            String lower = location.toLowerCase(Locale.getDefault()).trim();
+            
+            // Tìm từ khóa "tầng" hoặc "floor" và lấy số sau đó
+            // Pattern: "tầng" hoặc "floor" theo sau bởi số
+            Pattern pattern = Pattern.compile("(tầng|floor)\\s*(\\d+)");
+            Matcher matcher = pattern.matcher(lower);
+            
+            if (matcher.find()) {
+                String floorNum = matcher.group(2);
+                int floor = Integer.parseInt(floorNum);
+                // Chỉ chấp nhận tầng 1 hoặc 2
+                if (floor == 2) return 2;
+                if (floor == 1) return 1;
+            }
         } catch (Exception ignored) {}
-        return 1;
+        return 1; // Mặc định tầng 1
     }
 
     private void syncTableStatusesWithOrders(List<TableItem> tables) {
