@@ -202,5 +202,15 @@ public class TableItem implements Serializable {
     public void setViewState(ViewState viewState) {
         this.viewState = viewState;
     }
+    private boolean isNewOccupied = false;
+
+    public boolean isNewOccupied() {
+        return isNewOccupied;
+    }
+
+    public void setNewOccupied(boolean newOccupied) {
+        isNewOccupied = newOccupied;
+    }
+
 
 }

@@ -54,6 +54,9 @@ public class HistoryItem {
     public Double getTotalAmount() {
         return details != null ? details.totalAmount : 0;
     }
+    public Double getFinalAmount() {
+        return details != null ? details.finalAmount : 0;
+    }
 
     // Helper method để lấy danh sách items
     public List<OrderItemDetail> getItems() {

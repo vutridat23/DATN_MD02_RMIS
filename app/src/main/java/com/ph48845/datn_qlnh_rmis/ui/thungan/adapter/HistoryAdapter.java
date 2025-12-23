@@ -60,13 +60,14 @@ public class HistoryAdapter extends RecyclerView.Adapter<HistoryAdapter.HistoryV
         holder.tvItemCount.setText(String.format(Locale.getDefault(), "%02d món", count));
 
         // 5. Tổng tiền (Chỉ hiện số tiền, layout đã có chữ "TỔNG THANH TOÁN")
-        if (item.getTotalAmount() != null) {
+        if (item.getFinalAmount() != null) {
             NumberFormat vnFormat = NumberFormat.getInstance(new Locale("vi", "VN"));
-            String money = vnFormat.format(item.getTotalAmount()) + " đ";
+            String money = vnFormat.format(item.getFinalAmount()) + " đ";
             holder.tvTotal.setText(money);
         } else {
             holder.tvTotal.setText("0 đ");
         }
+
 
         // 6. Click để xem chi tiết món ăn
         holder.itemView.setOnClickListener(v -> {
@@ -99,90 +100,6 @@ public class HistoryAdapter extends RecyclerView.Adapter<HistoryAdapter.HistoryV
         }
     }
 
-    /**
-     * Kiểm tra xem món ăn đã bị hủy
-     */
-    private boolean isItemCancelled(HistoryItem.OrderItemDetail item) {
-        if (item == null) return false;
-        String status = item.getStatus();
-        if (status == null || status.trim().isEmpty()) {
-            // Nếu không có status, kiểm tra xem có thể là null hoặc empty
-            return false;
-        }
-        
-        String statusLower = status.toLowerCase().trim();
-        
-        // Log để debug
-        android.util.Log.d("HistoryAdapter", "Checking status for item: " + item.getDishName() + 
-                          ", status: '" + status + "', statusLower: '" + statusLower + "'");
-        
-        // Kiểm tra đã hủy - kiểm tra nhiều format khác nhau
-        boolean isCancelled = statusLower.contains("cancelled") ||
-                              statusLower.contains("canceled") ||
-                              statusLower.contains("hủy") ||
-                              statusLower.contains("huy") ||
-                              statusLower.contains("đã hủy") ||
-                              statusLower.equals("cancel") ||
-                              statusLower.equals("cancelled") ||
-                              statusLower.equals("canceled");
-        
-        if (isCancelled) {
-            android.util.Log.d("HistoryAdapter", "Item " + item.getDishName() + " is CANCELLED");
-        }
-        
-        return isCancelled;
-    }
-    
-    /**
-     * Kiểm tra xem món ăn đã xong hoặc đang làm
-     * Đã xong: done, xong, served, ready, completed, hoàn thành
-     * Đang làm: preparing, in_progress, processing, đang làm, đang nấu
-     */
-    private boolean isItemDoneOrPreparing(HistoryItem.OrderItemDetail item) {
-        if (item == null) return false;
-        String status = item.getStatus();
-        if (status == null || status.trim().isEmpty()) return false;
-        
-        String statusLower = status.toLowerCase().trim();
-        
-        // Nếu đã hủy thì không tính là done/preparing
-        if (isItemCancelled(item)) return false;
-        
-        // Kiểm tra đã xong
-        boolean isDone = statusLower.contains("done") || 
-                        statusLower.contains("xong") || 
-                        statusLower.contains("served") || 
-                        statusLower.contains("ready") || 
-                        statusLower.contains("completed") ||
-                        statusLower.contains("hoàn thành");
-        
-        // Kiểm tra đang làm
-        boolean isPreparing = statusLower.contains("preparing") ||
-                             statusLower.contains("in_progress") ||
-                             statusLower.contains("processing") ||
-                             statusLower.contains("đang làm") ||
-                             statusLower.contains("đang nấu");
-        
-        return isDone || isPreparing;
-    }
-    
-    /**
-     * Lấy giá của món (0 nếu đã hủy)
-     */
-    private double getItemPrice(HistoryItem.OrderItemDetail item) {
-        if (item == null) return 0.0;
-        
-        boolean cancelled = isItemCancelled(item);
-        if (cancelled) {
-            android.util.Log.d("HistoryAdapter", "Item " + item.getDishName() + " is cancelled, returning price 0");
-            return 0.0;
-        }
-        
-        double price = item.getPrice();
-        android.util.Log.d("HistoryAdapter", "Item " + item.getDishName() + " is not cancelled, returning price: " + price);
-        return price;
-    }
-
     // Hiển thị dialog chi tiết món ăn
     private void showOrderDetailsDialog(android.content.Context context, HistoryItem item) {
         androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(context);
@@ -197,60 +114,26 @@ public class HistoryAdapter extends RecyclerView.Adapter<HistoryAdapter.HistoryV
         details.append("─────────────────────\n");
 
         NumberFormat vnFormat = NumberFormat.getInstance(new Locale("vi", "VN"));
-        
-        // Tính tổng tiền chỉ từ món đã xong và đang làm (không tính món đã hủy, món pending, etc.)
-        double totalAmount = 0.0;
 
         if (item.getItems() != null) {
-            android.util.Log.d("HistoryAdapter", "=== START Processing " + item.getItems().size() + " items ===");
-            
-            // Hiển thị TẤT CẢ món (done, preparing, pending) - chỉ tính tổng tiền từ done/preparing
             for (HistoryItem.OrderItemDetail orderItem : item.getItems()) {
                 String dishName = orderItem.getDishName() != null ? orderItem.getDishName() : "Món ăn";
                 int quantity = orderItem.getQuantity();
-                String status = orderItem.getStatus();
-                double originalPrice = orderItem.getPrice();
-                
-                // Log chi tiết để debug
-                android.util.Log.d("HistoryAdapter", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-                android.util.Log.d("HistoryAdapter", "Item: " + dishName);
-                android.util.Log.d("HistoryAdapter", "  Quantity: " + quantity);
-                android.util.Log.d("HistoryAdapter", "  Status: '" + status + "'");
-                android.util.Log.d("HistoryAdapter", "  Original Price: " + originalPrice);
-                
-                // Món đã hủy sẽ có giá 0 đồng
-                double itemPrice = getItemPrice(orderItem);
-                double subtotal = quantity * itemPrice;
-                
-                boolean isCancelled = isItemCancelled(orderItem);
-                boolean isDoneOrPreparing = isItemDoneOrPreparing(orderItem);
-                
-                // Log kết quả
-                android.util.Log.d("HistoryAdapter", "  Is Cancelled: " + isCancelled);
-                android.util.Log.d("HistoryAdapter", "  Is Done/Preparing: " + isDoneOrPreparing);
-                android.util.Log.d("HistoryAdapter", "  Final Price: " + itemPrice);
-                android.util.Log.d("HistoryAdapter", "  Subtotal: " + subtotal);
-                
-                // Chỉ cộng vào tổng tiền nếu món đã xong hoặc đang làm
-                if (isDoneOrPreparing) {
-                    totalAmount += subtotal;
-                    android.util.Log.d("HistoryAdapter", "  ✅ Added to total: " + subtotal);
-                } else {
-                    android.util.Log.d("HistoryAdapter", "  ❌ NOT added to total (not done/preparing)");
-                }
+                double price = orderItem.getPrice();
+                double subtotal = quantity * price;
 
                 details.append(String.format("• %s\n", dishName));
                 details.append(String.format("  %d x %s đ = %s đ\n\n",
                         quantity,
-                        vnFormat.format(itemPrice),
+                        vnFormat.format(price),
                         vnFormat.format(subtotal)));
             }
-            
-            android.util.Log.d("HistoryAdapter", "=== END Processing. Total Amount: " + totalAmount + " ===");
         }
 
         details.append("─────────────────────\n");
-        details.append(String.format("TỔNG CỘNG: %s đ", vnFormat.format(totalAmount)));
+        details.append(String.format("THANH TOÁN: %s đ",
+                vnFormat.format(item.getFinalAmount() != null ? item.getFinalAmount() : 0)));
+
 
         builder.setMessage(details.toString());
         builder.setPositiveButton("Đóng", (dialog, which) -> dialog.dismiss());
