@@ -155,47 +155,49 @@ public class InvoiceActivity extends AppCompatActivity {
      */
     private void initSocket() {
         try {
-            // Chỉ init nếu socket chưa được init hoặc chưa connected
-            if (!socketManager.isConnected()) {
-                Log.d(TAG, "Socket not connected, initializing...");
+            // 1. Chỉ init 1 lần duy nhất
+            if (!socketManager.isInitialized()) {
+                Log.d(TAG, "Initializing socket...");
                 socketManager.init(SOCKET_URL);
-            } else {
-                Log.d(TAG, "Socket already connected, skipping init");
             }
-            
-            socketManager.setOnEventListener(new SocketManager.OnEventListener() {
-                @Override
-                public void onOrderCreated(org.json.JSONObject payload) {
-                    // Không cần xử lý
-                }
 
-                @Override
-                public void onOrderUpdated(org.json.JSONObject payload) {
-                    // Không cần xử lý
-                }
+            // 2. Chỉ set listener 1 lần
+            if (!socketManager.hasListener()) {
+                socketManager.setOnEventListener(new SocketManager.OnEventListener() {
+                    @Override
+                    public void onOrderCreated(org.json.JSONObject payload) {}
 
-                @Override
-                public void onConnect() {
-                    Log.d(TAG, "Socket connected in InvoiceActivity");
-                }
+                    @Override
+                    public void onOrderUpdated(org.json.JSONObject payload) {}
 
-                @Override
-                public void onDisconnect() {
-                    Log.d(TAG, "Socket disconnected in InvoiceActivity");
-                }
+                    @Override
+                    public void onConnect() {
+                        Log.d(TAG, "Socket connected (InvoiceActivity)");
+                    }
 
-                @Override
-                public void onError(Exception e) {
-                    Log.e(TAG, "Socket error in InvoiceActivity: " + (e != null ? e.getMessage() : "unknown"));
-                }
-            });
-            socketManager.connect();
-            Log.d(TAG, "Socket initialized for InvoiceActivity, URL: " + SOCKET_URL);
+                    @Override
+                    public void onDisconnect() {
+                        Log.d(TAG, "Socket disconnected (InvoiceActivity)");
+                    }
+
+                    @Override
+                    public void onError(Exception e) {
+                        Log.e(TAG, "Socket error", e);
+                    }
+                });
+            }
+
+            // 3. Chỉ connect khi THỰC SỰ cần
+            if (!socketManager.isConnected() && !socketManager.isConnecting()) {
+                Log.d(TAG, "Connecting socket...");
+                socketManager.connect();
+            }
+
         } catch (Exception e) {
-            Log.e(TAG, "Failed to initialize socket: " + e.getMessage(), e);
-            Toast.makeText(this, "Lỗi kết nối socket: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            Log.e(TAG, "Socket init failed", e);
         }
     }
+
 
     private void initViews() {
         toolbar = findViewById(R.id.toolbar);

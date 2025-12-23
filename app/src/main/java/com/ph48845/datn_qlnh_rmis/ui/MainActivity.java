@@ -925,27 +925,35 @@ public class MainActivity extends BaseMenuActivity {
     }
 
     private void applyNavigationViewInsets() {
+        // Kiểm tra null để tránh crash
         if (navigationView == null) return;
-        try {
-            View headerView = navigationView.getHeaderView(0);
-            if (headerView == null) return;
 
-            int statusBar = ViewCompat.getRootWindowInsets(headerView).getSystemWindowInsetTop();
-            if (statusBar <= 0) {
-                // fallback - use WindowInsetsCompat
-                statusBar = WindowInsetsCompat.toWindowInsetsCompat(headerView.getRootWindowInsets()).getInsets(WindowInsetsCompat.Type.statusBars()).top;
-            }
-            if (headerView != null) {
-                headerView.setPadding(
-                        headerView.getPaddingLeft(),
-                        statusBar,
-                        headerView.getPaddingRight(),
-                        headerView.getPaddingBottom()
+        ViewCompat.setOnApplyWindowInsetsListener(navigationView, (view, insets) -> {
+            // Lấy chiều cao của Status Bar (thanh trạng thái)
+            int statusBarHeight = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top;
+
+            // Lấy Header View (cái layout màu đỏ chứa Avatar)
+            View header = navigationView.getHeaderView(0);
+
+            if (header != null) {
+                int paddingLeft = header.getPaddingLeft();
+                int paddingRight = header.getPaddingRight();
+                int paddingBottom = header.getPaddingBottom();
+
+                int originalPaddingTop = header.getPaddingTop();
+
+
+                header.setPadding(
+                        paddingLeft,
+                        statusBarHeight + 10, // Cộng thêm 20px - 30px cho thoáng
+                        paddingRight,
+                        paddingBottom
                 );
             }
-        } catch (Exception e) {
-            // best-effort, ignore
-        }
+
+            // Trả về insets để hệ thống tiếp tục xử lý các phần khác nếu cần
+            return insets;
+        });
     }
 
     private boolean isProbablyEmulator() {
@@ -1006,7 +1014,7 @@ public class MainActivity extends BaseMenuActivity {
         if (roleKey == null) return "";
         switch (roleKey.toLowerCase()) {
             case "cashier":  return "Thu ngân";
-            case "manager": return "Quản lý";
+            case "admin": return "Quản lý";
             case "waiter":
             case "order":  return "Phục vụ";
             case "kitchen": return "Bếp";
