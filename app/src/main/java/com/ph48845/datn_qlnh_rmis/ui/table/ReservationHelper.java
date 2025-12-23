@@ -188,6 +188,16 @@ public class ReservationHelper {
                 }
 
                 @Override
+                public void onOrderCreated(JSONObject payload) {
+                    // Không cần xử lý order events trong ReservationHelper
+                }
+
+                @Override
+                public void onOrderUpdated(JSONObject payload) {
+                    // Không cần xử lý order events trong ReservationHelper
+                }
+
+                @Override
                 public void onConnect() { }
 
                 @Override
@@ -197,7 +207,7 @@ public class ReservationHelper {
                 public void onError(Exception e) { }
             };
 
-            socketManager.registerListener(reservationListener);
+            socketManager.setOnEventListener(reservationListener);
             listenerRegistered = true;
         } catch (Exception e) {
             // ignore
@@ -210,7 +220,7 @@ public class ReservationHelper {
     public void stopListening() {
         try {
             if (socketManager == null || reservationListener == null || !listenerRegistered) return;
-            socketManager.unregisterListener(reservationListener);
+            socketManager.setOnEventListener(null); // Unregister bằng cách set null
             listenerRegistered = false;
         } catch (Exception e) {
             // ignore

@@ -165,8 +165,8 @@ public class ThuNganViewModel extends ViewModel {
                 Log.d(TAG, "loadOrdersAndDetermineServingStatus: Unpaid orders found for " + unpaidOrdersByTable.size() + " tables");
                 Log.d(TAG, "loadOrdersAndDetermineServingStatus: Checking " + allTablesFromDB.size() + " tables from DB");
 
-                // Tạo map để tránh duplicate và thêm các bàn có orders CHƯA THANH TOÁN
-                Map<Integer, TableItem> tablesWithOrdersMap = new HashMap<>();
+                // Tạo map để tránh duplicate
+                Map<Integer, TableItem> tablesToDisplayMap = new HashMap<>();
                 
                 // Tạo map nhanh: tableNumber -> TableItem từ DB
                 Map<Integer, TableItem> tablesFromDBMap = new HashMap<>();
@@ -176,78 +176,62 @@ public class ThuNganViewModel extends ViewModel {
                     }
                 }
                 
-                // DEBUG: Kiểm tra bàn 1 cụ thể
-                if (allOrdersByTable.containsKey(1)) {
-                    List<Order> table1Orders = allOrdersByTable.get(1);
-                    Log.d(TAG, "🔍 DEBUG Bàn 1: Found " + table1Orders.size() + " orders");
-                    for (Order order : table1Orders) {
-                        if (order != null) {
-                            Log.d(TAG, "🔍 DEBUG Bàn 1 Order: ID=" + order.getId() + 
-                                  ", status=" + order.getOrderStatus() + 
-                                  ", isPaid=" + order.isPaid() + 
-                                  ", paidAt=" + order.getPaidAt());
-                        }
+                // BƯỚC 1: Thêm TẤT CẢ các bàn có status OCCUPIED, PENDING_PAYMENT, FINISH_SERVE từ DB
+                // (Đây là các bàn đang hoạt động theo status trong DB, không phụ thuộc vào orders)
+                for (TableItem table : allTablesFromDB) {
+                    if (table == null) continue;
+                    TableItem.Status status = table.getStatus();
+                    if (status == TableItem.Status.OCCUPIED ||
+                        status == TableItem.Status.PENDING_PAYMENT ||
+                        status == TableItem.Status.FINISH_SERVE) {
+                        tablesToDisplayMap.put(table.getTableNumber(), table);
+                        Log.d(TAG, "loadOrdersAndDetermineServingStatus: ✅ Added table " + table.getTableNumber() + 
+                              " from DB (status: " + status + ")");
                     }
-                } else {
-                    Log.d(TAG, "🔍 DEBUG Bàn 1: NO orders found in allOrdersByTable");
-                }
-                if (unpaidOrdersByTable.containsKey(1)) {
-                    List<Order> table1UnpaidOrders = unpaidOrdersByTable.get(1);
-                    Log.d(TAG, "🔍 DEBUG Bàn 1: Found " + table1UnpaidOrders.size() + " UNPAID orders");
-                } else {
-                    Log.d(TAG, "🔍 DEBUG Bàn 1: NO unpaid orders found (bàn 1 có thể đã thanh toán hết)");
-                }
-                if (tablesFromDBMap.containsKey(1)) {
-                    TableItem table1 = tablesFromDBMap.get(1);
-                    Log.d(TAG, "🔍 DEBUG Bàn 1: Found in DB with status=" + (table1 != null ? table1.getStatus() : "null"));
-                } else {
-                    Log.d(TAG, "🔍 DEBUG Bàn 1: NOT found in DB");
                 }
                 
-                // Hiển thị TẤT CẢ các bàn có orders (kể cả đã thanh toán và chưa thanh toán)
-                // Ưu tiên hiển thị bàn có orders chưa thanh toán, nhưng cũng hiển thị bàn có orders đã thanh toán
-                for (Integer tableNum : allOrdersByTable.keySet()) {
-                    List<Order> allTableOrders = allOrdersByTable.get(tableNum);
+                // BƯỚC 2: Thêm các bàn có orders CHƯA THANH TOÁN (nếu chưa có trong danh sách)
+                // (Để đảm bảo hiển thị các bàn có hóa đơn chưa thanh toán, dù status trong DB là AVAILABLE)
+                for (Integer tableNum : unpaidOrdersByTable.keySet()) {
                     List<Order> unpaidTableOrders = unpaidOrdersByTable.get(tableNum);
                     
-                    // Hiển thị bàn nếu có BẤT KỲ orders nào (kể cả đã thanh toán)
-                    if (allTableOrders != null && !allTableOrders.isEmpty()) {
-                        // Tìm bàn trong DB (có thể có status AVAILABLE, OCCUPIED, etc.)
-                        TableItem tableFromDB = tablesFromDBMap.get(tableNum);
-                        
-                        TableItem tableToAdd;
-                        if (tableFromDB != null) {
-                            // Dùng bàn từ DB (giữ nguyên status, location, capacity)
-                            tableToAdd = tableFromDB;
-                            int unpaidCount = (unpaidTableOrders != null) ? unpaidTableOrders.size() : 0;
-                            int totalCount = allTableOrders.size();
-                            Log.d(TAG, "loadOrdersAndDetermineServingStatus: ✅ Added table " + tableNum + 
-                                  " from DB (status: " + tableFromDB.getStatus() + ") with " + 
-                                  totalCount + " total orders (" + unpaidCount + " unpaid, " + 
-                                  (totalCount - unpaidCount) + " paid)");
+                    if (unpaidTableOrders != null && !unpaidTableOrders.isEmpty()) {
+                        // Nếu bàn này chưa có trong danh sách, thêm vào
+                        if (!tablesToDisplayMap.containsKey(tableNum)) {
+                            TableItem tableFromDB = tablesFromDBMap.get(tableNum);
+                            
+                            TableItem tableToAdd;
+                            if (tableFromDB != null) {
+                                // Dùng bàn từ DB (giữ nguyên status, location, capacity)
+                                tableToAdd = tableFromDB;
+                                Log.d(TAG, "loadOrdersAndDetermineServingStatus: ✅ Added table " + tableNum + 
+                                      " from DB (status: " + tableFromDB.getStatus() + ") with " + 
+                                      unpaidTableOrders.size() + " unpaid orders");
+                            } else {
+                                // Tạo TableItem mới cho bàn này (nếu không có trong DB)
+                                tableToAdd = new TableItem();
+                                tableToAdd.setTableNumber(tableNum);
+                                tableToAdd.setStatus(TableItem.Status.OCCUPIED); // Mặc định
+                                tableToAdd.setLocation(""); // Mặc định tầng 1
+                                tableToAdd.setCapacity(4); // Mặc định
+                                Log.d(TAG, "loadOrdersAndDetermineServingStatus: ✅ Created new table " + tableNum + 
+                                      " (not in DB) with " + unpaidTableOrders.size() + " unpaid orders");
+                            }
+                            
+                            tablesToDisplayMap.put(tableNum, tableToAdd);
                         } else {
-                            // Tạo TableItem mới cho bàn này (nếu không có trong DB)
-                            tableToAdd = new TableItem();
-                            tableToAdd.setTableNumber(tableNum);
-                            tableToAdd.setStatus(TableItem.Status.OCCUPIED); // Mặc định
-                            tableToAdd.setLocation(""); // Mặc định tầng 1
-                            tableToAdd.setCapacity(4); // Mặc định
-                            int unpaidCount = (unpaidTableOrders != null) ? unpaidTableOrders.size() : 0;
-                            int totalCount = allTableOrders.size();
-                            Log.d(TAG, "loadOrdersAndDetermineServingStatus: ✅ Created new table " + tableNum + 
-                                  " (not in DB) with " + totalCount + " total orders (" + unpaidCount + " unpaid, " + 
-                                  (totalCount - unpaidCount) + " paid)");
+                            Log.d(TAG, "loadOrdersAndDetermineServingStatus: Table " + tableNum + 
+                                  " already in list (from DB status), has " + unpaidTableOrders.size() + " unpaid orders");
                         }
-                        
-                        tablesWithOrdersMap.put(tableNum, tableToAdd);
                     }
                 }
 
-                List<TableItem> tablesWithOrders = new ArrayList<>(tablesWithOrdersMap.values());
-                Log.d(TAG, "loadOrdersAndDetermineServingStatus: Final result - " + tablesWithOrders.size() + " tables with orders (including paid orders)");
+                List<TableItem> tablesToDisplay = new ArrayList<>(tablesToDisplayMap.values());
+                Log.d(TAG, "loadOrdersAndDetermineServingStatus: Final result - " + tablesToDisplay.size() + 
+                      " tables to display (from DB status + unpaid orders)");
                 
-                // Phân chia theo tầng (các bàn có orders)
-                splitByFloor(tablesWithOrders, callback);
+                // Phân chia theo tầng
+                splitByFloor(tablesToDisplay, callback);
             }
 
             @Override
@@ -364,20 +348,25 @@ public class ThuNganViewModel extends ViewModel {
 
     /**
      * Parse số tầng từ location string.
-     * Tìm số đầu tiên trong chuỗi, nếu không tìm thấy trả về 1.
+     * Chỉ tìm số tầng từ từ khóa "tầng" hoặc "floor", tránh nhầm với số bàn.
+     * Ví dụ: "Tầng 1" -> 1, "Tầng 2" -> 2, "Floor 2" -> 2, "Bàn 20" -> 1 (mặc định)
      */
     private int parseFloorFromLocation(String location) {
         if (location == null || location.trim().isEmpty()) return 1;
         try {
-            String lower = location.toLowerCase();
-            // Tìm số đầu tiên
-            for (int i = 0; i < lower.length(); i++) {
-                char c = lower.charAt(i);
-                if (Character.isDigit(c)) {
-                    int num = Character.getNumericValue(c);
-                    if (num == 2) return 2;
-                    if (num > 0) return num;
-                }
+            String lower = location.toLowerCase().trim();
+            
+            // Tìm từ khóa "tầng" hoặc "floor" và lấy số sau đó
+            // Pattern: "tầng" hoặc "floor" theo sau bởi số
+            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("(tầng|floor)\\s*(\\d+)");
+            java.util.regex.Matcher matcher = pattern.matcher(lower);
+            
+            if (matcher.find()) {
+                String floorNum = matcher.group(2);
+                int floor = Integer.parseInt(floorNum);
+                // Chỉ chấp nhận tầng 1 hoặc 2
+                if (floor == 2) return 2;
+                if (floor == 1) return 1;
             }
         } catch (Exception ignored) {}
         return 1; // Mặc định tầng 1
