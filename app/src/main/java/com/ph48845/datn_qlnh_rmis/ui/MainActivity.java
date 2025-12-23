@@ -1014,7 +1014,7 @@ public class MainActivity extends BaseMenuActivity {
         if (roleKey == null) return "";
         switch (roleKey.toLowerCase()) {
             case "cashier":  return "Thu ngân";
-            case "manager": return "Quản lý";
+            case "admin": return "Quản lý";
             case "waiter":
             case "order":  return "Phục vụ";
             case "kitchen": return "Bếp";

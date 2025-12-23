@@ -1095,8 +1095,8 @@ public class ThuNganActivity extends BaseMenuActivity {
         if (roleKey == null) return "";
         switch (roleKey.toLowerCase()) {
             case "cashier": return "Thu ngân";
-            case "manager": return "Quản lý";
-            case "order": return "Phục vụ";
+            case "admin": return "Quản lý";
+            case "waiter": return "Phục vụ";
             case "kitchen": return "Bếp";
             default: return roleKey;
         }
@@ -1471,7 +1471,9 @@ public class ThuNganActivity extends BaseMenuActivity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(refreshTablesReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
         } else {
-            registerReceiver(refreshTablesReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                registerReceiver(refreshTablesReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+            }
         }
     }
 

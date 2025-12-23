@@ -3,6 +3,7 @@ package com.ph48845.datn_qlnh_rmis.ui.bep;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.media.Ringtone;
 import android.media.RingtoneManager;
 import android.net.Uri;
@@ -14,6 +15,7 @@ import android.util.Log;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.widget.Toolbar;
@@ -152,8 +154,32 @@ public class BepActivity extends BaseMenuActivity implements BepTableFragment.On
                 return true;
             });
         }
+        updateNavHeaderInfo();
 
         refreshActiveTables();
+    }
+
+    private void updateNavHeaderInfo() {
+        if (navigationView != null && navigationView.getHeaderCount() > 0) {
+            View headerView = navigationView.getHeaderView(0);
+            TextView tvName = headerView.findViewById(R.id.textViewName);
+            TextView tvRole = headerView.findViewById(R.id.textViewRole);
+
+            SharedPreferences prefs = getSharedPreferences("RestaurantPrefs", MODE_PRIVATE);
+            if (tvName != null) tvName.setText(prefs.getString("fullName", "Người dùng"));
+            if (tvRole != null) tvRole.setText(getVietnameseRole(prefs.getString("userRole", "")));
+        }
+    }
+
+    private String getVietnameseRole(String roleKey) {
+        if (roleKey == null) return "";
+        switch (roleKey.toLowerCase()) {
+            case "cashier": return "Thu ngân";
+            case "admin": return "Quản lý";
+            case "waiter": return "Phục vụ";
+            case "kitchen": return "Bếp";
+            default: return roleKey;
+        }
     }
 
     private void applyNavigationViewInsets() {
