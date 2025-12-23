@@ -36,7 +36,7 @@ public class ReportActivity extends AppCompatActivity {
 
     private Toolbar toolbar;
     private EditText etFromDate, etToDate;
-    private Button btnSearch;
+    private Button btnSearch, btnClearFilter;
     private RecyclerView rvReports;
     private ReportAdapter adapter;
     private List<ReportItem> reportList = new ArrayList<>();
@@ -56,6 +56,7 @@ public class ReportActivity extends AppCompatActivity {
         etFromDate = findViewById(R.id.etFromDate);
         etToDate = findViewById(R.id.etToDate);
         btnSearch = findViewById(R.id.btnSearch);
+        btnClearFilter = findViewById(R.id.btnClearFilter);
         rvReports = findViewById(R.id.rvRevenueDetails);
 
         // Thêm TextView tổng hợp từ layout
@@ -72,6 +73,15 @@ public class ReportActivity extends AppCompatActivity {
         etToDate.setOnClickListener(v -> showDatePicker(etToDate));
 
         btnSearch.setOnClickListener(v -> fetchReportsByDate());
+
+        btnClearFilter.setOnClickListener(v -> {
+            // Xóa các trường ngày
+            etFromDate.setText("");
+            etToDate.setText("");
+            // Load lại tất cả báo cáo
+            fetchAllReports();
+            Toast.makeText(ReportActivity.this, "Đã bỏ lọc", Toast.LENGTH_SHORT).show();
+        });
 
         // Load tất cả báo cáo khi mở activity
         fetchAllReports();
@@ -91,7 +101,7 @@ public class ReportActivity extends AppCompatActivity {
         }
         // Đảm bảo nút back hoạt động
         toolbar.setNavigationOnClickListener(v -> finish());
-        
+
         // Đảm bảo navigation icon hiển thị và có thể click được
         toolbar.post(() -> {
             if (getSupportActionBar() != null) {
@@ -112,8 +122,7 @@ public class ReportActivity extends AppCompatActivity {
                 },
                 calendar.get(Calendar.YEAR),
                 calendar.get(Calendar.MONTH),
-                calendar.get(Calendar.DAY_OF_MONTH)
-        );
+                calendar.get(Calendar.DAY_OF_MONTH));
         datePickerDialog.show();
     }
 
@@ -121,7 +130,8 @@ public class ReportActivity extends AppCompatActivity {
         Call<ApiResponse<List<ReportItem>>> call = apiService.getAllReports();
         call.enqueue(new Callback<ApiResponse<List<ReportItem>>>() {
             @Override
-            public void onResponse(Call<ApiResponse<List<ReportItem>>> call, Response<ApiResponse<List<ReportItem>>> response) {
+            public void onResponse(Call<ApiResponse<List<ReportItem>>> call,
+                    Response<ApiResponse<List<ReportItem>>> response) {
                 if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
                     reportList.clear();
                     reportList.addAll(response.body().getData());
@@ -156,14 +166,16 @@ public class ReportActivity extends AppCompatActivity {
         Call<ApiResponse<List<ReportItem>>> call = apiService.getReportsByDate(params);
         call.enqueue(new Callback<ApiResponse<List<ReportItem>>>() {
             @Override
-            public void onResponse(Call<ApiResponse<List<ReportItem>>> call, Response<ApiResponse<List<ReportItem>>> response) {
+            public void onResponse(Call<ApiResponse<List<ReportItem>>> call,
+                    Response<ApiResponse<List<ReportItem>>> response) {
                 if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
                     reportList.clear();
                     reportList.addAll(response.body().getData());
                     adapter.notifyDataSetChanged();
                     updateSummary(reportList); // cập nhật tổng hợp
                 } else {
-                    Toast.makeText(ReportActivity.this, "Không tìm thấy báo cáo trong khoảng ngày", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(ReportActivity.this, "Không tìm thấy báo cáo trong khoảng ngày", Toast.LENGTH_SHORT)
+                            .show();
                     tvInvoiceCount.setText("Số lượng hóa đơn: 0");
                     tvTotalRevenue.setText("0 VND");
                 }
