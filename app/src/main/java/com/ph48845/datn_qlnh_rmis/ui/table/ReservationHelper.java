@@ -1,3 +1,4 @@
+
 package com.ph48845.datn_qlnh_rmis.ui.table;
 
 import android.app.AlertDialog;
@@ -11,10 +12,18 @@ import android.widget.EditText;
 
 import android.widget.ProgressBar;
 import android.widget.Toast;
+import android.util.Log;
 
 import com.ph48845.datn_qlnh_rmis.R;
+import com.ph48845.datn_qlnh_rmis.data.model.InAppNotification;
 import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
 import com.ph48845.datn_qlnh_rmis.data.repository.TableRepository;
+import com.ph48845.datn_qlnh_rmis.ui.phucvu.socket.SocketManager;
+
+import com.ph48845.datn_qlnh_rmis.ui.phucvu.notification.NotificationManager;
+import com.ph48845.datn_qlnh_rmis.ui.MainActivity;
+
+import org.json.JSONObject;
 
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
@@ -26,6 +35,8 @@ import java.util.Map;
  * ReservationHelper:
  * - When user confirms a reservation, server will auto-cancel (server side).
  * - Client does not schedule in-process auto-cancel; it relies on socket events from server.
+ *
+ * NOTE: Added local socket listener to show dialog/notification when reservation is auto-released.
  */
 public class ReservationHelper {
 
@@ -36,10 +47,174 @@ public class ReservationHelper {
     // Format used for reservationAt (kept for potential future use)
     private static final String RESERVATION_FORMAT = "yyyy-MM-dd HH:mm";
 
+    // Socket listening
+    private final SocketManager socketManager;
+    private SocketManager.OnEventListener reservationListener;
+    private boolean listenerRegistered = false;
+
     public ReservationHelper(android.app.Activity host, TableRepository tableRepository, ProgressBar progressBar) {
         this.host = host;
         this.tableRepository = tableRepository;
         this.progressBar = progressBar;
+
+        SocketManager sm = null;
+        try {
+            sm = SocketManager.getInstance();
+        } catch (Exception ignored) {}
+        this.socketManager = sm;
+    }
+
+    /**
+     * Start listening for auto-release events so we can show dialog/notification even
+     * when ReservationHelper is used outside MainActivity flow.
+     * Safe to call multiple times.
+     */
+    public void startListening() {
+        try {
+            if (socketManager == null) return;
+            if (listenerRegistered) return;
+
+            reservationListener = new SocketManager.OnEventListener() {
+                @Override
+                public void onTableUpdated(JSONObject payload) {
+                    if (payload == null) return;
+                    String evt = payload.optString("eventName", "");
+                    if (!"table_auto_released".equals(evt)) return;
+
+                    int tblNum = -1;
+                    if (payload.has("tableNumber"))
+                        tblNum = payload.optInt("tableNumber", -1);
+                    else if (payload.has("table"))
+                        tblNum = payload.optInt("table", -1);
+
+                    final int shownNum = tblNum;
+
+                    // Always try to show an in-app notification (non-blocking)
+                    try {
+                        InAppNotification notification = new InAppNotification.Builder(
+                                InAppNotification.Type.WARNING,
+                                "⏰ Hủy đặt bàn tự động",
+                                "Bàn " + (shownNum > 0 ? shownNum : "") + " đã hết thời gian đặt trước"
+                        )
+                                .actionData("table:" + shownNum)
+                                .duration(8000)
+                                .build();
+                        NotificationManager.getInstance().show(notification);
+                    } catch (Exception e) {
+                        // ignore
+                    }
+
+                    // Decide whether we can show dialog now
+                    boolean canShowDialog = true;
+                    try {
+                        if (host.isFinishing()) canShowDialog = false;
+                    } catch (Exception ignored) {}
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.JELLY_BEAN_MR1) {
+                        try {
+                            if (host.isDestroyed()) canShowDialog = false;
+                        } catch (Exception ignored) {}
+                    }
+
+                    boolean hasFocus = false;
+                    try {
+                        hasFocus = host.hasWindowFocus();
+                    } catch (Exception ignored) {}
+
+                    // If host is MainActivity, prefer using its helper to manage pending dialog logic
+                    if (host instanceof MainActivity) {
+                        MainActivity ma = (MainActivity) host;
+                        boolean maVisible = false;
+                        try {
+                            // Use public accessor instead of direct field access
+                            maVisible = ma.isActivityVisible() || hasFocus;
+                        } catch (Exception ignored) {}
+
+                        if (canShowDialog && maVisible) {
+                            host.runOnUiThread(() -> {
+                                try {
+                                    new AlertDialog.Builder(host)
+                                            .setTitle("Thông báo")
+                                            .setMessage("Bàn " + (shownNum > 0 ? shownNum : "") + " đã tự động hủy đặt trước.")
+                                            .setCancelable(false)
+                                            .setPositiveButton("OK", null)
+                                            .show();
+                                } catch (Exception ex) {
+                                    // fallback toast
+                                    try { Toast.makeText(host, "Bàn " + shownNum + " đã tự hủy đặt trước", Toast.LENGTH_SHORT).show(); } catch (Exception ignored) {}
+                                } finally {
+                                    try { ma.fetchTablesFromServer(); } catch (Exception ignored) {}
+                                }
+                            });
+                        } else {
+                            // let MainActivity handle pending behavior — use its public setter
+                            try {
+                                ma.setPendingAutoReleasedTable(shownNum);
+                                // ensure tables refreshed
+                                ma.runOnUiThread(() -> ma.fetchTablesFromServer());
+                            } catch (Exception ex) {
+                                // fallback: show toast
+                                host.runOnUiThread(() -> {
+                                    try { Toast.makeText(host, "Bàn " + shownNum + " đã tự hủy đặt trước", Toast.LENGTH_SHORT).show(); } catch (Exception ignored) {}
+                                    try { if (host instanceof MainActivity) ((MainActivity) host).fetchTablesFromServer(); } catch (Exception ignored) {}
+                                });
+                            }
+                        }
+                    } else {
+                        // Generic Activity host: show dialog if possible, otherwise toast
+                        if (canShowDialog && (hasFocus)) {
+                            host.runOnUiThread(() -> {
+                                try {
+                                    new AlertDialog.Builder(host)
+                                            .setTitle("Thông báo")
+                                            .setMessage("Bàn " + (shownNum > 0 ? shownNum : "") + " đã tự hủy đặt trước.")
+                                            .setCancelable(false)
+                                            .setPositiveButton("OK", null)
+                                            .show();
+                                } catch (Exception ex) {
+                                    try { Toast.makeText(host, "Bàn " + shownNum + " đã tự hủy đặt trước", Toast.LENGTH_SHORT).show(); } catch (Exception ignored) {}
+                                }
+                                // refresh if possible
+                                try {
+                                    if (host instanceof com.ph48845.datn_qlnh_rmis.ui.MainActivity)
+                                        ((com.ph48845.datn_qlnh_rmis.ui.MainActivity) host).fetchTablesFromServer();
+                                } catch (Exception ignored) {}
+                            });
+                        } else {
+                            host.runOnUiThread(() -> {
+                                try { Toast.makeText(host, "Bàn " + shownNum + " đã tự hủy đặt trước", Toast.LENGTH_SHORT).show(); } catch (Exception ignored) {}
+                            });
+                        }
+                    }
+                }
+
+                @Override
+                public void onConnect() { }
+
+                @Override
+                public void onDisconnect() { }
+
+                @Override
+                public void onError(Exception e) { }
+            };
+
+            socketManager.registerListener(reservationListener);
+            listenerRegistered = true;
+        } catch (Exception e) {
+            // ignore
+        }
+    }
+
+    /**
+     * Stop listening to socket events (call from Activity.onDestroy)
+     */
+    public void stopListening() {
+        try {
+            if (socketManager == null || reservationListener == null || !listenerRegistered) return;
+            socketManager.unregisterListener(reservationListener);
+            listenerRegistered = false;
+        } catch (Exception e) {
+            // ignore
+        }
     }
 
     public void showReservationDialogWithPickers(TableItem table) {
@@ -120,6 +295,56 @@ public class ReservationHelper {
                         dialog.dismiss();
                         if (host instanceof com.ph48845.datn_qlnh_rmis.ui.MainActivity) {
                             ((com.ph48845.datn_qlnh_rmis.ui.MainActivity) host).fetchTablesFromServer();
+                        }
+
+                        // Emit socket event locally to ensure other clients get update (best-effort)
+                        try {
+                            if (socketManager != null) {
+                                JSONObject payload = new JSONObject();
+                                try {
+                                    payload.put("_id", updatedTable.getId());
+                                } catch (Exception ignored) {}
+                                try {
+                                    payload.put("tableNumber", updatedTable.getTableNumber());
+                                } catch (Exception ignored) {}
+                                try {
+                                    Object st = updatedTable.getStatus();
+                                    String statusStr = (st != null) ? st.toString().toLowerCase() : "reserved";
+                                    payload.put("status", statusStr);
+                                } catch (Exception ignored) {}
+                                try {
+                                    // reservation fields may not exist on model getters; guard with try-catch
+                                    try {
+                                        payload.put("reservationName", updatedTable.getReservationName());
+                                    } catch (Exception ignored) {}
+                                    try {
+                                        payload.put("reservationPhone", updatedTable.getReservationPhone());
+                                    } catch (Exception ignored) {}
+                                    try {
+                                        payload.put("reservationAt", updatedTable.getReservationAt());
+                                    } catch (Exception ignored) {}
+                                } catch (Exception ignored) {}
+                                try {
+                                    payload.put("eventName", "table_reserved");
+                                } catch (Exception ignored) {}
+
+                                try {
+                                    socketManager.connect();
+                                } catch (Exception ignored) {}
+
+                                try {
+                                    socketManager.emitEvent("table_reserved", payload);
+                                } catch (Exception e) {
+                                    Log.w("ReservationHelper", "emit table_reserved failed", e);
+                                }
+                                try {
+                                    socketManager.emitEvent("table_updated", payload);
+                                } catch (Exception e) {
+                                    Log.w("ReservationHelper", "emit table_updated failed", e);
+                                }
+                            }
+                        } catch (Exception e) {
+                            Log.w("ReservationHelper", "Failed to emit reservation socket event", e);
                         }
                     });
                 }
