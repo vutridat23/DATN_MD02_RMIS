@@ -191,68 +191,46 @@ public class DashboardFragment extends Fragment {
      * Thay vì lấy từ Order, giờ lấy từ History để đảm bảo dữ liệu chính xác
      */
     private void loadTodayRevenue() {
-        // Sử dụng History API với filter action='pay'
-        java.util.Map<String, String> filters = new java.util.HashMap<>();
-        filters.put("action", "pay");
+        // 1. Chuẩn bị tham số ngày tháng (yyyy-MM-dd)
+        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US);
+        String todayStr = sdf.format(new java.util.Date());
 
-        apiService.getAllHistory(filters).enqueue(new Callback<ApiResponse<List<com.ph48845.datn_qlnh_rmis.data.model.HistoryItem>>>() {
+        java.util.Map<String, String> params = new java.util.HashMap<>();
+        params.put("startDate", todayStr);
+        params.put("endDate", todayStr); // Lấy trong 1 ngày nên start = end
+
+        // 2. Gọi API getDetailedReport
+        apiService.getDetailedReport(params).enqueue(new Callback<ApiResponse<com.ph48845.datn_qlnh_rmis.data.model.ReportDetail>>() {
             @Override
-            public void onResponse(Call<ApiResponse<List<com.ph48845.datn_qlnh_rmis.data.model.HistoryItem>>> call,
-                                   Response<ApiResponse<List<com.ph48845.datn_qlnh_rmis.data.model.HistoryItem>>> response) {
+            public void onResponse(Call<ApiResponse<com.ph48845.datn_qlnh_rmis.data.model.ReportDetail>> call,
+                                   Response<ApiResponse<com.ph48845.datn_qlnh_rmis.data.model.ReportDetail>> response) {
                 if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
-                    List<com.ph48845.datn_qlnh_rmis.data.model.HistoryItem> histories = response.body().getData();
-                    if (getActivity() != null && histories != null) {
+                    com.ph48845.datn_qlnh_rmis.data.model.ReportDetail report = response.body().getData();
+
+                    if (getActivity() != null && report != null && report.getSummary() != null) {
                         getActivity().runOnUiThread(() -> {
-                            double totalRevenue = 0;
-                            int paidCount = 0;
+                            // 3. Lấy số liệu server đã tính sẵn
+                            double totalRevenue = report.getSummary().getTotalRevenue();
+                            int totalOrders = report.getSummary().getTotalOrders();
 
-                            Calendar today = Calendar.getInstance();
-                            today.set(Calendar.HOUR_OF_DAY, 0);
-                            today.set(Calendar.MINUTE, 0);
-                            today.set(Calendar.SECOND, 0);
-                            today.set(Calendar.MILLISECOND, 0);
-
-                            for (com.ph48845.datn_qlnh_rmis.data.model.HistoryItem history : histories) {
-                                if (history.getCreatedAt() != null) {
-                                    try {
-                                        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss",
-                                                Locale.getDefault());
-                                        java.util.Date createdDate = sdf.parse(history.getCreatedAt());
-                                        if (createdDate != null && createdDate.after(today.getTime())) {
-                                            // Lấy finalAmount từ history.details
-                                            if (history.getDetails() != null) {
-                                                totalRevenue += history.getDetails().getFinalAmount();
-                                            }
-                                            paidCount++;
-                                        }
-                                    } catch (Exception e) {
-                                        e.printStackTrace();
-                                    }
-                                }
-                            }
-
-                            NumberFormat formatter = NumberFormat.getInstance(Locale.US);
+                            // 4. Hiển thị lên UI
+                            java.text.NumberFormat formatter = java.text.NumberFormat.getInstance(java.util.Locale.US);
                             tvTodayRevenue.setText(formatter.format(totalRevenue) + " VND");
-                            tvTodayOrders.setText(paidCount + " hóa đơn đã thanh toán");
+                            tvTodayOrders.setText(totalOrders + " hóa đơn");
                         });
                     }
                 } else {
+                    // Xử lý lỗi (ví dụ hiển thị 0đ)
                     if (getActivity() != null) {
-                        getActivity().runOnUiThread(() -> {
-                            tvTodayRevenue.setText("0 VND");
-                            tvTodayOrders.setText("0 hóa đơn");
-                        });
+                        tvTodayRevenue.setText("0 VND");
                     }
                 }
             }
 
             @Override
-            public void onFailure(Call<ApiResponse<List<com.ph48845.datn_qlnh_rmis.data.model.HistoryItem>>> call, Throwable t) {
+            public void onFailure(Call<ApiResponse<com.ph48845.datn_qlnh_rmis.data.model.ReportDetail>> call, Throwable t) {
                 if (getActivity() != null) {
-                    getActivity().runOnUiThread(() -> {
-                        tvTodayRevenue.setText("0 VND");
-                        tvTodayOrders.setText("0 hóa đơn");
-                    });
+                    android.widget.Toast.makeText(getActivity(), "Lỗi lấy doanh thu: " + t.getMessage(), android.widget.Toast.LENGTH_SHORT).show();
                 }
             }
         });
@@ -278,7 +256,7 @@ public class DashboardFragment extends Fragment {
                             Map<String, Double> dailyRevenue = new HashMap<>();
                             SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
 
-                            // Initialize last 7 days
+                            // 1. Khởi tạo danh sách 7 ngày qua
                             List<String> dates = new ArrayList<>();
                             Calendar cal = Calendar.getInstance();
                             for (int i = 6; i >= 0; i--) {
@@ -289,15 +267,30 @@ public class DashboardFragment extends Fragment {
                                 dailyRevenue.put(dateKey, 0.0);
                             }
 
-                            // Calculate revenue for each day from History
+                            // 2. Định nghĩa Parser chuẩn ISO-8601 (Quan trọng!)
+                            // Server trả về dạng: 2025-12-24T10:00:00.123Z
+                            SimpleDateFormat sdfIso = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US);
+                            sdfIso.setTimeZone(java.util.TimeZone.getTimeZone("UTC")); // Server luôn trả về UTC
+
+                            // Fallback parser (phòng hờ)
+                            SimpleDateFormat sdfSimple = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US);
+
+                            // 3. Duyệt và cộng tiền
                             for (com.ph48845.datn_qlnh_rmis.data.model.HistoryItem history : histories) {
                                 if (history.getCreatedAt() != null) {
                                     try {
-                                        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss",
-                                                Locale.getDefault());
-                                        java.util.Date createdDate = sdf.parse(history.getCreatedAt());
+                                        java.util.Date createdDate;
+                                        try {
+                                            createdDate = sdfIso.parse(history.getCreatedAt());
+                                        } catch (Exception ex) {
+                                            // Thử parse kiểu đơn giản nếu kiểu ISO thất bại
+                                            createdDate = sdfSimple.parse(history.getCreatedAt());
+                                        }
+
                                         if (createdDate != null) {
+                                            // Format lại ngày theo múi giờ điện thoại (Local) để mapping đúng cột ngày
                                             String dateKey = dateFormat.format(createdDate);
+
                                             if (dailyRevenue.containsKey(dateKey)) {
                                                 double amount = 0;
                                                 if (history.getDetails() != null) {
@@ -307,7 +300,7 @@ public class DashboardFragment extends Fragment {
                                             }
                                         }
                                     } catch (Exception e) {
-                                        e.printStackTrace();
+                                        e.printStackTrace(); // Log lỗi nhưng không làm crash app
                                     }
                                 }
                             }
