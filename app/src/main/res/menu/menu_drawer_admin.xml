@@ -1,6 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <group android:id="@+id/group_dashboard">
+        <item
+            android:id="@+id/nav_dashboard"
+            android:title="Dashboard"
+            android:icon="@drawable/ic_mood" />
+            
+        <item
+            android:id="@+id/nav_tables"
+            android:title="Sơ đồ bàn"
+            android:icon="@drawable/baseline_restaurant_menu_24" />
+    </group>
+
     <group android:id="@+id/group_reports">
         <item
             android:id="@+id/nav_reports"
