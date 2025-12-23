@@ -113,10 +113,6 @@ public class LoginActivity extends AppCompatActivity {
                 // Admin goes to MainActivity with drawer menu
                 intent = new Intent(LoginActivity.this, MainActivity.class);
                 break;
-            case "admin":
-                // Admin goes to MainActivity with drawer menu
-                intent = new Intent(LoginActivity.this, MainActivity.class);
-                break;
             case "thungan":
             case "cashier":
                 intent = new Intent(LoginActivity.this, ThuNganActivity.class);

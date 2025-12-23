@@ -1311,6 +1311,9 @@ public class MainActivity extends BaseMenuActivity {
         } else if (itemId == R.id.nav_reports) {
             Intent intent = new Intent(this, com.ph48845.datn_qlnh_rmis.ui.revenue.ReportActivity.class);
             startActivity(intent);
+        } else if (itemId == R.id.nav_dashboard) {
+            Intent intent = new Intent(this, com.ph48845.datn_qlnh_rmis.ui.dashboard.DashboardActivity.class);
+            startActivity(intent);
         } else if (itemId == R.id.nav_revenue) {
             Intent intent = new Intent(this, com.ph48845.datn_qlnh_rmis.ui.revenue.ReportActivity.class);
             startActivity(intent);

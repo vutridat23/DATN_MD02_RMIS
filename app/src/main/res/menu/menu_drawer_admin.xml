@@ -5,7 +5,7 @@
         <item
             android:id="@+id/nav_dashboard"
             android:title="Dashboard"
-            android:icon="@drawable/ic_mood" />
+            android:icon="@drawable/dashboard" />
             
         <item
             android:id="@+id/nav_tables"
@@ -31,19 +31,19 @@
         <item
             android:id="@+id/nav_warnings"
             android:title="Cảnh báo nguyên liệu"
-            android:icon="@drawable/ic_contact" />
+            android:icon="@drawable/compliance" />
     </group>
 
     <group android:id="@+id/group_shifts">
         <item
             android:id="@+id/nav_shifts"
             android:title="Quản lý ca làm việc"
-            android:icon="@drawable/ic_checktb" />
+            android:icon="@drawable/shift" />
 
         <item
             android:id="@+id/nav_employees"
             android:title="Quản lý nhân viên"
-            android:icon="@drawable/ic_mood" />
+            android:icon="@drawable/profile" />
     </group>
 
     <group android:id="@+id/group_orders">
@@ -51,23 +51,9 @@
             android:id="@+id/nav_payment_history"
             android:title="Danh sách hóa đơn"
             android:icon="@drawable/history" />
-
-        <item
-            android:id="@+id/nav_temp_calculation_requests"
-            android:title="Yêu cầu tạm tính"
-            android:icon="@drawable/ic_prebill" />
     </group>
 
     <group android:id="@+id/group_system">
-        <item
-            android:id="@+id/nav_mood"
-            android:title="Tâm trạng hôm nay"
-            android:icon="@drawable/ic_mood" />
-
-        <item
-            android:id="@+id/nav_contact"
-            android:title="Liên hệ"
-            android:icon="@drawable/ic_contact" />
 
         <item
             android:id="@+id/nav_logout"
