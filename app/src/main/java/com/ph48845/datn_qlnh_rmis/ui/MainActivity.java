@@ -88,7 +88,7 @@ public class MainActivity extends BaseMenuActivity {
     NavigationView navigationView;
 
     private SocketManager socketManager;
-    private String defaultSocketUrl = "http://192.168.1.84:3000";
+    private String defaultSocketUrl = "http://192.168.1.229:3000";
 
     // main listener instance so we can register/unregister without losing it
     private SocketManager.OnEventListener mainSocketListener;
