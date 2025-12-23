@@ -374,6 +374,51 @@ public class InvoiceActivity extends AppCompatActivity {
     }
 
     /**
+     * Kiểm tra xem món ăn đã xong hoặc đang làm
+     * Đã xong: done, xong, served, ready, completed, hoàn thành
+     * Đang làm: preparing, in_progress, processing, đang làm, đang nấu
+     */
+    private boolean isItemDoneOrPreparing(Order.OrderItem item) {
+        if (item == null) return false;
+        String status = item.getStatus();
+        if (status == null || status.trim().isEmpty()) return false;
+        
+        String statusLower = status.toLowerCase().trim();
+        
+        // Kiểm tra đã xong
+        boolean isDone = statusLower.contains("done") || 
+                        statusLower.contains("xong") || 
+                        statusLower.contains("served") || 
+                        statusLower.contains("ready") || 
+                        statusLower.contains("completed") ||
+                        statusLower.contains("hoàn thành");
+        
+        // Kiểm tra đang làm
+        boolean isPreparing = statusLower.contains("preparing") ||
+                             statusLower.contains("in_progress") ||
+                             statusLower.contains("processing") ||
+                             statusLower.contains("đang làm") ||
+                             statusLower.contains("đang nấu");
+        
+        return isDone || isPreparing;
+    }
+
+    /**
+     * Tính tổng tiền chỉ từ những món đã xong hoặc đang làm
+     */
+    private double calculateTotalFromDoneOrPreparingItems(List<Order.OrderItem> items) {
+        if (items == null || items.isEmpty()) return 0.0;
+        
+        double total = 0.0;
+        for (Order.OrderItem item : items) {
+            if (item != null && isItemDoneOrPreparing(item)) {
+                total += item.getPrice() * item.getQuantity();
+            }
+        }
+        return total;
+    }
+
+    /**
      * Hiển thị hóa đơn với dữ liệu đã load
      */
     private void displayInvoice() {
@@ -755,12 +800,17 @@ public class InvoiceActivity extends AppCompatActivity {
             return;
         }
 
-        // Tính lại tổng tiền với voucher
-        orderTotal = order.getTotalAmount();
+        // Tính lại tổng tiền chỉ từ những món đã xong hoặc đang làm
+        order.normalizeItems();
+        double orderTotal = calculateTotalFromDoneOrPreparingItems(order.getItems());
         if (orderTotal <= 0) {
-            // Nếu totalAmount = 0, tính từ finalAmount + discount mặc định
-            double defaultDiscount = order.getDiscount();
-            orderTotal = order.getFinalAmount() + defaultDiscount;
+            // Nếu không có món nào đã xong hoặc đang làm, thử lấy từ totalAmount
+            orderTotal = order.getTotalAmount();
+            if (orderTotal <= 0) {
+                // Nếu totalAmount = 0, tính từ finalAmount + discount mặc định
+                double defaultDiscount = order.getDiscount();
+                orderTotal = order.getFinalAmount() + defaultDiscount;
+            }
         }
 
         // Chỉ tính discount từ voucher nếu có chọn voucher
@@ -932,11 +982,16 @@ public class InvoiceActivity extends AppCompatActivity {
 
         for (Order order : orders) {
             if (order != null) {
-                // Lấy totalAmount (tổng tiền gốc) thay vì finalAmount (đã có discount của order)
-                double orderTotal = order.getTotalAmount();
+                // Tính tổng tiền chỉ từ những món đã xong hoặc đang làm
+                order.normalizeItems();
+                double orderTotal = calculateTotalFromDoneOrPreparingItems(order.getItems());
                 if (orderTotal <= 0) {
-                    // Nếu totalAmount = 0, thử lấy finalAmount + discount
-                    orderTotal = order.getFinalAmount() + order.getDiscount();
+                    // Nếu không có món nào đã xong hoặc đang làm, thử lấy từ totalAmount
+                    orderTotal = order.getTotalAmount();
+                    if (orderTotal <= 0) {
+                        // Nếu totalAmount = 0, thử lấy finalAmount + discount
+                        orderTotal = order.getFinalAmount() + order.getDiscount();
+                    }
                 }
                 totalBeforeVoucher += orderTotal;
 
@@ -1106,17 +1161,26 @@ public class InvoiceActivity extends AppCompatActivity {
 
         llItemsContainer.removeAllViews();
         if (orderItems != null && !orderItems.isEmpty()) {
-            Log.d(TAG, "createInvoiceCard: Processing " + orderItems.size() + " items for order " + order.getId());
-            for (int i = 0; i < orderItems.size(); i++) {
+            // Lọc chỉ lấy những món đã xong hoặc đang làm
+            List<Order.OrderItem> filteredItems = new ArrayList<>();
+            for (Order.OrderItem item : orderItems) {
+                if (item != null && isItemDoneOrPreparing(item)) {
+                    filteredItems.add(item);
+                }
+            }
+            
+            Log.d(TAG, "createInvoiceCard: Processing " + filteredItems.size() + " items (done/preparing) out of " + orderItems.size() + " total items for order " + order.getId());
+            
+            for (int i = 0; i < filteredItems.size(); i++) {
                 final int itemIndex = i;
-                Order.OrderItem item = orderItems.get(i);
+                Order.OrderItem item = filteredItems.get(i);
                 if (item == null) {
                     Log.w(TAG, "createInvoiceCard: Item at index " + i + " is null, skipping");
                     continue;
                 }
 
                 Log.d(TAG, "createInvoiceCard: Processing item " + i + ": name=" + item.getName() +
-                      ", quantity=" + item.getQuantity() + ", price=" + item.getPrice());
+                      ", quantity=" + item.getQuantity() + ", price=" + item.getPrice() + ", status=" + item.getStatus());
 
                 // Sử dụng layout khác nhau cho edit mode và view mode
                 View itemRow;
@@ -1259,12 +1323,16 @@ public class InvoiceActivity extends AppCompatActivity {
         // Lấy voucher đã chọn cho order này (nếu có)
         Voucher orderVoucher = orderVoucherMap.get(order.getId());
 
-        // Tính tổng tiền với voucher của order này
-        double orderTotal = order.getTotalAmount();
+        // Tính tổng tiền chỉ từ những món đã xong hoặc đang làm
+        double orderTotal = calculateTotalFromDoneOrPreparingItems(orderItems);
         if (orderTotal <= 0) {
-            // Nếu totalAmount = 0, tính từ finalAmount + discount mặc định
-            double defaultDiscount = order.getDiscount();
-            orderTotal = order.getFinalAmount() + defaultDiscount;
+            // Nếu không có món nào đã xong hoặc đang làm, thử lấy từ totalAmount
+            orderTotal = order.getTotalAmount();
+            if (orderTotal <= 0) {
+                // Nếu totalAmount = 0, tính từ finalAmount + discount mặc định
+                double defaultDiscount = order.getDiscount();
+                orderTotal = order.getFinalAmount() + defaultDiscount;
+            }
         }
 
         // Chỉ tính discount từ voucher nếu có chọn voucher
