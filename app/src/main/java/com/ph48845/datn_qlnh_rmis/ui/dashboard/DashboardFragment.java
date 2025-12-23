@@ -191,46 +191,88 @@ public class DashboardFragment extends Fragment {
      * Thay vì lấy từ Order, giờ lấy từ History để đảm bảo dữ liệu chính xác
      */
     private void loadTodayRevenue() {
-        // 1. Chuẩn bị tham số ngày tháng (yyyy-MM-dd)
-        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US);
-        String todayStr = sdf.format(new java.util.Date());
+        Map<String, String> filters = new HashMap<>();
+        filters.put("action", "pay");
 
-        java.util.Map<String, String> params = new java.util.HashMap<>();
-        params.put("startDate", todayStr);
-        params.put("endDate", todayStr); // Lấy trong 1 ngày nên start = end
-
-        // 2. Gọi API getDetailedReport
-        apiService.getDetailedReport(params).enqueue(new Callback<ApiResponse<com.ph48845.datn_qlnh_rmis.data.model.ReportDetail>>() {
+        apiService.getAllHistory(filters).enqueue(new Callback<ApiResponse<List<com.ph48845.datn_qlnh_rmis.data.model.HistoryItem>>>() {
             @Override
-            public void onResponse(Call<ApiResponse<com.ph48845.datn_qlnh_rmis.data.model.ReportDetail>> call,
-                                   Response<ApiResponse<com.ph48845.datn_qlnh_rmis.data.model.ReportDetail>> response) {
+            public void onResponse(Call<ApiResponse<List<com.ph48845.datn_qlnh_rmis.data.model.HistoryItem>>> call,
+                                   Response<ApiResponse<List<com.ph48845.datn_qlnh_rmis.data.model.HistoryItem>>> response) {
                 if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
-                    com.ph48845.datn_qlnh_rmis.data.model.ReportDetail report = response.body().getData();
-
-                    if (getActivity() != null && report != null && report.getSummary() != null) {
+                    List<com.ph48845.datn_qlnh_rmis.data.model.HistoryItem> histories = response.body().getData();
+                    if (getActivity() != null && histories != null) {
                         getActivity().runOnUiThread(() -> {
-                            // 3. Lấy số liệu server đã tính sẵn
-                            double totalRevenue = report.getSummary().getTotalRevenue();
-                            int totalOrders = report.getSummary().getTotalOrders();
+                            double totalRevenue = 0;
+                            int paidCount = 0;
 
-                            // 4. Hiển thị lên UI
-                            java.text.NumberFormat formatter = java.text.NumberFormat.getInstance(java.util.Locale.US);
+                            // Lấy thời điểm bắt đầu ngày hôm nay (00:00:00)
+                            Calendar today = Calendar.getInstance();
+                            today.set(Calendar.HOUR_OF_DAY, 0);
+                            today.set(Calendar.MINUTE, 0);
+                            today.set(Calendar.SECOND, 0);
+                            today.set(Calendar.MILLISECOND, 0);
+
+                            // CẬP NHẬT: Xử lý nhiều định dạng ngày tháng
+                            // Định dạng 1: Có mili-giây và Z (Ví dụ: 2025-12-24T10:00:00.123Z)
+                            SimpleDateFormat sdfIso = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.getDefault());
+                            sdfIso.setTimeZone(java.util.TimeZone.getTimeZone("UTC")); // Server thường trả về UTC
+
+                            // Định dạng 2: Không có mili-giây (Ví dụ: 2025-12-24T10:00:00)
+                            SimpleDateFormat sdfSimple = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault());
+
+                            for (com.ph48845.datn_qlnh_rmis.data.model.HistoryItem history : histories) {
+                                if (history.getCreatedAt() != null) {
+                                    try {
+                                        java.util.Date createdDate;
+                                        // Thử parse theo chuẩn ISO 8601 (có .SSSZ) trước
+                                        try {
+                                            createdDate = sdfIso.parse(history.getCreatedAt());
+                                        } catch (Exception e1) {
+                                            // Nếu lỗi, thử parse theo kiểu đơn giản
+                                            createdDate = sdfSimple.parse(history.getCreatedAt());
+                                        }
+
+                                        if (createdDate != null && createdDate.after(today.getTime())) {
+                                            // Kiểm tra null cho details
+                                            if (history.getDetails() != null) {
+                                                totalRevenue += history.getDetails().getFinalAmount();
+                                                paidCount++;
+                                            } else {
+                                                // Log để biết nếu details bị null
+                                                android.util.Log.e("DEBUG_REVENUE", "ID: " + history.getId() + " có details là NULL");
+                                            }
+                                        }
+                                    } catch (Exception e) {
+                                        // In lỗi ra Logcat để xem chuỗi ngày thực tế là gì
+                                        android.util.Log.e("DEBUG_REVENUE", "Lỗi parse ngày: " + history.getCreatedAt());
+                                        e.printStackTrace();
+                                    }
+                                }
+                            }
+
+                            NumberFormat formatter = NumberFormat.getInstance(Locale.US);
                             tvTodayRevenue.setText(formatter.format(totalRevenue) + " VND");
-                            tvTodayOrders.setText(totalOrders + " hóa đơn");
+                            tvTodayOrders.setText(paidCount + " hóa đơn đã thanh toán");
                         });
                     }
                 } else {
-                    // Xử lý lỗi (ví dụ hiển thị 0đ)
+                    // Xử lý khi response không thành công
                     if (getActivity() != null) {
-                        tvTodayRevenue.setText("0 VND");
+                        getActivity().runOnUiThread(() -> {
+                            tvTodayRevenue.setText("0 VND");
+                            tvTodayOrders.setText("0 hóa đơn (API Error)");
+                        });
                     }
                 }
             }
 
             @Override
-            public void onFailure(Call<ApiResponse<com.ph48845.datn_qlnh_rmis.data.model.ReportDetail>> call, Throwable t) {
+            public void onFailure(Call<ApiResponse<List<com.ph48845.datn_qlnh_rmis.data.model.HistoryItem>>> call, Throwable t) {
                 if (getActivity() != null) {
-                    android.widget.Toast.makeText(getActivity(), "Lỗi lấy doanh thu: " + t.getMessage(), android.widget.Toast.LENGTH_SHORT).show();
+                    getActivity().runOnUiThread(() -> {
+                        tvTodayRevenue.setText("0 VND");
+                        tvTodayOrders.setText("Lỗi mạng");
+                    });
                 }
             }
         });
