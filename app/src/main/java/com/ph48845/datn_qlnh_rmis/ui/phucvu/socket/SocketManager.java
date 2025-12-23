@@ -7,6 +7,7 @@ import org.json.JSONObject;
 
 import java.net.URISyntaxException;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.Arrays;
 
 import io.socket.client.IO;
 import io.socket.client.Socket;
@@ -136,6 +137,7 @@ public class SocketManager {
         });
 
         socket.on("order_created", args -> {
+            Log.d(TAG, "EVENT order_created raw args: " + Arrays.toString(args));
             JSONObject payload = parseArgsToJson(args);
             Log.d(TAG, "order_created: " + payload);
             for (OnEventListener l : listeners) l.onOrderCreated(payload);
@@ -143,6 +145,7 @@ public class SocketManager {
         });
 
         socket.on("order_updated", args -> {
+            Log.d(TAG, "EVENT order_updated raw args: " + Arrays.toString(args));
             JSONObject payload = parseArgsToJson(args);
             Log.d(TAG, "order_updated: " + payload);
             for (OnEventListener l : listeners) l.onOrderUpdated(payload);
@@ -150,12 +153,14 @@ public class SocketManager {
         });
 
         socket.on("table_updated", args -> {
+            Log.d(TAG, "EVENT table_updated raw args: " + Arrays.toString(args));
             JSONObject payload = parseArgsToJson(args);
             for (OnEventListener l : listeners) l.onTableUpdated(payload);
             if (singleListener != null) singleListener.onTableUpdated(payload);
         });
 
         socket.on("table_auto_released", args -> {
+            Log.d(TAG, "EVENT table_auto_released raw args: " + Arrays.toString(args));
             JSONObject payload = parseArgsToJson(args);
             try {
                 payload.put("eventName", "table_auto_released");
@@ -165,7 +170,9 @@ public class SocketManager {
         });
 
         socket.on("check_items_request", args -> {
+            Log.d(TAG, "EVENT check_items_request raw args: " + Arrays.toString(args));
             JSONObject payload = parseArgsToJson(args);
+            Log.d(TAG, "check_items_request payload: " + payload);
             for (OnEventListener l : listeners) l.onCheckItemsRequest(payload);
             if (singleListener != null) singleListener.onCheckItemsRequest(payload);
         });

@@ -46,6 +46,7 @@ import com.ph48845.datn_qlnh_rmis.ui.table.TableActionsHandler;
 import com.ph48845.datn_qlnh_rmis.ui.table.TransferManager;
 import com.ph48845.datn_qlnh_rmis.ui.table.TemporaryBillDialogFragment;
 import com.ph48845.datn_qlnh_rmis.ui.phucvu.socket.SocketManager;
+import com.ph48845.datn_qlnh_rmis.ui.table.fragment.AutoReleaseDialogFragment;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -89,11 +90,25 @@ public class MainActivity extends BaseMenuActivity {
     private SocketManager socketManager;
     private String defaultSocketUrl = "http://192.168.1.84:3000";
 
-    // main listener instance so we can register/unregister
+    // main listener instance so we can register/unregister without losing it
     private SocketManager.OnEventListener mainSocketListener;
+    private boolean socketListenerRegistered = false;
 
     // ✅ THÊM NOTIFICATION MANAGER
     private NotificationManager notificationManager;
+
+    // Track whether activity is visible (foreground)
+    boolean activityVisible = false;
+    // If an auto-release event arrives when activity is not visible or window not focused, keep pending table number
+    Integer pendingAutoReleasedTable = null;
+    // Thêm vào class MainActivity (chỉ phần method — chèn vào trong class)
+    public synchronized boolean isActivityVisible() {
+        return this.activityVisible;
+    }
+
+    public synchronized void setPendingAutoReleasedTable(int tableNumber) {
+        this.pendingAutoReleasedTable = tableNumber;
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -116,6 +131,13 @@ public class MainActivity extends BaseMenuActivity {
         ImageView navIcon = findViewById(R.id.nav_icon);
         if (navIcon != null && drawerLayout != null) {
             navIcon.setOnClickListener(v -> drawerLayout.openDrawer(GravityCompat.START));
+            // debug helper: long-press to simulate auto-release (useful to confirm dialog display)
+            navIcon.setOnLongClickListener(v -> {
+                Log.d(TAG, "DEBUG: simulate auto-release (table 5)");
+                pendingAutoReleasedTable = null;
+                showAutoReleaseDialogIfPossible(5);
+                return true;
+            });
         }
 
         if (toolbar != null && drawerLayout != null) {
@@ -217,6 +239,12 @@ public class MainActivity extends BaseMenuActivity {
         fetchTablesFromServer();
         updateCheckItemsRequestBadge();
 
+        // Start reservation helper listening for auto-release events
+        try {
+            reservationHelper.startListening();
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to start ReservationHelper listener: " + e.getMessage(), e);
+        }
 
         NotificationManager.getInstance().init(this, null);
     }
@@ -348,9 +376,16 @@ public class MainActivity extends BaseMenuActivity {
 
                 @Override
                 public void onTableUpdated(JSONObject payload) {
+                    Log.d(TAG, "onTableUpdated called, payload=" + (payload != null ? payload.toString() : "null")
+                            + " | eventName=" + (payload != null ? payload.optString("eventName", "(none)") : "(no payload)")
+                            + " | activityVisible=" + activityVisible
+                            + " | pendingAutoReleasedTable=" + pendingAutoReleasedTable);
+
                     if (payload != null) {
                         String evt = payload.optString("eventName", "");
+                        String statusInPayload = payload.optString("status", "").toLowerCase();
 
+                        // 1) HANDLE AUTO-RELEASE (existing special flow)
                         if ("table_auto_released".equals(evt)) {
                             int tblNum = -1;
                             if (payload.has("tableNumber"))
@@ -359,39 +394,121 @@ public class MainActivity extends BaseMenuActivity {
                                 tblNum = payload.optInt("table", -1);
 
                             final int shownNum = tblNum;
-                            runOnUiThread(() -> {
-                                try {
-                                    // ✅ SHOW NOTIFICATION
-                                    InAppNotification notification = new InAppNotification.Builder(
-                                            InAppNotification.Type.WARNING,
-                                            "⏰ Hủy đặt bàn tự động",
-                                            "Bàn " + (shownNum > 0 ? shownNum : "") + " đã hết thời gian đặt trước"
-                                    )
-                                            .actionData("table:" + shownNum)
-                                            .duration(8000)
-                                            .build();
+                            Log.d(TAG, "table_auto_released received for tableNumber=" + shownNum);
 
-                                    notificationManager.show(notification);
+                            // Always show an in-app notification so user sees it even if dialog cannot be shown
+                            try {
+                                InAppNotification notification = new InAppNotification.Builder(
+                                        InAppNotification.Type.WARNING,
+                                        "⏰ Hủy đặt bàn tự động",
+                                        "Bàn " + (shownNum > 0 ? shownNum : "") + " đã hết thời gian đặt trước"
+                                )
+                                        .actionData("table:" + shownNum)
+                                        .duration(8000)
+                                        .build();
+                                // show notification without caring about activity state
+                                notificationManager.show(notification);
+                            } catch (Exception e) {
+                                Log.w(TAG, "Failed to show in-app notification for auto-release", e);
+                            }
 
-                                    // Show alert dialog
-                                    String msg = "Bàn " + (shownNum > 0 ? shownNum : "") + " đã tự động hủy đặt trước. ";
-                                    new AlertDialog.Builder(MainActivity.this)
-                                            .setTitle("Thông báo")
-                                            .setMessage(msg)
-                                            .setCancelable(false)
-                                            .setPositiveButton("OK", null)
-                                            .show();
+                            // Determine whether it's safe to show AlertDialog now:
+                            boolean canShowDialog = true;
+                            if (isFinishing()) canShowDialog = false;
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1 && isDestroyed()) canShowDialog = false;
 
-                                    fetchTablesFromServer();
-                                } catch (Exception ex) {
-                                    Log.w(TAG, "show auto-release dialog failed", ex);
-                                    fetchTablesFromServer();
-                                }
-                            });
+                            // hasWindowFocus is a better indicator that Activity is in foreground
+                            boolean hasFocus = false;
+                            try {
+                                hasFocus = MainActivity.this.hasWindowFocus();
+                            } catch (Exception ignored) {}
+
+                            Log.d(TAG, "canShowDialog=" + canShowDialog + ", activityVisible=" + activityVisible + ", hasWindowFocus=" + hasFocus);
+
+                            if (canShowDialog && (activityVisible || hasFocus)) {
+                                // show dialog now on UI thread
+                                runOnUiThread(() -> {
+                                    try {
+                                        Toast.makeText(MainActivity.this, "DEBUG: show auto-release dialog for table " + shownNum, Toast.LENGTH_SHORT).show();
+
+                                        // show DialogFragment
+                                        AutoReleaseDialogFragment.newInstance(shownNum)
+                                                .show(getSupportFragmentManager(), "autoRelease");
+                                    } catch (Exception ex) {
+                                        Log.w(TAG, "show auto-release dialog failed", ex);
+                                    } finally {
+                                        runOnUiThread(() -> fetchTablesFromServer());
+                                    }
+                                });
+                            } else {
+                                // Activity not in a state to show dialog now — save pending and show onResume
+                                pendingAutoReleasedTable = shownNum;
+                                Log.d(TAG, "Saved pendingAutoReleasedTable=" + pendingAutoReleasedTable + " to show on resume");
+                                runOnUiThread(() -> fetchTablesFromServer());
+                            }
+
                             return;
                         }
 
-                        // Other table updates
+                        // 2) HANDLE RESERVATION / RESERVED UPDATES
+                        // Accept several possible event names used by server/client and also inspect status field.
+                        boolean looksLikeReservationEvent = false;
+                        if ("table_reserved".equalsIgnoreCase(evt)
+                                || "table_reservation_created".equalsIgnoreCase(evt)
+                                || "table_reservation".equalsIgnoreCase(evt)
+                                || "reservation_created".equalsIgnoreCase(evt)
+                                || "table_updated".equalsIgnoreCase(evt) // server might emit generic update for reservation
+                        ) {
+                            looksLikeReservationEvent = true;
+                        }
+
+                        if (!looksLikeReservationEvent) {
+                            // If eventName absent but status indicates reserved, treat it as reservation
+                            if ("reserved".equalsIgnoreCase(statusInPayload)) {
+                                looksLikeReservationEvent = true;
+                            }
+                        }
+
+                        if (looksLikeReservationEvent) {
+                            int tableNum = payload.optInt("tableNumber", -1);
+                            if (tableNum == -1) tableNum = payload.optInt("table", -1);
+
+                            final int shownNum = tableNum;
+                            Log.d(TAG, "Reservation-like event received (eventName=" + evt + ", status=" + statusInPayload + ") for table=" + shownNum);
+
+                            // Show notification and refresh lists
+                            runOnUiThread(() -> {
+                                try {
+                                    if (shownNum > 0) {
+                                        InAppNotification notification = new InAppNotification.Builder(
+                                                InAppNotification.Type.INFO,
+                                                "📅 Đặt trước",
+                                                "Bàn " + shownNum + " vừa được đặt trước"
+                                        )
+                                                .actionData("table:" + shownNum)
+                                                .duration(5000)
+                                                .build();
+                                        notificationManager.show(notification);
+                                    } else {
+                                        // generic notification
+                                        InAppNotification notification = new InAppNotification.Builder(
+                                                InAppNotification.Type.INFO,
+                                                "📅 Đặt trước",
+                                                "Có cập nhật đặt trước"
+                                        ).duration(4000).build();
+                                        notificationManager.show(notification);
+                                    }
+                                } catch (Exception e) {
+                                    Log.w(TAG, "Failed to show reservation notification", e);
+                                } finally {
+                                    fetchTablesFromServer();
+                                }
+                            });
+
+                            return;
+                        }
+
+                        // 3) OTHER table updates (existing flow)
                         runOnUiThread(() -> {
                             try {
                                 int tableNum = payload.optInt("tableNumber", -1);
@@ -453,9 +570,19 @@ public class MainActivity extends BaseMenuActivity {
                     });
                 }
             };
+
             // Register main listener (do not disconnect from socket on pause)
-            socketManager.registerListener(mainSocketListener);
-            socketManager.connect();
+            try {
+                if (!socketListenerRegistered) {
+                    socketManager.registerListener(mainSocketListener);
+                    socketListenerRegistered = true;
+                } else {
+                    Log.d(TAG, "Socket listener already registered");
+                }
+                socketManager.connect();
+            } catch (Exception ex) {
+                Log.w(TAG, "Failed to register/connect socket listener: " + ex.getMessage(), ex);
+            }
         } catch (Exception e) {
             Log.w(TAG, "Failed to init socket in MainActivity:  " + e.getMessage(), e);
         }
@@ -799,20 +926,26 @@ public class MainActivity extends BaseMenuActivity {
 
     private void applyNavigationViewInsets() {
         if (navigationView == null) return;
+        try {
+            View headerView = navigationView.getHeaderView(0);
+            if (headerView == null) return;
 
-        ViewCompat.setOnApplyWindowInsetsListener(navigationView, (view, insets) -> {
-            int statusBar = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top;
-            View header = navigationView.getHeaderView(0);
-            if (header != null) {
-                header.setPadding(
-                        header.getPaddingLeft(),
+            int statusBar = ViewCompat.getRootWindowInsets(headerView).getSystemWindowInsetTop();
+            if (statusBar <= 0) {
+                // fallback - use WindowInsetsCompat
+                statusBar = WindowInsetsCompat.toWindowInsetsCompat(headerView.getRootWindowInsets()).getInsets(WindowInsetsCompat.Type.statusBars()).top;
+            }
+            if (headerView != null) {
+                headerView.setPadding(
+                        headerView.getPaddingLeft(),
                         statusBar,
-                        header.getPaddingRight(),
-                        header.getPaddingBottom()
+                        headerView.getPaddingRight(),
+                        headerView.getPaddingBottom()
                 );
             }
-            return insets;
-        });
+        } catch (Exception e) {
+            // best-effort, ignore
+        }
     }
 
     private boolean isProbablyEmulator() {
@@ -885,12 +1018,18 @@ public class MainActivity extends BaseMenuActivity {
     protected void onResume() {
         super.onResume();
         try {
-            if (socketManager != null && mainSocketListener != null) {
-                socketManager.registerListener(mainSocketListener);
-                socketManager.connect();
+            // Mark activity visible
+            activityVisible = true;
+            Log.d(TAG, "onResume: activityVisible=true, pendingAutoReleasedTable=" + pendingAutoReleasedTable);
+
+            // If we had a pending auto-release while activity was backgrounded, show dialog now
+            if (pendingAutoReleasedTable != null) {
+                final int tnum = pendingAutoReleasedTable;
+                pendingAutoReleasedTable = null;
+                showAutoReleaseDialogIfPossible(tnum);
             }
         } catch (Exception e) {
-            Log.w(TAG, "socket connect onResume failed", e);
+            Log.w(TAG, "onResume handling failed", e);
         }
         fetchTablesFromServer();
         updateCheckItemsRequestBadge();
@@ -900,20 +1039,96 @@ public class MainActivity extends BaseMenuActivity {
     protected void onPause() {
         super.onPause();
         try {
-            if (socketManager != null && mainSocketListener != null)
-                socketManager.unregisterListener(mainSocketListener);
-            // DO NOT disconnect socket here - keep socket running app-wide
+            // Mark activity not visible
+            activityVisible = false;
+            Log.d(TAG, "onPause: activityVisible=false");
         } catch (Exception e) {
-            Log.w(TAG, "socket pause handling failed", e);
+            Log.w(TAG, "onPause handling failed", e);
         }
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        // cleanup socket listener registration flag if needed
+        try {
+            if (socketManager != null && mainSocketListener != null && socketListenerRegistered) {
+                socketManager.unregisterListener(mainSocketListener);
+                socketListenerRegistered = false;
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to unregister socket listener on destroy", e);
+        }
         // ✅ CLEANUP NOTIFICATION MANAGER
         if (notificationManager != null) {
             notificationManager.destroy();
+        }
+
+        // Stop reservation helper listener
+        try {
+            if (reservationHelper != null) {
+                reservationHelper.stopListening();
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to stop reservation helper listener: " + e.getMessage(), e);
+        }
+    }
+
+    private void showAutoReleaseDialogIfPossible(int shownNum) {
+        try {
+            // If activity is finishing/destroyed, skip showing dialog
+            boolean canShow = true;
+            if (isFinishing()) canShow = false;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+                if (isDestroyed()) canShow = false;
+            }
+            if (!canShow) {
+                Log.d(TAG, "Cannot show auto-release dialog because activity is not in valid state");
+                return;
+            }
+
+            // if the activity has window focus or is marked visible, it's safe to show dialog
+            boolean hasFocus = false;
+            try {
+                hasFocus = this.hasWindowFocus();
+            } catch (Exception ignored) {}
+
+            if (!(activityVisible || hasFocus)) {
+                // still save as pending so it will be shown later
+                pendingAutoReleasedTable = shownNum;
+                Log.d(TAG, "Deferring showing auto-release dialog until activity foreground (pending=" + shownNum + ")");
+                return;
+            }
+
+            runOnUiThread(() -> {
+                try {
+                    InAppNotification notification = new InAppNotification.Builder(
+                            InAppNotification.Type.WARNING,
+                            "⏰ Hủy đặt bàn tự động",
+                            "Bàn " + (shownNum > 0 ? shownNum : "") + " đã hết thời gian đặt trước"
+                    )
+                            .actionData("table:" + shownNum)
+                            .duration(8000)
+                            .build();
+
+                    notificationManager.show(notification);
+
+                    String msg = "Bàn " + (shownNum > 0 ? shownNum : "") + " đã tự động hủy đặt trước.";
+                    new AlertDialog.Builder(MainActivity.this)
+                            .setTitle("Thông báo")
+                            .setMessage(msg)
+                            .setCancelable(false)
+                            .setPositiveButton("OK", null)
+                            .show();
+
+                    fetchTablesFromServer();
+                } catch (Exception ex) {
+                    Log.w(TAG, "show auto-release dialog failed", ex);
+                    fetchTablesFromServer();
+                }
+            });
+        } catch (Exception e) {
+            Log.w(TAG, "showAutoReleaseDialogIfPossible failed", e);
         }
     }
 
