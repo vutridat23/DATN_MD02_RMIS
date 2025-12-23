@@ -65,6 +65,9 @@ public class BepTableFragment extends Fragment {
     // NEW: attention tables (yellow + blink)
     private Set<Integer> attentionTables = new HashSet<>();
 
+    // NEW: muted attention (don't blink but keep ordering)
+    private Set<Integer> mutedAttention = new HashSet<>();
+
     private OnTableSelectedListener listener;
     private OrderRepository orderRepository;
 
@@ -140,6 +143,8 @@ public class BepTableFragment extends Fragment {
         this.attentionTables = attentionTables != null ? attentionTables : new HashSet<>();
 
         tableAdapter.updateList(this.currentTables, this.currentRemaining, this.currentEarliest, this.attentionTables);
+        // ensure muted state applied as well
+        tableAdapter.setMutedTables(this.mutedAttention);
 
         checkForCancelRequests(perTableItems);
 
@@ -159,6 +164,12 @@ public class BepTableFragment extends Fragment {
     public void setAttentionTables(Set<Integer> attentionTables) {
         this.attentionTables = attentionTables != null ? attentionTables : new HashSet<>();
         if (tableAdapter != null) tableAdapter.setAttentionTables(this.attentionTables);
+    }
+
+    // NEW: allow Activity to mute blink for specific tables (keep ordering)
+    public void setMutedAttention(Set<Integer> muted) {
+        this.mutedAttention = muted != null ? muted : new HashSet<>();
+        if (tableAdapter != null) tableAdapter.setMutedTables(this.mutedAttention);
     }
 
     private void handleStatusChange(ItemWithOrder wrapper, String newStatus) {

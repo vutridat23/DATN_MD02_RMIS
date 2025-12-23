@@ -28,6 +28,7 @@ import com.ph48845.datn_qlnh_rmis.data.remote.ApiService;
 import com.ph48845.datn_qlnh_rmis.data.remote.RetrofitClient;
 import com.ph48845.datn_qlnh_rmis.ui.thungan.ThuNganActivity;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -40,6 +41,7 @@ public class QRPaymentActivity extends AppCompatActivity {
     private ImageView ivQRCode;
     private TextView tvAmount;
     private Button btnThanhToan;
+    private String voucherId;
 
     private String orderId;
     private double amount;
@@ -55,7 +57,7 @@ public class QRPaymentActivity extends AppCompatActivity {
 
         orderId = getIntent().getStringExtra("orderId");
         amount = getIntent().getDoubleExtra("amount", 0);
-
+        voucherId = getIntent().getStringExtra("voucherId");
         tvAmount.setText(String.format("%,.0f₫", amount));
 
         generateQR("PAY|" + amount);
@@ -98,43 +100,74 @@ public class QRPaymentActivity extends AppCompatActivity {
     private void payOrder() {
         ApiService api = RetrofitClient.getInstance().getApiService();
 
-        Map<String, Object> body = new HashMap<>();
-        body.put("orderId", orderId);
-        body.put("paidAmount", amount);
-        body.put("paymentMethod", "QR");
+        // Lấy tất cả orderIds từ Intent
+        ArrayList<String> orderIds = getIntent().getStringArrayListExtra("orderIds");
+        if (orderIds == null || orderIds.isEmpty()) {
+            Toast.makeText(this, "Không có hóa đơn để thanh toán", Toast.LENGTH_SHORT).show();
+            return;
+        }
 
-        api.payOrder(body).enqueue(new Callback<ApiResponse<Order>>() {
-            @Override
-            public void onResponse(Call<ApiResponse<Order>> call, Response<ApiResponse<Order>> response) {
-                if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
+        double voucherDiscount = getIntent().getDoubleExtra("voucherDiscount", 0);
+        String voucherId = getIntent().getStringExtra("voucherId");
 
-                    // 🔊 Phát âm thanh ting-ting
-                    MediaPlayer mediaPlayer = MediaPlayer.create(QRPaymentActivity.this, R.raw.ting_ting);
-                    mediaPlayer.start();
+        final int totalCount = orderIds.size();
+        final java.util.concurrent.atomic.AtomicInteger finishedCount = new java.util.concurrent.atomic.AtomicInteger(0);
 
-                    // 🔔 Gửi thông báo
-//                    sendPaymentNotification(amount);
+        for (String id : orderIds) {
+            Map<String, Object> body = new HashMap<>();
+            body.put("orderId", id);
+            body.put("paidAmount", amount + voucherDiscount); // Hoặc chia đều discount nếu cần
+            body.put("paymentMethod", "QR");
+            if (voucherId != null && !voucherId.trim().isEmpty()) {
+                body.put("voucherId", voucherId);
+            }
 
-                    Toast.makeText(QRPaymentActivity.this, "Thanh toán QR thành công!", Toast.LENGTH_SHORT).show();
+            api.payOrder(body).enqueue(new Callback<ApiResponse<Order>>() {
+                @Override
+                public void onResponse(Call<ApiResponse<Order>> call, Response<ApiResponse<Order>> response) {
+                    int finished = finishedCount.incrementAndGet();
+                    if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
+                        Toast.makeText(QRPaymentActivity.this,
+                                "Thanh toán thành công " + finished + "/" + totalCount + " hóa đơn",
+                                Toast.LENGTH_SHORT).show();
+                    } else {
+                        Toast.makeText(QRPaymentActivity.this,
+                                "Thanh toán thất bại " + finished + "/" + totalCount + " hóa đơn: "
+                                        + (response.body() != null ? response.body().getMessage() : "Lỗi server"),
+                                Toast.LENGTH_LONG).show();
+                    }
 
-                    Intent intent = new Intent(QRPaymentActivity.this, ThuNganActivity.class);
-                    intent.putExtra("orderId", orderId);
-                    startActivity(intent);
+                    // Nếu đã xử lý xong tất cả hóa đơn
+                    if (finished >= totalCount) {
+                        MediaPlayer mediaPlayer =
+                                MediaPlayer.create(QRPaymentActivity.this, R.raw.ting_ting);
+                        mediaPlayer.start();
 
-                    finish();
-                } else {
-                    Toast.makeText(QRPaymentActivity.this,
-                            "Thanh toán thất bại: " + (response.body() != null ? response.body().getMessage() : "Lỗi server"),
-                            Toast.LENGTH_LONG).show();
+                        Intent intent = new Intent(QRPaymentActivity.this, ThuNganActivity.class);
+                        intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                        startActivity(intent);
+                        finish();
+                    }
                 }
-            }
 
-            @Override
-            public void onFailure(Call<ApiResponse<Order>> call, Throwable t) {
-                Toast.makeText(QRPaymentActivity.this, "Thanh toán thất bại: " + t.getMessage(), Toast.LENGTH_LONG).show();
-            }
-        });
+                @Override
+                public void onFailure(Call<ApiResponse<Order>> call, Throwable t) {
+                    int finished = finishedCount.incrementAndGet();
+                    Toast.makeText(QRPaymentActivity.this,
+                            "Thanh toán thất bại " + finished + "/" + totalCount + " hóa đơn: " + t.getMessage(),
+                            Toast.LENGTH_LONG).show();
+
+                    if (finished >= totalCount) {
+                        Intent intent = new Intent(QRPaymentActivity.this, ThuNganActivity.class);
+                        intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                        startActivity(intent);
+                        finish();
+                    }
+                }
+            });
+        }
     }
+
 
     // ------------------ NOTIFICATION FUNCTIONS ------------------
 

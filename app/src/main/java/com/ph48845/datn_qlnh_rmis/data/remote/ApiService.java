@@ -192,6 +192,9 @@ public interface ApiService {
      */
     @POST("orders/pay")
     Call<ApiResponse<Order>> payOrder(@Body Map<String, Object> body);
+    @POST("payment/create-card")
+    Call<Map<String, Object>> createCardPayment(@Body Map<String, Object> body);
+
 
     /**
      * ✅ THÊM MỚI - Thanh toán bằng thẻ (VNPay)
@@ -199,8 +202,7 @@ public interface ApiService {
      * Body: { orderId, orderIds, amount }
      * Response: { paymentUrl }
      */
-    @POST("payment/card/create")
-    Call<Map<String, Object>> createCardPayment(@Body Map<String, Object> body);
+
 
     /**
      * Xác nhận kiểm tra bàn (dùng JsonObject)
