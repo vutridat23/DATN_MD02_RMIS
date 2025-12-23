@@ -106,7 +106,7 @@ public class LoginActivity extends AppCompatActivity {
         switch (cleanRole) {
             case "thungan":
             case "cashier": intent = new Intent(LoginActivity.this, ThuNganActivity.class); break;
-            case "phucvu":
+            case "waiter":
             case "order": intent = new Intent(LoginActivity.this, MainActivity.class); break;
             case "kitchen": intent = new Intent(LoginActivity.this, BepActivity.class); break;
             default: intent = new Intent(LoginActivity.this, MainActivity.class); break;

@@ -1,5 +1,6 @@
 package com.ph48845.datn_qlnh_rmis.ui.thungan.adapter;
 
+import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -15,7 +16,9 @@ import com.ph48845.datn_qlnh_rmis.R;
 import com.ph48845.datn_qlnh_rmis.data.model.TableItem;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class ThuNganAdapter extends RecyclerView.Adapter<ThuNganAdapter.TableViewHolder> {
 
@@ -60,40 +63,84 @@ public class ThuNganAdapter extends RecyclerView.Adapter<ThuNganAdapter.TableVie
         TableItem table = tableList.get(position);
         if (table == null) return;
 
-        // 1. Tên bàn: Màu Đỏ (#AA0000)
         holder.tvTableNumber.setText("Bàn " + table.getTableNumber());
         holder.tvTableNumber.setTextColor(Color.parseColor("#AA0000"));
-
-        // 2. Xử lý Trạng thái & Màu sắc
-        ServingStatus servingStatus = getServingStatus(table);
-
-        // Luôn set nền thẻ màu TRẮNG
         holder.cardView.setCardBackgroundColor(Color.WHITE);
 
-        // Đổi màu thanh Strip dựa trên trạng thái
-        if (servingStatus.isServing) {
-            // Đang phục vụ: Màu ĐỎ (#AA0000)
-            holder.viewStatusStrip.setBackgroundColor(Color.parseColor("#AA0000"));
-            holder.cardView.setCardElevation(8f); // Nổi cao
-        } else {
-            // Đã xong/Chờ thanh toán: Màu CAM (#F57F17)
-            holder.viewStatusStrip.setBackgroundColor(Color.parseColor("#F57F17"));
-            holder.cardView.setCardElevation(4f); // Nổi thấp hơn
+        ServingStatus servingStatus = getServingStatus(table);
+        Boolean isFullServing = tableFullServingMap.getOrDefault(table.getTableNumber(), false);
+
+
+        int newColor;
+        float newElevation;
+
+// Hủy hiệu ứng cũ nếu không còn xanh lá
+        if (holder.isBlinking) {
+            if (holder.fadeAnimator != null) {
+                holder.fadeAnimator.cancel();
+                holder.fadeAnimator = null;
+            }
+            holder.isBlinking = false;
         }
 
-        // 4. Dòng trạng thái chi tiết "Đang lên món..."
+// Full món → xanh dương cố định
+        if (isFullServing) {
+            newColor = Color.parseColor("#2196F3"); // xanh dương
+            newElevation = table.getViewState() == TableItem.ViewState.UNSEEN ? 8f : 4f;
+            holder.viewStatusStrip.setBackgroundColor(newColor);
+        }
+// Chưa xem + chưa full → xanh lá fade
+        else if (table.getViewState() == TableItem.ViewState.UNSEEN) {
+            newColor = Color.parseColor("#2e7d32"); // xanh lá
+            newElevation = 8f;
+
+            holder.isBlinking = true;
+
+            // Tạo animator từ alpha 0.3 → 1.0
+            holder.fadeAnimator = ValueAnimator.ofFloat(0.3f, 1f);
+            holder.fadeAnimator.setDuration(1000); // 1 giây
+            holder.fadeAnimator.setRepeatMode(ValueAnimator.REVERSE);
+            holder.fadeAnimator.setRepeatCount(ValueAnimator.INFINITE);
+            holder.fadeAnimator.addUpdateListener(animation -> {
+                float alpha = (float) animation.getAnimatedValue();
+                int r = Color.red(newColor);
+                int g = Color.green(newColor);
+                int b = Color.blue(newColor);
+                holder.viewStatusStrip.setBackgroundColor(Color.argb((int)(alpha * 255), r, g, b));
+            });
+            holder.fadeAnimator.start();
+        }
+// Đã xem → đỏ cố định
+        else {
+            newColor = Color.parseColor("#AA0000"); // đỏ
+            newElevation = 4f;
+            holder.viewStatusStrip.setBackgroundColor(newColor);
+        }
+
+// Cập nhật elevation
+        holder.cardView.setCardElevation(newElevation);
+
         if (showServingStatus) {
             holder.tvServingStatus.setText(servingStatus.text);
             holder.tvServingStatus.setVisibility(View.VISIBLE);
-            holder.tvServingStatus.setTextColor(Color.parseColor("#757575")); // Màu xám nhạt
+            holder.tvServingStatus.setTextColor(Color.parseColor("#757575"));
         } else {
             holder.tvServingStatus.setVisibility(View.GONE);
         }
 
-        // 5. Sự kiện Click
+        // Click → đánh dấu đã xem
         holder.itemView.setOnClickListener(v -> {
+            table.setViewState(TableItem.ViewState.SEEN);
+            notifyItemChanged(holder.getAdapterPosition());
             if (listener != null) listener.onTableClick(table);
         });
+    }
+
+    private final Map<Integer, Boolean> tableFullServingMap = new HashMap<>();
+
+    public void updateFullServingStatus(int tableNumber, boolean isFullServing) {
+        tableFullServingMap.put(tableNumber, isFullServing);
+        notifyDataSetChanged();
     }
 
     private ServingStatus getServingStatus(TableItem table) {
@@ -129,6 +176,9 @@ public class ThuNganAdapter extends RecyclerView.Adapter<ThuNganAdapter.TableVie
         TextView tvTableNumber;
         TextView tvServingStatus;
         View viewStatusStrip; // Biến mới cho thanh màu
+        boolean isBlinking = false; // dùng để check hiệu ứng đang chạy
+        ValueAnimator fadeAnimator; // animator cho fade in/out
+        int currentStripColor = Color.TRANSPARENT;
 
         public TableViewHolder(@NonNull View itemView) {
             super(itemView);

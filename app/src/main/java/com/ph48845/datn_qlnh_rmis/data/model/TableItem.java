@@ -185,4 +185,22 @@ public class TableItem implements Serializable {
                 ", updatedAt='" + updatedAt + '\'' +
                 '}';
     }
+
+    // UI ONLY - trạng thái xem hóa đơn (không gửi server)
+    public enum ViewState {
+        UNSEEN, // hóa đơn mới từ phục vụ
+        SEEN    // thu ngân đã bấm xem
+    }
+
+    // transient vì không serialize
+    private transient ViewState viewState = ViewState.UNSEEN;
+
+    public ViewState getViewState() {
+        return viewState == null ? ViewState.UNSEEN : viewState;
+    }
+
+    public void setViewState(ViewState viewState) {
+        this.viewState = viewState;
+    }
+
 }
