@@ -548,8 +548,27 @@ public class MainActivity extends BaseMenuActivity {
                     runOnUiThread(() -> {
                         try {
                             int tableNum = payload.optInt("tableNumber", -1);
+                            
+                            // Lấy orderIds từ payload nếu có
+                            String[] orderIds = null;
+                            try {
+                                if (payload.has("orderIds")) {
+                                    org.json.JSONArray orderIdsArray = payload.optJSONArray("orderIds");
+                                    if (orderIdsArray != null && orderIdsArray.length() > 0) {
+                                        orderIds = new String[orderIdsArray.length()];
+                                        for (int i = 0; i < orderIdsArray.length(); i++) {
+                                            orderIds[i] = orderIdsArray.getString(i);
+                                        }
+                                    }
+                                }
+                            } catch (Exception e) {
+                                Log.w(TAG, "Failed to parse orderIds from payload", e);
+                            }
 
-                            // ✅ SHOW NOTIFICATION
+                            // ✅ SHOW POPUP DIALOG
+                            showCheckItemsNotificationPopup(tableNum, orderIds);
+
+                            // ✅ SHOW NOTIFICATION (giữ lại để người dùng có thể click vào)
                             InAppNotification notification = new InAppNotification.Builder(
                                     InAppNotification.Type.WARNING,
                                     "🔍 Yêu cầu kiểm tra bàn! ",
@@ -574,7 +593,7 @@ public class MainActivity extends BaseMenuActivity {
             // Register main listener (do not disconnect from socket on pause)
             try {
                 if (!socketListenerRegistered) {
-                    socketManager.registerListener(mainSocketListener);
+                    socketManager.setOnEventListener(mainSocketListener);
                     socketListenerRegistered = true;
                 } else {
                     Log.d(TAG, "Socket listener already registered");
@@ -790,6 +809,203 @@ public class MainActivity extends BaseMenuActivity {
     }
 
     private AlertDialog checkItemsListDialog;
+    private AlertDialog checkItemsNotificationDialog;
+
+    /**
+     * Hiển thị popup thông báo khi nhận yêu cầu kiểm tra từ phục vụ
+     */
+    private void showCheckItemsNotificationPopup(int tableNumber, String[] orderIds) {
+        // Đóng dialog cũ nếu đang mở
+        if (checkItemsNotificationDialog != null && checkItemsNotificationDialog.isShowing()) {
+            checkItemsNotificationDialog.dismiss();
+        }
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_check_items_notification, null);
+
+        TextView tvTitle = dialogView.findViewById(R.id.tv_notification_title);
+        TextView tvMessage = dialogView.findViewById(R.id.tv_notification_message);
+
+        tvTitle.setText("🔍 Yêu cầu kiểm tra bàn");
+        tvMessage.setText("Khách hàng bàn " + tableNumber + " yêu cầu kiểm tra món");
+
+        builder.setView(dialogView);
+        builder.setCancelable(false); // Không cho đóng bằng cách click ra ngoài
+        builder.setPositiveButton("Xác nhận", (dialog, which) -> {
+            confirmCheckItemsForTable(tableNumber, orderIds);
+        });
+        builder.setNegativeButton("Để sau", (dialog, which) -> {
+            // Không làm gì, chỉ đóng dialog
+        });
+
+        checkItemsNotificationDialog = builder.create();
+        checkItemsNotificationDialog.show();
+    }
+
+    /**
+     * Xác nhận yêu cầu kiểm tra cho tất cả orders của bàn
+     */
+    private void confirmCheckItemsForTable(int tableNumber, String[] orderIds) {
+        if (orderRepository == null) {
+            orderRepository = new OrderRepository();
+        }
+
+        if (progressBar != null) {
+            progressBar.setVisibility(View.VISIBLE);
+        }
+
+        // Nếu có orderIds từ payload, xác nhận các orders đó
+        if (orderIds != null && orderIds.length > 0) {
+            confirmMultipleCheckItems(orderIds, tableNumber);
+            return;
+        }
+
+        // Nếu không có orderIds, lấy tất cả orders có checkItemsRequestedAt cho bàn này
+        orderRepository.getCheckItemsOrders(new OrderRepository.RepositoryCallback<List<Order>>() {
+            @Override
+            public void onSuccess(List<Order> allCheckItemsOrders) {
+                runOnUiThread(() -> {
+                    if (progressBar != null) {
+                        progressBar.setVisibility(View.GONE);
+                    }
+
+                    // Lọc chỉ lấy orders của bàn này
+                    List<Order> tableOrders = new ArrayList<>();
+                    if (allCheckItemsOrders != null) {
+                        for (Order order : allCheckItemsOrders) {
+                            if (order != null && order.getTableNumber() == tableNumber) {
+                                String status = order.getCheckItemsStatus();
+                                // Chỉ lấy orders chưa completed hoặc acknowledged
+                                if (status == null || (!status.equals("completed") && !status.equals("acknowledged"))) {
+                                    tableOrders.add(order);
+                                }
+                            }
+                        }
+                    }
+
+                    if (tableOrders.isEmpty()) {
+                        Toast.makeText(MainActivity.this, "Không tìm thấy yêu cầu kiểm tra cho bàn " + tableNumber, Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+
+                    // Xác nhận tất cả orders
+                    String[] orderIdsArray = new String[tableOrders.size()];
+                    for (int i = 0; i < tableOrders.size(); i++) {
+                        orderIdsArray[i] = tableOrders.get(i).getId();
+                    }
+                    confirmMultipleCheckItems(orderIdsArray, tableNumber);
+                });
+            }
+
+            @Override
+            public void onError(String message) {
+                runOnUiThread(() -> {
+                    if (progressBar != null) {
+                        progressBar.setVisibility(View.GONE);
+                    }
+                    Log.e(TAG, "❌ Failed to load check items orders: " + message);
+                    Toast.makeText(MainActivity.this, "Lỗi: " + message, Toast.LENGTH_SHORT).show();
+                });
+            }
+        });
+    }
+
+    /**
+     * Xác nhận nhiều orders cùng lúc
+     */
+    private void confirmMultipleCheckItems(String[] orderIds, int tableNumber) {
+        if (orderIds == null || orderIds.length == 0) {
+            Toast.makeText(this, "Không có order nào để xác nhận", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        SharedPreferences prefs = getSharedPreferences("RestaurantPrefs", MODE_PRIVATE);
+        String userId = prefs.getString("userId", "");
+        String fullName = prefs.getString("fullName", "Nhân viên");
+
+        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US);
+        sdf.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+        String currentTime = sdf.format(new java.util.Date());
+
+        Map<String, Object> updates = new HashMap<>();
+        updates.put("checkItemsStatus", "completed"); // Đánh dấu đã hoàn thành để yêu cầu biến mất khỏi danh sách
+        updates.put("checkItemsCompletedBy", userId.isEmpty() ? fullName : userId);
+        updates.put("checkItemsCompletedAt", currentTime);
+        updates.put("checkItemsNote", "");
+
+        final int[] successCount = {0};
+        final int[] errorCount = {0};
+        final int totalCount = orderIds.length;
+
+        Log.d(TAG, "=== CONFIRM CHECK ITEMS FOR TABLE " + tableNumber + " ===");
+        Log.d(TAG, "Total orders to confirm: " + totalCount);
+
+        for (String orderId : orderIds) {
+            if (orderId == null || orderId.trim().isEmpty()) continue;
+
+            orderRepository.updateOrder(orderId, updates, new OrderRepository.RepositoryCallback<Order>() {
+                @Override
+                public void onSuccess(Order result) {
+                    successCount[0]++;
+                    Log.d(TAG, "✅ Confirmed check items for order " + orderId + " (" + successCount[0] + "/" + totalCount + ")");
+
+                    // Khi tất cả đã xong
+                    if (successCount[0] + errorCount[0] >= totalCount) {
+                        runOnUiThread(() -> {
+                            if (progressBar != null) {
+                                progressBar.setVisibility(View.GONE);
+                            }
+
+                            String message = "✅ Đã xác nhận " + successCount[0] + " yêu cầu kiểm tra cho bàn " + tableNumber;
+                            if (errorCount[0] > 0) {
+                                message += "\n⚠️ " + errorCount[0] + " yêu cầu xác nhận thất bại";
+                            }
+                            Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show();
+
+                            // Đóng dialog nếu đang mở
+                            if (checkItemsNotificationDialog != null && checkItemsNotificationDialog.isShowing()) {
+                                checkItemsNotificationDialog.dismiss();
+                            }
+
+                            // Cập nhật lại danh sách
+                            updateCheckItemsRequestBadge();
+                            fetchTablesFromServer();
+                        });
+                    }
+                }
+
+                @Override
+                public void onError(String message) {
+                    errorCount[0]++;
+                    Log.e(TAG, "❌ Failed to confirm check items for order " + orderId + ": " + message);
+
+                    // Khi tất cả đã xong
+                    if (successCount[0] + errorCount[0] >= totalCount) {
+                        runOnUiThread(() -> {
+                            if (progressBar != null) {
+                                progressBar.setVisibility(View.GONE);
+                            }
+
+                            String msg = "✅ Đã xác nhận " + successCount[0] + " yêu cầu kiểm tra cho bàn " + tableNumber;
+                            if (errorCount[0] > 0) {
+                                msg += "\n⚠️ " + errorCount[0] + " yêu cầu xác nhận thất bại";
+                            }
+                            Toast.makeText(MainActivity.this, msg, Toast.LENGTH_LONG).show();
+
+                            // Đóng dialog nếu đang mở
+                            if (checkItemsNotificationDialog != null && checkItemsNotificationDialog.isShowing()) {
+                                checkItemsNotificationDialog.dismiss();
+                            }
+
+                            // Cập nhật lại danh sách
+                            updateCheckItemsRequestBadge();
+                            fetchTablesFromServer();
+                        });
+                    }
+                }
+            });
+        }
+    }
 
     private void showCheckItemsDialog(List<Order> requests) {
         if (requests == null || requests.isEmpty()) return;
@@ -1061,7 +1277,7 @@ public class MainActivity extends BaseMenuActivity {
         // cleanup socket listener registration flag if needed
         try {
             if (socketManager != null && mainSocketListener != null && socketListenerRegistered) {
-                socketManager.unregisterListener(mainSocketListener);
+                socketManager.setOnEventListener(null); // Unregister bằng cách set null
                 socketListenerRegistered = false;
             }
         } catch (Exception e) {
@@ -1206,14 +1422,24 @@ public class MainActivity extends BaseMenuActivity {
     }
 
     private int parseFloorFromLocation(String location) {
-        if (location == null) return 1;
+        if (location == null || location.trim().isEmpty()) return 1;
         try {
-            Pattern p = Pattern.compile("(\\d+)");
-            Matcher m = p.matcher(location.toLowerCase(Locale.getDefault()));
-            if (m.find())
-                return Integer.parseInt(m.group(1));
+            String lower = location.toLowerCase(Locale.getDefault()).trim();
+            
+            // Tìm từ khóa "tầng" hoặc "floor" và lấy số sau đó
+            // Pattern: "tầng" hoặc "floor" theo sau bởi số
+            Pattern pattern = Pattern.compile("(tầng|floor)\\s*(\\d+)");
+            Matcher matcher = pattern.matcher(lower);
+            
+            if (matcher.find()) {
+                String floorNum = matcher.group(2);
+                int floor = Integer.parseInt(floorNum);
+                // Chỉ chấp nhận tầng 1 hoặc 2
+                if (floor == 2) return 2;
+                if (floor == 1) return 1;
+            }
         } catch (Exception ignored) {}
-        return 1;
+        return 1; // Mặc định tầng 1
     }
 
     private void syncTableStatusesWithOrders(List<TableItem> tables) {

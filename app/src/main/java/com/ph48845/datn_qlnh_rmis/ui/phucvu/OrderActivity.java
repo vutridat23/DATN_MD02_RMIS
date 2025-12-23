@@ -736,7 +736,7 @@ public class OrderActivity extends AppCompatActivity implements MenuAdapter.OnMe
         // =========================
         // REGISTER + CONNECT
         // =========================
-        socketManager.registerListener(orderListener);
+        socketManager.setOnEventListener(orderListener);
 
         if (!socketManager.isConnected()) {
             socketManager.connect();
