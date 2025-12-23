@@ -7,7 +7,6 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 import android.widget.Toast;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
@@ -55,7 +54,7 @@ public class DashboardFragment extends Fragment {
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container,
-            @Nullable Bundle savedInstanceState) {
+                             @Nullable Bundle savedInstanceState) {
         return inflater.inflate(R.layout.fragment_dashboard, container, false);
     }
 
@@ -148,7 +147,7 @@ public class DashboardFragment extends Fragment {
         dashboardCall.enqueue(new Callback<ApiResponse<DashboardData>>() {
             @Override
             public void onResponse(Call<ApiResponse<DashboardData>> call,
-                    Response<ApiResponse<DashboardData>> response) {
+                                   Response<ApiResponse<DashboardData>> response) {
                 if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
                     DashboardData data = response.body().getData();
                     updateDashboardUI(data);
@@ -171,7 +170,7 @@ public class DashboardFragment extends Fragment {
         tablesCall.enqueue(new Callback<ApiResponse<List<TableItem>>>() {
             @Override
             public void onResponse(Call<ApiResponse<List<TableItem>>> call,
-                    Response<ApiResponse<List<TableItem>>> response) {
+                                   Response<ApiResponse<List<TableItem>>> response) {
                 if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
                     List<TableItem> tables = response.body().getData();
                     updateTableStatistics(tables);
@@ -187,46 +186,68 @@ public class DashboardFragment extends Fragment {
         loadTodayRevenue();
     }
 
+    /**
+     * Load doanh thu hôm nay - SỬ DỤNG HISTORY API (action='pay')
+     * Thay vì lấy từ Order, giờ lấy từ History để đảm bảo dữ liệu chính xác
+     */
     private void loadTodayRevenue() {
-        orderRepository.getAllOrders(new OrderRepository.RepositoryCallback<List<Order>>() {
+        // Sử dụng History API với filter action='pay'
+        java.util.Map<String, String> filters = new java.util.HashMap<>();
+        filters.put("action", "pay");
+
+        apiService.getAllHistory(filters).enqueue(new Callback<ApiResponse<List<com.ph48845.datn_qlnh_rmis.data.model.HistoryItem>>>() {
             @Override
-            public void onSuccess(List<Order> orders) {
-                if (getActivity() != null) {
-                    getActivity().runOnUiThread(() -> {
-                        double totalRevenue = 0;
-                        int paidCount = 0;
+            public void onResponse(Call<ApiResponse<List<com.ph48845.datn_qlnh_rmis.data.model.HistoryItem>>> call,
+                                   Response<ApiResponse<List<com.ph48845.datn_qlnh_rmis.data.model.HistoryItem>>> response) {
+                if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
+                    List<com.ph48845.datn_qlnh_rmis.data.model.HistoryItem> histories = response.body().getData();
+                    if (getActivity() != null && histories != null) {
+                        getActivity().runOnUiThread(() -> {
+                            double totalRevenue = 0;
+                            int paidCount = 0;
 
-                        Calendar today = Calendar.getInstance();
-                        today.set(Calendar.HOUR_OF_DAY, 0);
-                        today.set(Calendar.MINUTE, 0);
-                        today.set(Calendar.SECOND, 0);
-                        today.set(Calendar.MILLISECOND, 0);
+                            Calendar today = Calendar.getInstance();
+                            today.set(Calendar.HOUR_OF_DAY, 0);
+                            today.set(Calendar.MINUTE, 0);
+                            today.set(Calendar.SECOND, 0);
+                            today.set(Calendar.MILLISECOND, 0);
 
-                        for (Order order : orders) {
-                            if ("paid".equalsIgnoreCase(order.getOrderStatus()) && order.getPaidAt() != null) {
-                                try {
-                                    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss",
-                                            Locale.getDefault());
-                                    java.util.Date paidDate = sdf.parse(order.getPaidAt());
-                                    if (paidDate != null && paidDate.after(today.getTime())) {
-                                        totalRevenue += order.getFinalAmount();
-                                        paidCount++;
+                            for (com.ph48845.datn_qlnh_rmis.data.model.HistoryItem history : histories) {
+                                if (history.getCreatedAt() != null) {
+                                    try {
+                                        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss",
+                                                Locale.getDefault());
+                                        java.util.Date createdDate = sdf.parse(history.getCreatedAt());
+                                        if (createdDate != null && createdDate.after(today.getTime())) {
+                                            // Lấy finalAmount từ history.details
+                                            if (history.getDetails() != null) {
+                                                totalRevenue += history.getDetails().getFinalAmount();
+                                            }
+                                            paidCount++;
+                                        }
+                                    } catch (Exception e) {
+                                        e.printStackTrace();
                                     }
-                                } catch (Exception e) {
-                                    e.printStackTrace();
                                 }
                             }
-                        }
 
-                        NumberFormat formatter = NumberFormat.getInstance(Locale.US);
-                        tvTodayRevenue.setText(formatter.format(totalRevenue) + " VND");
-                        tvTodayOrders.setText(paidCount + " hóa đơn đã thanh toán");
-                    });
+                            NumberFormat formatter = NumberFormat.getInstance(Locale.US);
+                            tvTodayRevenue.setText(formatter.format(totalRevenue) + " VND");
+                            tvTodayOrders.setText(paidCount + " hóa đơn đã thanh toán");
+                        });
+                    }
+                } else {
+                    if (getActivity() != null) {
+                        getActivity().runOnUiThread(() -> {
+                            tvTodayRevenue.setText("0 VND");
+                            tvTodayOrders.setText("0 hóa đơn");
+                        });
+                    }
                 }
             }
 
             @Override
-            public void onError(String message) {
+            public void onFailure(Call<ApiResponse<List<com.ph48845.datn_qlnh_rmis.data.model.HistoryItem>>> call, Throwable t) {
                 if (getActivity() != null) {
                     getActivity().runOnUiThread(() -> {
                         tvTodayRevenue.setText("0 VND");
@@ -237,53 +258,68 @@ public class DashboardFragment extends Fragment {
         });
     }
 
+    /**
+     * Load doanh thu 7 ngày - SỬ DỤNG HISTORY API (action='pay')
+     * Thay vì lấy từ Order, giờ lấy từ History để đảm bảo dữ liệu chính xác
+     */
     private void load7DaysRevenue() {
-        orderRepository.getAllOrders(new OrderRepository.RepositoryCallback<List<Order>>() {
+        // Sử dụng History API với filter action='pay'
+        java.util.Map<String, String> filters = new java.util.HashMap<>();
+        filters.put("action", "pay");
+
+        apiService.getAllHistory(filters).enqueue(new Callback<ApiResponse<List<com.ph48845.datn_qlnh_rmis.data.model.HistoryItem>>>() {
             @Override
-            public void onSuccess(List<Order> orders) {
-                if (getActivity() != null) {
-                    getActivity().runOnUiThread(() -> {
-                        Map<String, Double> dailyRevenue = new HashMap<>();
-                        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
+            public void onResponse(Call<ApiResponse<List<com.ph48845.datn_qlnh_rmis.data.model.HistoryItem>>> call,
+                                   Response<ApiResponse<List<com.ph48845.datn_qlnh_rmis.data.model.HistoryItem>>> response) {
+                if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
+                    List<com.ph48845.datn_qlnh_rmis.data.model.HistoryItem> histories = response.body().getData();
+                    if (getActivity() != null && histories != null) {
+                        getActivity().runOnUiThread(() -> {
+                            Map<String, Double> dailyRevenue = new HashMap<>();
+                            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
 
-                        // Initialize last 7 days
-                        List<String> dates = new ArrayList<>();
-                        Calendar cal = Calendar.getInstance();
-                        for (int i = 6; i >= 0; i--) {
-                            Calendar tempCal = Calendar.getInstance();
-                            tempCal.add(Calendar.DAY_OF_YEAR, -i);
-                            String dateKey = dateFormat.format(tempCal.getTime());
-                            dates.add(dateKey);
-                            dailyRevenue.put(dateKey, 0.0);
-                        }
+                            // Initialize last 7 days
+                            List<String> dates = new ArrayList<>();
+                            Calendar cal = Calendar.getInstance();
+                            for (int i = 6; i >= 0; i--) {
+                                Calendar tempCal = Calendar.getInstance();
+                                tempCal.add(Calendar.DAY_OF_YEAR, -i);
+                                String dateKey = dateFormat.format(tempCal.getTime());
+                                dates.add(dateKey);
+                                dailyRevenue.put(dateKey, 0.0);
+                            }
 
-                        // Calculate revenue for each day
-                        for (Order order : orders) {
-                            if ("paid".equalsIgnoreCase(order.getOrderStatus()) && order.getPaidAt() != null) {
-                                try {
-                                    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss",
-                                            Locale.getDefault());
-                                    java.util.Date paidDate = sdf.parse(order.getPaidAt());
-                                    if (paidDate != null) {
-                                        String dateKey = dateFormat.format(paidDate);
-                                        if (dailyRevenue.containsKey(dateKey)) {
-                                            dailyRevenue.put(dateKey,
-                                                    dailyRevenue.get(dateKey) + order.getFinalAmount());
+                            // Calculate revenue for each day from History
+                            for (com.ph48845.datn_qlnh_rmis.data.model.HistoryItem history : histories) {
+                                if (history.getCreatedAt() != null) {
+                                    try {
+                                        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss",
+                                                Locale.getDefault());
+                                        java.util.Date createdDate = sdf.parse(history.getCreatedAt());
+                                        if (createdDate != null) {
+                                            String dateKey = dateFormat.format(createdDate);
+                                            if (dailyRevenue.containsKey(dateKey)) {
+                                                double amount = 0;
+                                                if (history.getDetails() != null) {
+                                                    amount = history.getDetails().getFinalAmount();
+                                                }
+                                                dailyRevenue.put(dateKey, dailyRevenue.get(dateKey) + amount);
+                                            }
                                         }
+                                    } catch (Exception e) {
+                                        e.printStackTrace();
                                     }
-                                } catch (Exception e) {
-                                    e.printStackTrace();
                                 }
                             }
-                        }
 
-                        updateBarChart(dates, dailyRevenue);
-                    });
+                            updateBarChart(dates, dailyRevenue);
+                        });
+                    }
                 }
             }
 
             @Override
-            public void onError(String message) {
+            public void onFailure(Call<ApiResponse<List<com.ph48845.datn_qlnh_rmis.data.model.HistoryItem>>> call, Throwable t) {
                 // Silent fail
             }
         });
