@@ -41,13 +41,13 @@ public class LoginActivity extends AppCompatActivity {
         // Khởi tạo Repository
         authRepository = new AuthRepository();
 
-    //    checkExistingLogin();
+        // checkExistingLogin();
+        // checkExistingLogin();
         initViews();
 
         checkExistingLogin();
 
         btnLogin.setOnClickListener(v -> handleLogin());
-
 
     }
 
@@ -70,7 +70,6 @@ public class LoginActivity extends AppCompatActivity {
             return;
         }
 
-
         authRepository.login(usernameInput, passwordInput).enqueue(new Callback<>() {
             @Override
             public void onResponse(@NonNull Call<LoginResponse> call, @NonNull Response<LoginResponse> response) {
@@ -84,7 +83,10 @@ public class LoginActivity extends AppCompatActivity {
                         saveLoginState(currentUser);
                         navigateBasedOnRole(currentUser.getRole());
                     } else {
-                        Toast.makeText(LoginActivity.this, "Tài khoản không có quyền truy cập", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(LoginActivity.this, "Tài khoản không có quyền truy cập", Toast.LENGTH_SHORT)
+                                .show();
+                        Toast.makeText(LoginActivity.this, "Tài khoản không có quyền truy cập", Toast.LENGTH_SHORT)
+                                .show();
                     }
                 } else {
                     Toast.makeText(LoginActivity.this, "Sai tài khoản hoặc mật khẩu!", Toast.LENGTH_SHORT).show();
@@ -100,21 +102,41 @@ public class LoginActivity extends AppCompatActivity {
 
     private void navigateBasedOnRole(String role) {
         Intent intent = null;
-        if (role == null) role = "";
+        if (role == null)
+            role = "";
+        if (role == null)
+            role = "";
         String cleanRole = role.trim().toLowerCase();
 
         switch (cleanRole) {
+            case "admin":
+                // Admin goes to MainActivity with drawer menu
+                intent = new Intent(LoginActivity.this, MainActivity.class);
+                break;
+            case "admin":
+                // Admin goes to MainActivity with drawer menu
+                intent = new Intent(LoginActivity.this, MainActivity.class);
+                break;
             case "thungan":
-            case "cashier": intent = new Intent(LoginActivity.this, ThuNganActivity.class); break;
+            case "cashier":
+                intent = new Intent(LoginActivity.this, ThuNganActivity.class);
+                break;
             case "waiter":
-            case "order": intent = new Intent(LoginActivity.this, MainActivity.class); break;
-            case "kitchen": intent = new Intent(LoginActivity.this, BepActivity.class); break;
-            default: intent = new Intent(LoginActivity.this, MainActivity.class); break;
+            case "order":
+                intent = new Intent(LoginActivity.this, MainActivity.class);
+                break;
+            case "kitchen":
+                intent = new Intent(LoginActivity.this, BepActivity.class);
+                break;
+            default:
+                intent = new Intent(LoginActivity.this, MainActivity.class);
+                break;
         }
-            startActivity(intent);
-            finish();
+        startActivity(intent);
+        finish();
+        startActivity(intent);
+        finish();
     }
-
 
     private void checkExistingLogin() {
         SharedPreferences prefs = getSharedPreferences("RestaurantPrefs", MODE_PRIVATE);
@@ -129,7 +151,6 @@ public class LoginActivity extends AppCompatActivity {
         }
     }
 
-
     private void saveLoginState(User user) {
         SharedPreferences prefs = getSharedPreferences("RestaurantPrefs", MODE_PRIVATE);
         SharedPreferences.Editor editor = prefs.edit();
@@ -139,8 +160,5 @@ public class LoginActivity extends AppCompatActivity {
         editor.putString("fullName", user.getFullName());
         editor.apply();
     }
-
-
-
 
 }

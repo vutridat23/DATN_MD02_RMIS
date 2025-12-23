@@ -3,8 +3,9 @@
   <component name="deploymentTargetSelector">
     <selectionStates>
       <SelectionState runConfigName="app">
-        <option name="selectionMode" value="DIALOG" />
-        <DropdownSelection timestamp="2025-12-23T00:32:28.145580300Z">
+        <option name="selectionMode" value="DROPDOWN" />
+        <DropdownSelection timestamp="2025-12-21T19:33:47.902271500Z">
+        <DropdownSelection timestamp="2025-12-22T03:33:13.351523300Z">
           <Target type="DEFAULT_BOOT">
             <handle>
               <DeviceId pluginId="LocalEmulator" identifier="path=C:\Users\vutri\.android\avd\Pixel_8_Pro_3.avd" />

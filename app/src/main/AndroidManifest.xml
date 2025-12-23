@@ -37,6 +37,7 @@
         <activity android:name=".ui.warehouse.WarningActivity"/>
         <activity android:name=".ui.shift.ShiftActivity"/>
         <activity android:name=".ui.employee.EmployeeActivity"/>
+        <activity android:name=".ui.dashboard.DashboardActivity"/>
 
 <!--        <activity android:name=".ui.thanhtoan.ThanhToanActivity" />-->
 <!--        <activity android:name=".ui.thanhtoan.QRPaymentActivity" />-->
