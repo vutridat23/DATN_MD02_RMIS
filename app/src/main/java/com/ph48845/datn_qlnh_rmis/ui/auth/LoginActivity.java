@@ -42,6 +42,7 @@ public class LoginActivity extends AppCompatActivity {
         authRepository = new AuthRepository();
 
         // checkExistingLogin();
+        // checkExistingLogin();
         initViews();
 
         checkExistingLogin();
@@ -84,6 +85,8 @@ public class LoginActivity extends AppCompatActivity {
                     } else {
                         Toast.makeText(LoginActivity.this, "Tài khoản không có quyền truy cập", Toast.LENGTH_SHORT)
                                 .show();
+                        Toast.makeText(LoginActivity.this, "Tài khoản không có quyền truy cập", Toast.LENGTH_SHORT)
+                                .show();
                     }
                 } else {
                     Toast.makeText(LoginActivity.this, "Sai tài khoản hoặc mật khẩu!", Toast.LENGTH_SHORT).show();
@@ -101,9 +104,15 @@ public class LoginActivity extends AppCompatActivity {
         Intent intent = null;
         if (role == null)
             role = "";
+        if (role == null)
+            role = "";
         String cleanRole = role.trim().toLowerCase();
 
         switch (cleanRole) {
+            case "admin":
+                // Admin goes to MainActivity with drawer menu
+                intent = new Intent(LoginActivity.this, MainActivity.class);
+                break;
             case "admin":
                 // Admin goes to MainActivity with drawer menu
                 intent = new Intent(LoginActivity.this, MainActivity.class);
@@ -123,6 +132,8 @@ public class LoginActivity extends AppCompatActivity {
                 intent = new Intent(LoginActivity.this, MainActivity.class);
                 break;
         }
+        startActivity(intent);
+        finish();
         startActivity(intent);
         finish();
     }
